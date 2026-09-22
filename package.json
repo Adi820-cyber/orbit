@@ -3,7 +3,7 @@
   "private": true,
   "description": "Role-scoped leadership decision workspace",
   "engines": {
-    "node": "22.x"
+    "node": ">=22.18 <23"
   },
   "workspaces": [
     "apps/*",
