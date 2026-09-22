@@ -25,6 +25,13 @@ No `fastify-plugin`: auth is applied through Fastify's own encapsulated scopes i
 | `vitest` | ^5.0.1 | Pinned unit/contract test runner (ARCH §3). Requires Node ^22.12. |
 | `@types/node` | ^22 | Matches the pinned Node 22 runtime. |
 
+**Scope:** these dev tools (and `zod` above) are also what `packages/contracts` uses (#5); this record covers both workspaces.
+
+**Why TypeScript 7 and Vitest 5 rather than the previous majors.** ARCH §3 requires strict TypeScript and Vitest but pins no major.
+- **TypeScript 7:** the `latest` npm tag, i.e. the current stable release (the native compiler); it was the only stable line when this was set up. Verified in this repo: `tsc` 7.0.2 checks every workspace file and fails on a deliberate type error. The compatibility risk is editor/tooling plugins that still expect the JS compiler API. Nothing here uses them: no ts-plugin, bundler, or type-aware lint yet. **Fallback:** `typescript@^5.8` (the first 5.x with `erasableSyntaxOnly`, which the tsconfigs use). Not yet tested here.
+- **Vitest 5:** the current release; its Node engine range (`^22.12 || ^24 || >=26`) covers the pinned Node 22. It runs the suites unchanged on Node 22.15 (Aditya, #5) and Node 26 (local). **Fallback:** Vitest 4. Not yet tested here.
+- Either fallback is a one-line `package.json` change. Revisit if the linter chosen later needs the JS compiler API.
+
 No dev runner (`tsx`, `ts-node`) is added. `npm run dev` uses Node's built-in TypeScript type stripping, which requires Node **22.18 or later** (stable, unflagged). Source therefore uses `.ts` import extensions and `erasableSyntaxOnly`.
 
 ## Open, needs a decision
