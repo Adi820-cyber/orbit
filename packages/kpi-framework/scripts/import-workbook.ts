@@ -347,10 +347,15 @@ async function main() {
 
   // --- Manifest ---
   const unresolvedCount = assignments.filter((a) => a.definitionFamilies.length === 0).length;
+  // NOTE: deliberately no wall-clock `generatedAt` field. PRD §8.4 requires
+  // that regeneration with the same configuration is byte-identical, so that
+  // CI can re-run the import and assert the committed output has not drifted.
+  // A timestamp would make every run produce a spurious diff. `sourceChecksum`
+  // already identifies exactly which workbook produced this output, and Git
+  // records when it was committed.
   const manifest: FrameworkManifest = {
     sourceChecksum,
     sourceFileName: basename(absolutePath),
-    generatedAt: new Date().toISOString(),
     definitionVersion: "v1",
     roleCount: roles.length,
     assignmentCount: assignments.length,

@@ -111,4 +111,12 @@ describe("workbook invariants", () => {
   it("never leaks a local filesystem path in the manifest's source filename", () => {
     expect(FRAMEWORK_MANIFEST.sourceFileName).not.toMatch(/[/\\]/);
   });
+
+  it("has no wall-clock timestamp that would break byte-identical regeneration", () => {
+    // PRD §8.4: regenerating with the same configuration must be reproducible.
+    // A generatedAt-style field would make every import produce a spurious
+    // diff and defeat a CI "re-run import, assert no drift" check.
+    expect(FRAMEWORK_MANIFEST).not.toHaveProperty("generatedAt");
+    expect(JSON.stringify(FRAMEWORK_MANIFEST)).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+  });
 });

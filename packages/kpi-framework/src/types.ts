@@ -103,8 +103,6 @@ export interface FrameworkManifest {
   sourceChecksum: string;
   /** Original workbook filename (not a path — never leaks a local path). */
   sourceFileName: string;
-  /** ISO 8601 timestamp of when the import was generated. */
-  generatedAt: string;
   /** Version stamp for this generated framework snapshot. */
   definitionVersion: string;
   roleCount: number;
