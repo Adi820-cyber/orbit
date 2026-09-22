@@ -23,10 +23,59 @@ import type {
   EnterpriseOutcome,
   GovernanceRule,
   FrameworkManifest,
+  RoleId,
 } from "../src/types.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(__dirname, "../src/generated");
+
+/**
+ * Reviewed mapping from canonical workbook role name -> stable role slug.
+ *
+ * These slugs are the wire/storage identity for a role. They match
+ * `RoleIdSchema` in `@orbit/contracts` and the `apps/web/src/roles/*` folder
+ * names, so all three stay in step.
+ *
+ * This is an explicit table rather than automatic slugification on purpose:
+ * several slugs are deliberate abbreviations that no slugifier would produce
+ * ("Chief / Group Clinical Medical Director" -> `clinical-director`,
+ * "Head of Analytics & Digital Transformation" -> `analytics-head`). The full
+ * canonical name is always preserved in `RoleDefinition.name`, so nothing is
+ * lost by abbreviating the slug.
+ *
+ * Adding or renaming an entry here is a cross-boundary change: it must be
+ * agreed with `@orbit/contracts` (Ghansham) and `apps/web/src/roles` (Ayas).
+ */
+const ROLE_NAME_TO_ID: Record<string, RoleId> = {
+  "Chairman": "chairman",
+  "Chief / Group Clinical Medical Director": "clinical-director",
+  "Regional COO": "regional-coo",
+  "Hospital DHO": "hospital-dho",
+  "People Executive": "people-executive",
+  "Business Development Lead": "bd-lead",
+  "Billing & Revenue Lead": "billing-lead",
+  "COE Lead": "coe-lead",
+  "Corporate Revenue & Insurance Lead": "corporate-revenue-lead",
+  "Group CFO": "group-cfo",
+  "Procurement Head": "procurement-head",
+  "HR Head": "hr-head",
+  "Legal Head": "legal-head",
+  "Head of Analytics & Digital Transformation": "analytics-head",
+};
+
+/**
+ * Converts a KPI title into the slug half of an assignment id.
+ * Lowercases, strips accents, replaces any non-alphanumeric run with a single
+ * hyphen, and trims leading/trailing hyphens. Deterministic and stable.
+ */
+function slugify(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 const ROLE_MATRIX_SHEET = "Role KPI Matrix";
 const KPI_DEFINITIONS_SHEET = "KPI Definitions";
@@ -271,10 +320,21 @@ async function main() {
     const kpi = cellString(row, 5);
     const { families, unresolvedReason } = resolveDefinitionFamilies(kpi, definitionFamilies);
 
+    const roleId = ROLE_NAME_TO_ID[role];
+    if (!roleId) {
+      throw new Error(
+        `Row ${r}: unknown role "${role}" has no entry in ROLE_NAME_TO_ID. ` +
+          `If the workbook added or renamed a role, that is a cross-boundary ` +
+          `change requiring agreement with @orbit/contracts and apps/web/src/roles.`,
+      );
+    }
+
     assignments.push({
+      assignmentId: `${roleId}:${slugify(kpi)}`,
       sourceRow: r,
       level: cellString(row, 1),
       role,
+      roleId,
       reportsTo: cellString(row, 3),
       keyDeliverable: cellString(row, 4),
       kpi,
@@ -287,6 +347,21 @@ async function main() {
       definitionFamilies: families,
       unresolvedReason,
     });
+  }
+
+  // Fail loudly on duplicate assignment ids rather than emitting ambiguous
+  // identifiers that downstream entitlements and KPI endpoints would key on.
+  const seenIds = new Map<string, number>();
+  for (const a of assignments) {
+    const previous = seenIds.get(a.assignmentId);
+    if (previous !== undefined) {
+      throw new Error(
+        `Duplicate assignmentId "${a.assignmentId}" generated from workbook ` +
+          `rows ${previous} and ${a.sourceRow}. Assignment ids must be unique; ` +
+          `resolve the collision before committing generated output.`,
+      );
+    }
+    seenIds.set(a.assignmentId, a.sourceRow);
   }
 
   // --- Group Scorecard: enterprise outcomes ---
@@ -312,7 +387,17 @@ async function main() {
     const row = scorecardSheet.getRow(r);
     const name = cellString(row, 1);
     if (!name) continue;
+    const roleId = ROLE_NAME_TO_ID[name];
+    if (!roleId) {
+      throw new Error(
+        `Group Scorecard row ${r}: unknown role "${name}" has no entry in ` +
+          `ROLE_NAME_TO_ID. If the workbook added or renamed a role, that is a ` +
+          `cross-boundary change requiring agreement with @orbit/contracts and ` +
+          `apps/web/src/roles.`,
+      );
+    }
     roles.push({
+      id: roleId,
       name,
       level: "", // filled in below from matrix rows
       deployment: cellString(row, 2),

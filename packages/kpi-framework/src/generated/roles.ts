@@ -8,6 +8,7 @@ import type { RoleDefinition } from "../types.ts";
 
 export const ROLES: readonly RoleDefinition[] = [
   {
+    "id": "chairman",
     "name": "Chairman",
     "level": "Group governance",
     "deployment": "1 group role",
@@ -17,6 +18,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly / quarterly"
   },
   {
+    "id": "clinical-director",
     "name": "Chief / Group Clinical Medical Director",
     "level": "Group clinical leadership",
     "deployment": "1 group role",
@@ -26,6 +28,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly / quarterly clinical review"
   },
   {
+    "id": "regional-coo",
     "name": "Regional COO",
     "level": "Regional management",
     "deployment": "2 roles; 3 hospitals each",
@@ -35,6 +38,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly"
   },
   {
+    "id": "hospital-dho",
     "name": "Hospital DHO",
     "level": "Hospital leadership",
     "deployment": "6 roles; one per hospital",
@@ -44,6 +48,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly"
   },
   {
+    "id": "people-executive",
     "name": "People Executive",
     "level": "Hospital functional leadership",
     "deployment": "6 roles; one per hospital",
@@ -53,6 +58,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly"
   },
   {
+    "id": "bd-lead",
     "name": "Business Development Lead",
     "level": "Hospital functional leadership",
     "deployment": "6 roles; one per hospital",
@@ -62,6 +68,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Weekly / monthly"
   },
   {
+    "id": "billing-lead",
     "name": "Billing & Revenue Lead",
     "level": "Hospital functional leadership",
     "deployment": "6 roles; one per hospital",
@@ -71,6 +78,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Weekly / monthly"
   },
   {
+    "id": "coe-lead",
     "name": "COE Lead",
     "level": "Clinical growth",
     "deployment": "As approved by COE plan",
@@ -80,6 +88,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly"
   },
   {
+    "id": "corporate-revenue-lead",
     "name": "Corporate Revenue & Insurance Lead",
     "level": "Commercial growth",
     "deployment": "1 group role",
@@ -89,6 +98,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly"
   },
   {
+    "id": "group-cfo",
     "name": "Group CFO",
     "level": "Group support",
     "deployment": "1 group role",
@@ -98,6 +108,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly"
   },
   {
+    "id": "procurement-head",
     "name": "Procurement Head",
     "level": "Group support",
     "deployment": "1 group role",
@@ -107,6 +118,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly"
   },
   {
+    "id": "hr-head",
     "name": "HR Head",
     "level": "Group support",
     "deployment": "1 group role",
@@ -116,6 +128,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly / quarterly"
   },
   {
+    "id": "legal-head",
     "name": "Legal Head",
     "level": "Group support",
     "deployment": "1 group role",
@@ -125,6 +138,7 @@ export const ROLES: readonly RoleDefinition[] = [
     "cadence": "Monthly / quarterly"
   },
   {
+    "id": "analytics-head",
     "name": "Head of Analytics & Digital Transformation",
     "level": "Group support",
     "deployment": "1 group role",

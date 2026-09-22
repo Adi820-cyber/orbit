@@ -112,6 +112,63 @@ describe("workbook invariants", () => {
     expect(FRAMEWORK_MANIFEST.sourceFileName).not.toMatch(/[/\\]/);
   });
 
+  it("gives every role a stable slug matching the @orbit/contracts role list", () => {
+    // These are the slugs @orbit/contracts (packages/contracts/src/roles.ts)
+    // and apps/web/src/roles/* use. If this test fails, the three sides have
+    // drifted and it is a cross-boundary change, not a local fix.
+    const expected = [
+      "analytics-head",
+      "bd-lead",
+      "billing-lead",
+      "chairman",
+      "clinical-director",
+      "coe-lead",
+      "corporate-revenue-lead",
+      "group-cfo",
+      "hospital-dho",
+      "hr-head",
+      "legal-head",
+      "people-executive",
+      "procurement-head",
+      "regional-coo",
+    ];
+    expect([...ROLES.map((r) => r.id)].sort()).toEqual(expected);
+  });
+
+  it("gives all 109 assignments a unique, well-formed assignmentId", () => {
+    const ids = ROLE_KPI_ASSIGNMENTS.map((a) => a.assignmentId);
+    expect(ids).toHaveLength(109);
+    expect(new Set(ids).size, "assignment ids must be unique").toBe(109);
+    // `<role-slug>:<kpi-slug>`, lowercase alphanumeric with single hyphens.
+    const malformed = ids.filter((id) => !/^[a-z0-9]+(-[a-z0-9]+)*:[a-z0-9]+(-[a-z0-9]+)*$/.test(id));
+    expect(malformed).toEqual([]);
+  });
+
+  it("prefixes every assignmentId with its own roleId", () => {
+    const mismatched = ROLE_KPI_ASSIGNMENTS.filter(
+      (a) => !a.assignmentId.startsWith(`${a.roleId}:`),
+    ).map((a) => `${a.assignmentId} (roleId=${a.roleId})`);
+    expect(mismatched).toEqual([]);
+  });
+
+  it("uses a roleId on every assignment that exists in ROLES", () => {
+    const validIds = new Set(ROLES.map((r) => r.id));
+    const orphaned = ROLE_KPI_ASSIGNMENTS.filter((a) => !validIds.has(a.roleId)).map(
+      (a) => `row ${a.sourceRow}: roleId=${a.roleId}`,
+    );
+    expect(orphaned).toEqual([]);
+  });
+
+  it("keeps assignmentId independent of workbook row numbers", () => {
+    // sourceRow is traceability only. If an id ever embeds it, re-importing
+    // after a row insert would silently change identifiers that entitlements
+    // and persisted rows depend on.
+    const embedsRow = ROLE_KPI_ASSIGNMENTS.filter((a) =>
+      a.assignmentId.includes(String(a.sourceRow)),
+    ).map((a) => a.assignmentId);
+    expect(embedsRow).toEqual([]);
+  });
+
   it("has no wall-clock timestamp that would break byte-identical regeneration", () => {
     // PRD §8.4: regenerating with the same configuration must be reproducible.
     // A generatedAt-style field would make every import produce a spurious

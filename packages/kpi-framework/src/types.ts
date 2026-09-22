@@ -9,8 +9,42 @@
  * `src/generated/*`.
  */
 
+/**
+ * Stable slug identifying one of the 14 role types. This is the wire/storage
+ * identifier used by `@orbit/contracts`, the entitlement matrix, the database,
+ * and `apps/web/src/roles/*` folder names.
+ *
+ * Slugs are deliberately NOT derived from the workbook name by slugification
+ * (e.g. "Chief / Group Clinical Medical Director" -> `clinical-director` is not
+ * mechanically derivable). They come from the reviewed table in
+ * `scripts/import-workbook.ts` and are kept stable even if the workbook's
+ * display wording changes. The canonical workbook name is always preserved
+ * separately in `RoleDefinition.name` (PRD §4 forbids renaming roles).
+ */
+export type RoleId =
+  | "chairman"
+  | "clinical-director"
+  | "regional-coo"
+  | "hospital-dho"
+  | "people-executive"
+  | "bd-lead"
+  | "billing-lead"
+  | "coe-lead"
+  | "corporate-revenue-lead"
+  | "group-cfo"
+  | "procurement-head"
+  | "hr-head"
+  | "legal-head"
+  | "analytics-head";
+
 /** One of the 14 canonical role types from the workbook's Role KPI Matrix. */
 export interface RoleDefinition {
+  /**
+   * Stable slug for this role. Safe to persist, index, and put in a URL.
+   * Matches `RoleIdSchema` in `@orbit/contracts` and the `apps/web/src/roles/*`
+   * folder names.
+   */
+  id: RoleId;
   /** Canonical role name exactly as it appears in the workbook. Never renamed. */
   name: string;
   /** Organizational level/grouping label from the workbook (column "Level"). */
@@ -29,10 +63,28 @@ export interface RoleDefinition {
 
 /** One row from the workbook's "Role KPI Matrix" sheet (one role-KPI assignment). */
 export interface RoleKpiAssignment {
-  /** 1-based row number in the source workbook, for traceability. */
+  /**
+   * Stable identifier for this assignment, formatted `<roleId>:<kpi-slug>`
+   * (e.g. `billing-lead:claim-first-pass-acceptance-rate`).
+   *
+   * Safe to persist, index, reference from the entitlement matrix, and expose
+   * in an API payload or URL. Deliberately NOT derived from `sourceRow`, so
+   * inserting or reordering workbook rows does not change it.
+   *
+   * Uniqueness is guaranteed across all 109 assignments by a test; the
+   * generator also fails loudly rather than emitting a duplicate. Because the
+   * slug derives from the KPI title, editing a KPI's wording in the workbook
+   * WILL change its id — that is a definition change that must be versioned
+   * deliberately (PRD §7.2), not an invisible rename.
+   */
+  assignmentId: string;
+  /** 1-based row number in the source workbook, for traceability only. Not an identifier. */
   sourceRow: number;
   level: string;
+  /** Canonical workbook role name. Never renamed (PRD §4). */
   role: string;
+  /** Stable role slug — use this for joins, storage, and entitlement lookups. */
+  roleId: RoleId;
   reportsTo: string;
   /** The "Key deliverable" column — the business outcome this KPI serves. */
   keyDeliverable: string;
