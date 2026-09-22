@@ -25,6 +25,14 @@ test-results/
 supabase/.branches/
 supabase/.temp/
 
+# Sensitive source material (workbook, pitch exports) — never commit.
+# See docs/source-material/README.md. Keep outside Git or in an explicitly
+# approved ignored path such as this one.
+Africare_Group_KPI_Framework.xlsx
+*.xlsx
+*.pptx
+*.pdf
+
 # Logs and local tooling
 *.log
 *.local

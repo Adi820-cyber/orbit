@@ -8,8 +8,18 @@
   },
   "main": "./src/index.ts",
   "scripts": {
-    "typecheck": "echo 'Not yet implemented — see docs/orbit/TEAM_ASSIGNMENTS.md §5'",
-    "test": "echo 'Not yet implemented'",
+    "import": "node --experimental-strip-types scripts/import-workbook.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
     "lint": "echo 'Not yet implemented'"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "pure-rand": "^8.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }
