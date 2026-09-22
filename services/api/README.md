@@ -31,7 +31,8 @@ Without that variable those tests are skipped. A skipped test means **not verifi
 | `src/plugins/scope.ts` | Deny-by-default entitlement check → `out_of_scope` | Implemented against `EntitlementSource` / `ScopeResolver` ports |
 | `src/plugins/errors.ts` | Typed `ApiError` + contract error envelope; no internals leaked | Implemented |
 | `src/db/client.ts` | postgres.js, `prepare: false`, one connection per transaction | Implemented; not yet run against a database |
-| `src/db/rls.ts` | `withMembershipTx`: transaction-local `set_config('orbit.membership', …, true)` | Unit-tested; leak test needs a database |
+| `src/db/rls.ts` | `withMembershipTx` (`orbit.membership`) and `withSubjectTx` (`orbit.subject`, membership bootstrap, Option A): transaction-local `set_config(…, true)` | Unit-tested; leak tests need a database |
+| `src/db/memberships.ts` | `createDbMembershipSource`: runs the membership query under `withSubjectTx` | Unit-tested; the SELECT waits for Maruti's `org_memberships` migration |
 | `src/modules/*` | brief, inbox, kpi, ask, actions, audit | **Not started.** Blocked on Gate 1 contracts, schema, and entitlement matrix |
 
 ## Deliberately fail-closed
