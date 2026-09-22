@@ -97,10 +97,58 @@ from Orbit's decision to build in a new project.
   service-role key is a standing risk regardless of who introduced it;
   RULES.md prohibits disabling or ignoring a known security exposure.
 
+## Blocking constraint found 2026-09-23: legacy keys cannot be rotated
+
+An attempt to carry out the rotation established that **"rotate the
+service-role key" is not an available operation.** Verified facts:
+
+- Supabase's own troubleshooting guide for this exact scenario states it
+  is no longer possible to rotate the legacy `anon`, `service_role`, and
+  JWT secrets. Migration to asymmetric JWT signing keys is a prerequisite;
+  only after that can keys be rotated and revoked.
+  <https://supabase.com/docs/guides/troubleshooting/rotating-anon-service-and-jwt-secrets-1Jq6yd>
+- The Supabase CLI cannot perform any of this. `supabase projects api-keys`
+  is list-only — there is no rotate, revoke, or create subcommand
+  (verified against CLI v2.115.0). All remediation is dashboard work.
+- The exposed legacy `service_role` JWT for `xvqvqprztbvcywhrpnpf` carries
+  an expiry in 2036. It remains valid until the signing key that produced
+  it is revoked. Nothing expires this on a useful timescale.
+- That project currently exposes both legacy keys (`anon`, `service_role`)
+  and new-style keys (`sb_publishable_*`, `sb_secret_*`).
+
+### Revised remediation sequence (dashboard, Project Settings → JWT Keys)
+
+1. Migrate the project to asymmetric JWT signing keys.
+2. Rotate the signing key, which moves the current key to "previously
+   used keys."
+3. **Explicitly revoke the previous key.** Rotation alone does not
+   invalidate it — per the guide, un-revoked older keys stay valid. This
+   step is what actually kills the exposed JWT.
+4. Separately rotate the `sb_secret_*` key; the new-style keys are
+   designed for direct rotation.
+5. Once nothing depends on them, disable legacy API keys for the project.
+
+### Decision still required from the project owner (Maruti)
+
+This project is in Maruti's organization (`eglaidmsxfgxbrqkeudo`) and has
+existing migrations applied 2026-09-10, so it is in use for something.
+Steps 1–3 will invalidate any client currently using its legacy keys.
+Because Orbit is building on a new project regardless, there are two
+viable paths and the owner picks:
+
+- **Migrate, rotate, revoke** — keep the project, accept that anything
+  using its legacy keys must be updated.
+- **Delete the project** — if it is not needed, deletion removes the
+  exposure outright and is less work than the migration path.
+
+Either closes the exposure. Doing neither does not.
+
 ## Acceptance criteria (from TEAM_ASSIGNMENTS.md §8.1, expanded after incident log above)
 
-- [ ] Original leaked key (from old repo's `scripts/seed_supabase.mjs`) revoked/rotated in its project
-- [ ] `xvqvqprztbvcywhrpnpf` service_role/anon/sb_secret keys rotated (required due to 2026-09-22 incident, independent of whether this is the original leak's project)
+- [ ] Original leaked key (from old repo's `scripts/seed_supabase.mjs`) neutralized in its project — note the same legacy-key constraint above applies, so this is migrate+rotate+revoke or delete, not a simple rotation
+- [ ] `xvqvqprztbvcywhrpnpf`: owner (Maruti) chooses migrate+rotate+revoke or delete, and the chosen path is completed
+- [ ] Previous signing key explicitly **revoked**, not merely rotated (rotation alone leaves it valid)
+- [ ] `sb_secret_*` key for that project rotated
 - [ ] History-scrub decision made and recorded above (with date and who approved)
 - [ ] New, separate Supabase project created for Orbit dev, not derived from either project above
 - [ ] Repo/CI secret scan configured and passing
