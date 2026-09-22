@@ -143,6 +143,45 @@ viable paths and the owner picks:
 
 Either closes the exposure. Doing neither does not.
 
+## Amendment 2026-09-23: new-project work is no longer gated on this cleanup
+
+**I am narrowing a gate I wrote too broadly.** The Consequences section below
+originally said that until every box is checked, "no new Supabase project work,
+schema/RLS migrations, or data-gen work against real infrastructure should
+proceed." That is stricter than the risk justifies, and it serialised the whole
+team behind one owner's dashboard decision.
+
+The gate existed to stop us building on compromised infrastructure. A brand-new
+Supabase project, created fresh, is not compromised: it shares no signing key,
+no API key, and no database with either exposed project. Waiting does not make
+the new project safer. It only delays Maruti's migrations and keeps Ghansham's
+seven RLS leak tests skipped.
+
+**Revised position: creating the new Orbit dev project and applying migrations
+to it may proceed in parallel with closing out the old projects**, provided all
+of the following hold. These are conditions, not suggestions.
+
+1. **Asymmetric JWT signing keys from creation.** Not legacy shared-secret.
+   This is what makes future rotation possible at all — the whole reason we are
+   stuck on the old project is that it cannot be rotated. Do not inherit that
+   problem.
+2. **No credential, connection string, password, or key copied from either
+   exposed project.** New project, new everything.
+3. **Legacy API keys disabled** on the new project if it offers them, so
+   `anon`/`service_role` never come into existence there. New projects created
+   after the legacy-key sunset should not have them; verify rather than assume.
+4. **The API connects as `orbit_app`**, never `postgres` and never a secret or
+   service key (ARCHITECTURE.md §7.1). The seeder is a separate restricted role.
+5. **Keys are never displayed outside the Supabase dashboard.** Not in a
+   terminal, not in a chat, not in a screenshot, not in a ticket. See the
+   incident log above for why this is written as a rule rather than assumed as
+   common sense.
+
+**What is still gated, and is not being waived:** the exposure on the old
+project(s) remains open until the remediation sequence above is completed. This
+ADR stays `Proposed` and cannot be marked Accepted on the strength of the new
+project existing. Decoupling the work is not closing the finding.
+
 ## Acceptance criteria (from TEAM_ASSIGNMENTS.md §8.1, expanded after incident log above)
 
 - [ ] Original leaked key (from old repo's `scripts/seed_supabase.mjs`) neutralized in its project — note the same legacy-key constraint above applies, so this is migrate+rotate+revoke or delete, not a simple rotation
@@ -156,9 +195,12 @@ Either closes the exposure. Doing neither does not.
 
 ## Consequences
 
-- Until all boxes above are checked, no new Supabase project work,
+- ~~Until all boxes above are checked, no new Supabase project work,
   schema/RLS migrations, or data-gen work against real infrastructure
-  should proceed (Maruti's Gate 0 work is gated on this).
+  should proceed (Maruti's Gate 0 work is gated on this).~~
+  **Superseded by the 2026-09-23 amendment above.** New-project work may
+  proceed in parallel under the five conditions listed there. Work against
+  *the exposed projects* remains blocked until remediation completes.
 - The 2026-09-22 incident means the team's working assumption is now:
   build fresh, do not attempt to reuse or "clean" any project whose keys
   have ever been displayed outside the Supabase dashboard.
