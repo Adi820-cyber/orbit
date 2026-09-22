@@ -9,6 +9,7 @@ These instructions apply to the whole repository. `RULES.md` is the detailed saf
 - Product behavior and acceptance: `docs/orbit/PRD.md`
 - Architecture and proposed boundaries: `docs/orbit/ARCHITECTURE.md`
 - Ownership, sequencing, and interfaces: `docs/orbit/TEAM_ASSIGNMENTS.md`
+- Exact file/folder ownership map: `docs/orbit/FILE_STRUCTURE.md`
 - Sensitive source-material policy: `docs/source-material/README.md`
 - AI safety and collaboration rules: `RULES.md`
 
