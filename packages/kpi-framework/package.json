@@ -1,0 +1,15 @@
+{
+  "name": "@orbit/kpi-framework",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Typed, versioned import of the workbook: 14 roles, 29 definition families, 109 assignments. Generated, never hand-edited.",
+  "engines": {
+    "node": "22.x"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "echo 'Not yet implemented — see docs/orbit/TEAM_ASSIGNMENTS.md §5'",
+    "test": "echo 'Not yet implemented'",
+    "lint": "echo 'Not yet implemented'"
+  }
+}

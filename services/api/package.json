@@ -1,0 +1,17 @@
+{
+  "name": "@orbit/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Orbit backend — Fastify 5 API (Vercel Project 2)",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "echo 'Not yet implemented — see docs/orbit/ARCHITECTURE.md §6'",
+    "build": "echo 'Not yet implemented'",
+    "typecheck": "echo 'Not yet implemented'",
+    "test": "echo 'Not yet implemented'",
+    "lint": "echo 'Not yet implemented'"
+  }
+}
