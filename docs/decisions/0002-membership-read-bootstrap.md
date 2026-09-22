@@ -131,12 +131,29 @@ set) so the API can tell "no membership" apart from "membership exists but
 is inactive" and report accordingly rather than collapsing both into one
 error.
 
-**Open contract gap:** Ghansham's implementation refuses the ambiguous
-case as `ambiguous_membership`, but `ErrorCodeSchema` in
-`packages/contracts/src/errors.ts` (proposed in PR #5) does not contain
-that code. Either the code is added to the enum or the case maps to an
-existing one. This must be resolved in the contracts PR, not invented at
-the call site.
+### Wire representation of a failed bootstrap — decided 2026-09-23 (Aditya)
+
+Ghansham's implementation refuses the ambiguous case as
+`ambiguous_membership`, which is not in `ErrorCodeSchema`
+(`packages/contracts/src/errors.ts`, proposed in PR #5).
+
+**Decision: do not add the code. All three failure rows return `forbidden`
+with HTTP 403 on the wire, and the specific reason is logged server-side
+with the request id.**
+
+Reasoning: the distinction between "you have no membership," "your
+membership is inactive," and "your memberships are ambiguous" is useful to
+an operator and useless-to-harmful to a caller. Returning it tells an
+unauthorized caller about account state they have not proven any right to
+know — whether a subject exists in our system at all, and whether it was
+once active. That is account-state disclosure for no product benefit.
+ARCHITECTURE.md §6.1 already specifies 403 for all three.
+
+Internally, keep the three cases distinct — they are separate branches with
+separate log lines and separate negative tests. The collapse happens only
+at the response boundary. Tests should assert on the internal reason, not
+only on the 403, so a regression that turns "inactive" into "no rows" is
+still caught.
 
 ## Consequences if Option A is adopted
 
@@ -189,26 +206,49 @@ an application check are not redundant here: the constraint prevents the
 bad state, the check prevents a silent wrong answer if the constraint is
 ever dropped, mis-scoped, or not yet applied.
 
-**Still open — organization scope.** A unique index on
-`(subject, organization_id)` guarantees at most one active membership
-*within* an organization. It does not resolve ambiguity for a subject with
-active memberships in *several* organizations: the bootstrap read would
-still return more than one active row, and the API would refuse. Whether
-that is acceptable depends on a product answer nobody has given yet:
+### Organization scope — decided 2026-09-23 (Aditya)
 
-- If a user only ever belongs to one organization in this release, say so
-  explicitly and the refusal path covers the rest.
-- If multi-organization membership is real, the request needs to name the
-  organization and the server must verify that choice against the
-  subject's memberships. That is a contract change (an org parameter) and
-  belongs in the contracts PR.
+**One organization per user in this release. Exactly one active membership
+per subject, full stop.**
 
-Do not let this be settled implicitly by whoever writes the first handler.
+A subject with active memberships in more than one organization is not a
+supported state in v1. The bootstrap read refuses it as ambiguous, which is
+the behavior already implemented and already required by ARCHITECTURE.md
+§6.1 ("resolve the token subject to **exactly one active membership row**
+… Missing, inactive, or ambiguous membership → 403"). This decision does
+not introduce a new rule; it closes the question of whether the rule was
+deliberate. It was.
+
+Consequences, so nobody has to re-derive them:
+
+- **No organization parameter on any request.** The organization comes from
+  the single membership record, like the role does. Adding a client-supplied
+  org id would create exactly the "trust a request field for authorization"
+  shape that RULES.md bans, and it is unnecessary while cardinality is one.
+- **Maruti's unique partial index over `(subject, organization_id) where
+  status = 'active'` is still the right constraint and is adopted**, but it
+  is not sufficient on its own for this rule. It permits one active row per
+  org, so a two-org subject would satisfy the index and still be ambiguous.
+  The API's refusal path is what enforces the stricter rule. Both stay.
+- If a *stricter* constraint is wanted at the database level, it would be a
+  unique index on `(subject) where status = 'active'` — no organization
+  column. Maruti's call whether to tighten it to that; either is consistent
+  with this decision, since the API refuses the ambiguous case regardless.
+- The test-only second organization referenced in the data plan is for
+  **isolation testing** — separate users in a separate org, proving one
+  org's members cannot see another's. It is not a case of one user holding
+  two memberships, and must not be seeded as one.
+
+Revisiting this is a product decision, not an implementation one. If
+multi-organization users are ever wanted, the request must name the
+organization and the server must verify that choice against the subject's
+memberships — a contract change, not a handler change.
 
 ## Other open questions
 
-- Whether the entitlement matrix is keyed per role or per role-at-scope —
-  tracked in the PR #5 review, not here.
+- Entitlement matrix scope (global per framework version vs per
+  organization) and the HTTP status for `out_of_scope` — both decided in
+  ADR 0005, not here.
 
 ## Correction note
 
