@@ -9,7 +9,8 @@ This repository currently contains the research-backed product specification onl
 1. Read `AGENTS.md` before using an AI coding agent.
 2. Read `RULES.md` before proposing implementation changes.
 3. Read `docs/orbit/PRD.md`, `docs/orbit/ARCHITECTURE.md`, and `docs/orbit/TEAM_ASSIGNMENTS.md`.
-4. Read `docs/source-material/README.md` before making source-backed claims about the workbook or pitch.
+4. Read `docs/orbit/FILE_STRUCTURE.md` to see exactly which path you create and own, before creating any file.
+5. Read `docs/source-material/README.md` before making source-backed claims about the workbook or pitch.
 
 ## Confirmed direction
 
