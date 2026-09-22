@@ -1,0 +1,16 @@
+{
+  "name": "@orbit/data-gen",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Deterministic synthetic data generator + invariant checks",
+  "engines": {
+    "node": "22.x"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "generate": "echo 'Not yet implemented — see docs/orbit/TEAM_ASSIGNMENTS.md §5'",
+    "typecheck": "echo 'Not yet implemented'",
+    "test": "echo 'Not yet implemented'",
+    "lint": "echo 'Not yet implemented'"
+  }
+}

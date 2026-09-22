@@ -1,0 +1,17 @@
+{
+  "name": "@orbit/web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Orbit frontend — React 19 + Vite SPA (Vercel Project 1)",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "echo 'Not yet implemented — see docs/orbit/ARCHITECTURE.md §5'",
+    "build": "echo 'Not yet implemented'",
+    "typecheck": "echo 'Not yet implemented'",
+    "test": "echo 'Not yet implemented'",
+    "lint": "echo 'Not yet implemented'"
+  }
+}
