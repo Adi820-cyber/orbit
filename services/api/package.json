@@ -8,10 +8,22 @@
     "node": "22.x"
   },
   "scripts": {
-    "dev": "echo 'Not yet implemented — see docs/orbit/ARCHITECTURE.md §6'",
-    "build": "echo 'Not yet implemented'",
-    "typecheck": "echo 'Not yet implemented'",
-    "test": "echo 'Not yet implemented'",
-    "lint": "echo 'Not yet implemented'"
+    "dev": "node --env-file-if-exists=.env src/app.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "echo 'No linter selected yet — open decision (see DEPENDENCIES.md)'"
+  },
+  "dependencies": {
+    "@orbit/contracts": "*",
+    "@fastify/cors": "^11.3.0",
+    "fastify": "^5.12.5",
+    "jose": "^6.2.12",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }
