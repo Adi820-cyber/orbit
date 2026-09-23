@@ -71,6 +71,27 @@ begin
 end
 $$;
 
+-- TEST-ONLY: let orbit_app resolve pgTAP.
+--
+-- pgTAP lives in the `extensions` schema on hosted Supabase. Its functions are
+-- executable by PUBLIC, but schema USAGE is a SEPARATE privilege that gates
+-- name resolution -- and orbit_app does not have it
+-- (`has_schema_privilege('orbit_app','extensions','usage')` is false).
+--
+-- Without this the assertions fail as
+--   42883: function is(integer, integer, unknown) does not exist
+-- which is genuinely misleading: `has_function_privilege` returns TRUE for
+-- those functions, because EXECUTE really is granted. The function is
+-- unresolvable rather than forbidden, so Postgres reports absence rather than
+-- permission denial.
+--
+-- This grant MUST NOT move into a migration. The application never calls
+-- pgTAP, and widening orbit_app's schema access for a test framework would be
+-- exactly the kind of convenience grant that quietly enlarges an
+-- authorization surface. It lives here, inside the transaction that rolls
+-- back, and disappears with it.
+grant usage on schema extensions to orbit_app;
+
 insert into orbit.organizations (id, slug, name, kind, currency, fiscal_year_start_month, timezone)
 values
   ('00000000-0000-0000-0000-0000000000a1', 'kestrion-test', 'Kestrion (test)', 'demo', 'USD', 1, 'UTC'),
@@ -93,6 +114,22 @@ values
   ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000a1',
    '00000000-0000-0000-0000-0000000000c1', 'cardiac', 'Cardiac COE', 'region',
    '00000000-0000-0000-0000-0000000000b1');
+
+-- The 14 canonical role slugs. `org_memberships.role_id` references
+-- `orbit.role_ids`, and that table is empty until the seeder populates it from
+-- ROLE_IDS in @orbit/kpi-framework -- so the fixtures have to supply it.
+--
+-- Caught by the first real run against the dev project: without these rows the
+-- membership inserts fail with
+--   23503 ... violates foreign key constraint "org_memberships_role_id_fkey"
+-- which is the FK doing its job. Kept as literal values rather than derived,
+-- because a test fixture should not depend on the seeder it is meant to be
+-- independent of.
+insert into orbit.role_ids (role_id) values
+  ('chairman'), ('clinical-director'), ('regional-coo'), ('hospital-dho'),
+  ('people-executive'), ('bd-lead'), ('billing-lead'), ('coe-lead'),
+  ('corporate-revenue-lead'), ('group-cfo'), ('procurement-head'),
+  ('hr-head'), ('legal-head'), ('analytics-head');
 
 -- Subjects: COO North (active), COO South (active), an inactive user, and a
 -- user in the other tenant.
@@ -202,19 +239,51 @@ select throws_ok(
 -- ===========================================================================
 
 set local role orbit_app;
+
+-- Restore `extensions` on the search_path for the duration of the role switch.
+--
+-- The bootstrap migration pins `alter role orbit_app set search_path = orbit,
+-- public` deliberately, so application SQL cannot be redirected by a caller's
+-- setting and an attacker cannot shadow an orbit object from another schema.
+-- That pin is correct and should stay.
+--
+-- The side effect only affects testing: pgTAP is installed in `extensions`
+-- (which is on the DEFAULT search_path but not on orbit_app's pinned one), so
+-- every assertion after the role switch failed with
+--   42883: function is(integer, integer, unknown) does not exist
+-- because the function was genuinely unreachable, not mistyped.
+--
+-- Adding `extensions` back for this transaction grants no privilege -- it only
+-- makes the test framework visible. `orbit` stays first, so the shadowing
+-- protection the pin exists for is unchanged.
+set local search_path = orbit, public, extensions;
+
 select set_config('orbit.subject', '00000000-0000-0000-0000-0000000000f1', true);
 select set_config('orbit.membership', '', true);
 
+-- Subject f1 has TWO rows at this point: the active fixture membership, plus
+-- the inactive one the `lives_ok` constraint test above inserted to prove
+-- inactive history is permitted. The bootstrap policy deliberately returns
+-- both, so assert two.
+--
+-- Asserted as counts with an explicit `where`, not as a scalar subquery on a
+-- bare table. The first version of these used `(select subject::text from
+-- orbit.org_memberships)` and failed with
+--   21000: more than one row returned by a subquery used as an expression
+-- once the constraint test added a row -- a test that breaks when the fixture
+-- changes shape is testing the fixture, not the policy.
 select is(
-  (select count(*)::int from orbit.org_memberships),
-  1,
-  'ALLOW: a subject reads exactly its own membership row during bootstrap'
+  (select count(*)::int from orbit.org_memberships
+   where subject = '00000000-0000-0000-0000-0000000000f1'),
+  2,
+  'ALLOW: a subject reads its own membership rows during bootstrap (1 active + 1 inactive)'
 );
 
 select is(
-  (select subject::text from orbit.org_memberships),
-  '00000000-0000-0000-0000-0000000000f1',
-  'ALLOW: the row returned is the caller''s own'
+  (select count(*)::int from orbit.org_memberships
+   where subject <> '00000000-0000-0000-0000-0000000000f1'),
+  0,
+  'DENY: no row belonging to any other subject is visible'
 );
 
 select is(
@@ -252,8 +321,8 @@ select is(
 );
 
 select is(
-  (select status from orbit.org_memberships),
-  'inactive',
+  (select count(*)::int from orbit.org_memberships where status = 'inactive'),
+  1,
   'ALLOW: the inactive row reports its real status rather than being filtered out'
 );
 
@@ -366,6 +435,17 @@ select is(
 -- than relying on orbit_app having access to another role's temp schema.
 reset role;
 
-select * from finish();
+-- `finish(true)` RAISES if any assertion failed or the plan count was wrong,
+-- rather than merely printing TAP.
+--
+-- That matters here because the Supabase Management API returns only the LAST
+-- result set of a multi-statement script, so the per-assertion `ok`/`not ok`
+-- lines for everything except the final test are invisible when running via
+-- `supabase db query`. Without this, a failure in the middle of the file would
+-- be silently unreported and the run would look green.
+--
+-- `supabase test db` (pg_prove) shows every line, but it requires a container
+-- runtime. This keeps the suite meaningful without one.
+select * from finish(true);
 
 rollback;
