@@ -19,6 +19,7 @@ Adopt the following runtime dependencies in `apps/web`:
 
 | Package | Version | Purpose and adopted surface |
 |---|---:|---|
+| `@orbit/contracts` | workspace ^0.0.0 | Parse API responses at the browser boundary and consume the inferred response types without local copies or casts. |
 | `react`, `react-dom` | ^19.3.0 | Render the client-only SPA with standard React components and DOM mounting. |
 | `react-router` | ^7.18.4 | Data-mode route objects, redirects, navigation state, and form submission state. No framework mode or SSR. |
 | `@supabase/supabase-js` | ^2.117.0 | Browser authentication only: create a public-key client, restore sessions, and call `signInWithPassword`. It is not used for direct business-data access. |
@@ -33,6 +34,7 @@ Adopt the following development dependencies:
 | `vitest` | ^5.0.1 | Feature-level unit and contract tests. |
 | `@playwright/test`, `@axe-core/playwright` | ^1.63.0, ^4.13.0 | Responsive browser, keyboard, and automated accessibility smoke checks. Axe supplements manual keyboard review. |
 | `@types/react`, `@types/react-dom` | ^19.3.0 | Type declarations matching the selected React major. |
+| `@orbit/kpi-framework` | workspace ^0.0.0 | Test/fixture-only lookup of generated Regional COO assignments so fixture KPI labels are never copied into frontend source. It is not imported by production UI modules. |
 
 `packages/ui-kit` exposes React as a peer dependency so consuming applications
 own the single React runtime. Its only development dependencies are the matching
