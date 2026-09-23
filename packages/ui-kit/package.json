@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Orbit design tokens, visual primitives, and chart wrappers",
   "engines": {
-    "node": "22.x"
+    "node": ">=22.18 <23"
   },
   "exports": {
     ".": "./src/index.ts",
@@ -22,6 +22,6 @@
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   }
 }
