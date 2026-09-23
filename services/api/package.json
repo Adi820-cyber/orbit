@@ -11,12 +11,12 @@
     "dev": "node --env-file-if-exists=.env src/app.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "lint": "echo 'No linter selected yet — open decision (see DEPENDENCIES.md)'"
+    "lint": "oxlint --type-aware"
   },
   "dependencies": {
+    "@fastify/cors": "^11.3.0",
     "@orbit/contracts": "*",
     "@orbit/kpi-framework": "*",
-    "@fastify/cors": "^11.3.0",
     "fastify": "^5.12.5",
     "jose": "^6.2.12",
     "postgres": "^3.4.9",
@@ -24,6 +24,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "oxlint": "^1.85.0",
+    "oxlint-tsgolint": "^7.0.2002",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   }

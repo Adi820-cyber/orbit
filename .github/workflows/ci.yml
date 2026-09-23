@@ -1,0 +1,76 @@
+name: CI
+
+# Runs the root gates ARCHITECTURE.md §15 requires before any push:
+#   npm run typecheck && npm run test && npm run lint
+# plus a secret scan, which ADR 0001 lists as an unmet acceptance criterion.
+#
+# Until this existed, every merge was gated on one person running the suite
+# locally and remembering to. That is not a gate.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same branch. A stale run tells you nothing and
+# the queue is shared.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: typecheck / test / lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Must satisfy engines ">=22.18 <23" (ADR 0006). Node's native
+          # TypeScript type stripping ships in 22.18, and `npm run dev` in
+          # services/api depends on it.
+          node-version: '22'
+          cache: npm
+
+      # `npm ci` rather than `npm install`: it installs strictly from the
+      # lockfile and fails if package.json and the lock disagree. That makes a
+      # stale or hand-merged lockfile a build failure instead of a silent drift
+      # — worth having, since lockfile conflicts have already cost us time.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck --workspaces --if-present
+
+      - name: Test
+        run: npm run test --workspaces --if-present
+
+      - name: Lint
+        run: npm run lint --workspaces --if-present
+
+  secret-scan:
+    name: secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Independent of the gates job: a credential leak should be reported even
+    # if the build is broken.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the scan sees the commits a PR introduces, not just
+          # the merge result. A secret added and then removed in the same branch
+          # is still a leaked secret.
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
