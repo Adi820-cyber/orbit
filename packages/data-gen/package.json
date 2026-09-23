@@ -9,6 +9,7 @@
   },
   "main": "./src/index.ts",
   "scripts": {
+    "generate": "node scripts/generate-seed.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "oxlint --type-aware"

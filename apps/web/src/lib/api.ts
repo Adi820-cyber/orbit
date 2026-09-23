@@ -1,23 +1,50 @@
 import {
+  ActionListResponseSchema,
+  ActionResponseSchema,
+  AskPromptsResponseSchema,
+  AskRequestSchema,
+  AskResponseSchema,
+  AuditListResponseSchema,
   BriefResponseSchema,
+  CreateActionRequestSchema,
   ErrorEnvelopeSchema,
+  InboxResponseSchema,
+  KpiDetailQuerySchema,
+  KpiDetailResponseSchema,
   KpiListResponseSchema,
   MeResponseSchema,
-  type BriefResponse,
+  PermittedAssigneesResponseSchema,
+  TransitionActionRequestSchema,
+  type AskRequest,
+  type CreateActionRequest,
   type ErrorCode,
-  type KpiListResponse,
-  type MeResponse,
+  type Grain,
+  type KpiDetailQuery,
+  type TransitionActionRequest,
 } from "@orbit/contracts";
 
 interface ContractParser<T> {
-  parse(value: unknown): T;
+  safeParse(value: unknown): { success: true; data: T } | { success: false };
 }
 
-export interface BriefPagePayload {
-  brief: BriefResponse;
-  kpis: KpiListResponse;
-  membership: MeResponse;
+export interface ApiRequest {
+  method: "GET" | "POST";
+  path: string;
+  query?: URLSearchParams;
+  body?: unknown;
 }
+
+export interface ApiReply {
+  status: number;
+  body: unknown;
+}
+
+/**
+ * Moves one request to the decision service and back. The production
+ * transport is HTTP; the dev-only preview swaps in an in-memory fixture so the
+ * same contract parsing below runs either way.
+ */
+export type ApiTransport = (request: ApiRequest) => Promise<ApiReply>;
 
 export class ApiConfigurationError extends Error {
   constructor() {
@@ -52,7 +79,7 @@ function apiBaseUrl() {
   return value.replace(/\/+$/, "");
 }
 
-async function parseJson(response: Response): Promise<unknown> {
+async function readJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
   } catch {
@@ -64,68 +91,160 @@ async function parseJson(response: Response): Promise<unknown> {
   }
 }
 
-async function request<T>(
-  path: string,
-  accessToken: string,
-  schema: ContractParser<T>,
-): Promise<T> {
-  const url = `${apiBaseUrl()}${path}`;
-  let response: Response;
+export function httpTransport(accessToken: string): ApiTransport {
+  return async (request) => {
+    const search = request.query?.toString();
+    const url = `${apiBaseUrl()}${request.path}${search ? `?${search}` : ""}`;
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    };
+    let response: Response;
 
-  try {
-    response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-  } catch {
-    throw new ApiRequestError(
-      "unavailable",
-      "Orbit could not reach the decision service.",
-      503,
-    );
-  }
+    if (request.body !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
 
-  const body = await parseJson(response);
-
-  if (!response.ok) {
-    const parsedError = ErrorEnvelopeSchema.safeParse(body);
-
-    if (parsedError.success) {
+    try {
+      response = await fetch(url, {
+        method: request.method,
+        headers,
+        ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+      });
+    } catch {
       throw new ApiRequestError(
-        parsedError.data.error.code,
-        parsedError.data.error.message,
-        response.status,
+        "unavailable",
+        "Orbit could not reach the decision service.",
+        503,
       );
     }
 
+    return { status: response.status, body: await readJson(response) };
+  };
+}
+
+function pageQuery(cursor?: string | null) {
+  const query = new URLSearchParams();
+
+  if (cursor) {
+    query.set("cursor", cursor);
+  }
+
+  return query;
+}
+
+/** Parses before sending, so the client never emits a payload the contract rejects. */
+function outgoing<T>(schema: ContractParser<T>, value: unknown): T {
+  const parsed = schema.safeParse(value);
+
+  if (!parsed.success) {
     throw new ApiRequestError(
-      "invalid_response",
-      "Orbit received an unexpected error response.",
-      response.status,
+      "invalid_request",
+      "Orbit could not send this request because it is incomplete.",
+      400,
     );
   }
 
-  try {
-    return schema.parse(body);
-  } catch {
-    throw new ApiRequestError(
-      "invalid_response",
-      "Orbit received data that did not match the shared contract.",
-      response.status,
-    );
+  return parsed.data;
+}
+
+export function createApiClient(transport: ApiTransport) {
+  async function call<T>(request: ApiRequest, schema: ContractParser<T>): Promise<T> {
+    const reply = await transport(request);
+
+    if (reply.status >= 400) {
+      const parsedError = ErrorEnvelopeSchema.safeParse(reply.body);
+
+      if (parsedError.success) {
+        throw new ApiRequestError(
+          parsedError.data.error.code,
+          parsedError.data.error.message,
+          reply.status,
+        );
+      }
+
+      throw new ApiRequestError(
+        "invalid_response",
+        "Orbit received an unexpected error response.",
+        reply.status,
+      );
+    }
+
+    const parsed = schema.safeParse(reply.body);
+
+    if (!parsed.success) {
+      throw new ApiRequestError(
+        "invalid_response",
+        "Orbit received data that did not match the shared contract.",
+        reply.status,
+      );
+    }
+
+    return parsed.data;
   }
+
+  return {
+    me: () => call({ method: "GET", path: "/api/me" }, MeResponseSchema),
+    brief: () => call({ method: "GET", path: "/api/brief" }, BriefResponseSchema),
+    inbox: (cursor?: string | null) =>
+      call({ method: "GET", path: "/api/inbox", query: pageQuery(cursor) }, InboxResponseSchema),
+    kpiList: () => call({ method: "GET", path: "/api/kpi" }, KpiListResponseSchema),
+    kpiDetail: async (assignmentId: string, detail: KpiDetailQuery) => {
+      const parsed = outgoing(KpiDetailQuerySchema, detail);
+      const query = new URLSearchParams({ grain: parsed.grain, entityId: parsed.entityId });
+
+      if (parsed.breakdown) query.set("breakdown", parsed.breakdown);
+      if (parsed.from) query.set("from", parsed.from);
+      if (parsed.to) query.set("to", parsed.to);
+
+      return call(
+        { method: "GET", path: `/api/kpi/${encodeURIComponent(assignmentId)}`, query },
+        KpiDetailResponseSchema,
+      );
+    },
+    askPrompts: () => call({ method: "GET", path: "/api/ask/prompts" }, AskPromptsResponseSchema),
+    ask: async (request: AskRequest) =>
+      call(
+        { method: "POST", path: "/api/ask", body: outgoing(AskRequestSchema, request) },
+        AskResponseSchema,
+      ),
+    actions: (cursor?: string | null) =>
+      call({ method: "GET", path: "/api/actions", query: pageQuery(cursor) }, ActionListResponseSchema),
+    action: (actionId: string) =>
+      call(
+        { method: "GET", path: `/api/actions/${encodeURIComponent(actionId)}` },
+        ActionResponseSchema,
+      ),
+    assignees: (target: { assignmentId: string; grain: Grain; entityId: string }) =>
+      call(
+        {
+          method: "GET",
+          path: "/api/actions/assignees",
+          query: new URLSearchParams(target),
+        },
+        PermittedAssigneesResponseSchema,
+      ),
+    createAction: async (request: CreateActionRequest) =>
+      call(
+        {
+          method: "POST",
+          path: "/api/actions",
+          body: outgoing(CreateActionRequestSchema, request),
+        },
+        ActionResponseSchema,
+      ),
+    transitionAction: async (actionId: string, request: TransitionActionRequest) =>
+      call(
+        {
+          method: "POST",
+          path: `/api/actions/${encodeURIComponent(actionId)}/transitions`,
+          body: outgoing(TransitionActionRequestSchema, request),
+        },
+        ActionResponseSchema,
+      ),
+    audit: (cursor?: string | null) =>
+      call({ method: "GET", path: "/api/audit", query: pageQuery(cursor) }, AuditListResponseSchema),
+  };
 }
 
-export async function getBriefPagePayload(
-  accessToken: string,
-): Promise<BriefPagePayload> {
-  const [membership, brief, kpis] = await Promise.all([
-    request("/api/me", accessToken, MeResponseSchema),
-    request("/api/brief", accessToken, BriefResponseSchema),
-    request("/api/kpi", accessToken, KpiListResponseSchema),
-  ]);
-
-  return { brief, kpis, membership };
-}
+export type ApiClient = ReturnType<typeof createApiClient>;
