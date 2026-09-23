@@ -1,6 +1,6 @@
 # ADR 0002: How the API reads a membership row before RLS claims are set
 
-- **Status:** Proposed — Option A is agreed in substance by Aditya and Ghansham; pending Maruti's recorded sign-off and the open question on organization scope below.
+- **Status:** **Accepted** — 2026-09-23. Both outstanding conditions are now met: the organization-scope question is decided below, and Maruti's sign-off exists in the repository as working code rather than a comment (see Sign-off).
 - **Owners:** Aditya (decides), Ghansham (API impact), Maruti (migration/RLS impact)
 - **Date opened:** 2026-09-22
 - **Last revised:** 2026-09-23 — incorporates Ghansham's API sign-off conditions and three review findings against the original draft.
@@ -188,9 +188,27 @@ still caught.
 - [x] Aditya (security/claims) — 2026-09-23
 - [x] Ghansham (API pipeline shape is workable) — 2026-09-22, on PR #6,
       conditional on the two-transaction choice being recorded. It is, above.
-- [ ] Maruti (policy/migration shape is workable) — reported as given, but
-      **not yet recorded on PR #6.** Needs her comment or a commit so the
-      sign-off exists in the repository rather than only in chat.
+- [x] Maruti (policy/migration shape is workable) — 2026-09-23. Recorded as
+      code, which is what this checkbox was holding out for. She implemented
+      the two-transaction bootstrap in
+      `supabase/migrations/20260923000500_*.sql` and wrote
+      `supabase/tests/001_membership_bootstrap_rls.sql`, a pgTAP suite of 26
+      assertions covering exactly the behaviour this ADR specifies. It passes
+      **26/26 against the live project**, and she demonstrated the suite can
+      fail — corrupting one expected value produced
+      `ERROR: P0001: 1 test failed of 26` — so the pass is evidence rather
+      than an absence of output.
+
+      Recording this as the sign-off is a deliberate call: an executable
+      proof of the policy shape is stronger than an approving comment, and
+      insisting on the comment as well would have been process for its own
+      sake.
+
+      **Not verified by Aditya.** My Supabase account lacks the privileges to
+      reach the project (`supabase migration list --linked` returns 403), so
+      the 26/26 result is Maruti's report. The suite itself is committed and
+      reviewable; the claim that it passes against the live database is not
+      independently confirmed.
 
 ## Membership cardinality
 

@@ -1,6 +1,6 @@
 # ADR 0009: Dedicated `orbit` schema, and the unresolved seeder-role question
 
-- **Status:** §1 proposed by Aditya, **needs Maruti's sign-off** before the bootstrap migration is applied. §2 is an open question, deliberately not decided.
+- **Status:** **Accepted** — 2026-09-23. §1 is applied and proven. §2 is **now decided**: the `bypassrls` route was tested and is impossible on hosted Supabase, which closes the question this ADR deliberately left open. See "§2 resolved" and "§3 resolved" below.
 - **Author:** Aditya (security/credentials boundary)
 - **Reviewers:** Maruti (owns `supabase/`), Ghansham (every query and test is affected by §1)
 - **Date:** 2026-09-23
@@ -80,8 +80,9 @@ RLS exemption, and the available routes are all imperfect:
 
 - **`bypassrls` on a dedicated role.** Cleanest to reason about, but granting
   `bypassrls` requires superuser, and Supabase's `postgres` role is not a
-  superuser. **Unverified whether this is even possible on hosted Supabase** —
-  this is the specific thing to test first.
+  superuser. ~~**Unverified whether this is even possible on hosted Supabase** —
+  this is the specific thing to test first.~~ **Tested: not possible.** See
+  "§2 resolved" below.
 - **Make the seeder own the tables.** Owners bypass their own tables' RLS by
   default. But then the seeder's credential is effectively an RLS bypass for
   the whole dataset, and it collides with the rule in the bootstrap migration
@@ -129,3 +130,107 @@ SQL editor. It fails closed. The password then lives only in `DATABASE_URL`.
 For the connection string: Supavisor authenticates with the role and project
 ref joined by a dot, so the username is **`orbit_app.sxpnsnfzkpkzhsxjugde`**,
 on the transaction-mode pooler at port 6543, with prepared statements off.
+
+## §2 resolved — 2026-09-23 (Aditya, on Maruti's evidence)
+
+**Decision: seed through the migration/owner path. The dedicated seeder role is
+withdrawn, not deferred.**
+
+This ADR left §2 open on purpose and named the thing to test first: whether
+`bypassrls` can be granted at all on hosted Supabase. Maruti tested it while
+applying the bootstrap migration. The answer is sharper than expected:
+
+**`bypassrls` is neither grantable nor revocable on hosted Supabase.** Not
+merely "cannot be granted" — it cannot be touched in either direction. My own
+bootstrap migration proved the second half by failing:
+
+```
+alter role orbit_app with nosuperuser noreplication nobypassrls;
+-- ERROR: permission denied to alter role (SQLSTATE 42501)
+```
+
+Postgres restricts `superuser`, `replication` and `bypassrls` to superusers
+**symmetrically**, so a non-superuser cannot even assert the safe value. That
+was fixed in PR #24 by altering only `login noinherit nocreatedb nocreaterole`
+and letting an assertion block prove the remaining three are false.
+
+### What this settles
+
+Option 1 is not available, and the reason is a property of the platform rather
+than a gap in our setup — so it will not become available later. That changes
+the recommendation from "ship option 4 first, revisit" to a decision:
+
+- **Option 1 (`bypassrls` role)** — impossible. Closed permanently.
+- **Option 2 (seeder owns the tables)** — rejected. It relocates the hazard
+  instead of removing it: the seeder credential becomes a standing RLS bypass
+  over the whole dataset, and it collides with the bootstrap rule that
+  `orbit_app` must never own a table.
+- **Option 3 (permissive seed policies)** — rejected, and this is the one worth
+  being explicit about. Permissive policies OR together, so every table would
+  carry a policy whose only purpose is to be bypassable. That is the [S2] risk
+  ARCHITECTURE.md flags and the exact hazard ADR 0002 split into two
+  transactions to avoid. Adopting it for seeding convenience would undo that
+  reasoning table by table.
+- **Option 4 (migration/owner path)** — **adopted.** Migrations run as
+  `postgres`, which owns the tables and therefore bypasses their RLS. No new
+  role, no new policy, no new credential.
+
+### Answering the requirement honestly
+
+TEAM_ASSIGNMENTS.md asks for "a separate seeder role, restricted to specific
+environments." Option 4 does not provide a separate *role*. It does provide the
+property the requirement exists to protect: **seeding never shares a credential
+with the API.** `orbit_app` is SELECT-only and cannot seed; seeding happens
+through migrations under a credential the deployed API never holds.
+
+Recording this as a deliberate divergence rather than a satisfied requirement.
+If a reviewer disagrees, the remedy is a TEAM_ASSIGNMENTS.md amendment, not a
+seeder role that needs a permissive policy on every table to function — that
+would be worse than what it replaces.
+
+### Constraints that still bind
+
+Unchanged from §2 above, and none of them depended on which option won:
+
+- The seeder credential never reaches the deployed API's environment. Now
+  structural rather than procedural: `orbit_app` has SELECT only, so the API's
+  credential *cannot* seed even if misused.
+- `data:reset` stays separate from idempotent `data:seed`, and must refuse to
+  run against production.
+- The audit table grants no UPDATE or DELETE to anyone, seeder included
+  (PRD FR-07).
+
+### Verification status
+
+- **Verified by execution:** the `ALTER ROLE` failure above — that was my own
+  migration failing against the live project, in PR #24's history.
+- **Reported by Maruti, not independently confirmed:** that `bypassrls` is also
+  non-grantable. My Supabase account returns 403 on
+  `supabase migration list --linked`, so I cannot re-run it. The conclusion does
+  not rest on this alone — the revoke failure is sufficient to show the
+  attribute is superuser-only in both directions.
+
+## §3 resolved — the migration is applied
+
+§3 above says the migration is written but not pushed. That is no longer true
+and the section is retained only for history.
+
+All six migrations (`20260923000100` through `20260923000600`) are applied to
+project `sxpnsnfzkpkzhsxjugde`. Maruti reports 15 tables in the `orbit` schema
+with RLS enabled and forced on every one, 15 policies and none using
+`USING (true)`, `orbit_app` holding SELECT only with `rolsuper`,
+`rolbypassrls` and `rolreplication` all false and zero role memberships, and
+the pgTAP suite passing 26/26.
+
+The precondition in §3 item 2 — disabling the legacy `anon`/`service_role`
+keys — **is still not done** (ADR 0008 §4.1, ADR 0001). §3 argued applying the
+roles migration would not open that window because it creates no tables. The
+later migrations *do* create tables, so that argument no longer covers the
+current state: there are now 15 tables in a project whose legacy keys are still
+enabled. RLS is forced on all of them, which is the control that matters, but
+the key posture is a real outstanding item and not a formality.
+
+**Not verified by Aditya** — every count above is Maruti's report. I still lack
+project access. This is the single largest unverified claim in the repository
+and the reason getting Owner/Admin on `org for orbit` is the highest-priority
+non-code task.

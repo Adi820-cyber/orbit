@@ -1,6 +1,6 @@
 # ADR 0012: `segment` is not a scope grain — it is a breakdown dimension
 
-- **Status:** Accepted for the finding and the decision. The follow-on contract and `ARCHITECTURE.md` changes need Ghansham (consumes `GrainSchema`) and Maruti (enforces it) before they land.
+- **Status:** **Accepted and fully applied** — 2026-09-23. The follow-on changes this ADR was waiting on have landed: Maruti removed `segment` from the entitlement grains in PR #25, and Ghansham's PR #33 dropped it from `GrainSchema` in `packages/contracts`. `GrainSchema` is now `['group', 'region', 'facility', 'coe']` on `main`.
 - **Owner:** Aditya
 - **Date:** 2026-09-23
 - **Resolves:** the open question in ADR 0005 and ADR 0011 §5 item 1, which blocked entitlement matrix content.
