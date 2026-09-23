@@ -189,7 +189,8 @@ project existing. Decoupling the work is not closing the finding.
 - [ ] Previous signing key explicitly **revoked**, not merely rotated (rotation alone leaves it valid)
 - [ ] `sb_secret_*` key for that project rotated
 - [ ] History-scrub decision made and recorded above (with date and who approved)
-- [ ] New, separate Supabase project created for Orbit dev, not derived from either project above
+- [x] New, separate Supabase project created for Orbit dev, not derived from either project above — 2026-09-23, `sxpnsnfzkpkzhsxjugde` in a dedicated org, asymmetric ES256 signing verified. Details and remaining gaps in ADR 0008.
+- [ ] Legacy `anon`/`service_role` keys **disabled on the new project** (ADR 0001 amendment condition 3) — they currently exist; see ADR 0008 §4.1
 - [ ] Repo/CI secret scan configured and passing
 - [ ] This ADR updated to Status: Accepted, with resolution date
 
