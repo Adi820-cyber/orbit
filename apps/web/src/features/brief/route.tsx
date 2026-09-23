@@ -512,8 +512,8 @@ export function RegionalCooBriefPage({
             </div>
             {brief.dataLimitations.length ? (
               <ul>
-                {brief.dataLimitations.map((item, index) => (
-                  <LimitationItem key={`${item.assignmentId ?? "brief"}:${item.issue}:${index}`} item={item} assignments={assignments} />
+                {brief.dataLimitations.map((item) => (
+                  <LimitationItem key={`${item.assignmentId ?? "brief"}:${item.issue}:${item.detail}`} item={item} assignments={assignments} />
                 ))}
               </ul>
             ) : <p className="brief-empty">No additional data limitations were returned.</p>}

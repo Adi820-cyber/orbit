@@ -20,7 +20,11 @@ describe("RegionalCooBriefPage", () => {
     ].map((section) => markup.indexOf(section));
 
     expect(sectionPositions.every((position) => position >= 0)).toBe(true);
-    expect(sectionPositions).toEqual([...sectionPositions].sort((a, b) => a - b));
+    expect(
+      sectionPositions.every(
+        (position, index) => index === 0 || position > sectionPositions[index - 1]!,
+      ),
+    ).toBe(true);
   });
 
   it("uses generated assignment labels and preserves illustrative disclosure", () => {

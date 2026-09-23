@@ -16,7 +16,13 @@ describe("getBriefPagePayload", () => {
       ["/api/kpi", regionalCooBriefFixture.kpis],
     ]);
     const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
-      const url = new URL(typeof input === "string" ? input : input.toString());
+      const requestUrl =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      const url = new URL(requestUrl);
       const authorization = new Headers(init?.headers).get("Authorization");
       expect(authorization).toBe("Bearer fixture-access-token");
       return Promise.resolve(
