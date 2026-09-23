@@ -72,7 +72,8 @@ export function createDbEntitlementSource(db: Database): EntitlementSource {
  * group scope sees its own tenant only), so "visible under RLS, in the
  * caller's organization" is the containment test. `group` is the
  * organization itself and needs an explicit group scope. `segment` has no
- * table (ADR 0010 §5.1), so it is never contained.
+ * table and is a breakdown dimension, not a scope grain (ADR 0012), so it
+ * is never contained.
  */
 const CONTAINS_SQL: Record<Exclude<ScopeEntity['grain'], 'segment'>, string> = {
   group: 'select (orbit.has_group_scope() and $1::uuid = orbit.current_org() and $1::uuid = $2::uuid) as "contained"',

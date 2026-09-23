@@ -70,7 +70,7 @@ Every source is fail-closed (`503 unavailable`) unless `ORBIT_LIVE_SOURCES` name
 | Name | Real implementation | Switch on when |
 |---|---|---|
 | `memberships` | `orbit.org_memberships` + scopes, subject-only transaction (ADR 0002) | Migrations 000400–000500 are applied and accounts are provisioned |
-| `entitlements` | `orbit.entitlements` joined to `framework_versions`, under membership claims | The ADR 0010 matrix is seeded |
+| `entitlements` | `orbit.entitlements` joined to `framework_versions`, under membership claims | The ADR 0011 matrix is seeded |
 | `scope` | RLS-visible `regions` / `facilities` / `coes` in the caller's organization; `group` needs an explicit group scope | Organization rows are seeded |
 | `transitions` | `PROPOSED_TRANSITIONS` ([TRANSITIONS.md](TRANSITIONS.md)) | Aditya signs off the matrix |
 
