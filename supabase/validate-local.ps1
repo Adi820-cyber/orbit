@@ -44,16 +44,32 @@ if (-not $env:PGPASSWORD) {
 
 function Invoke-Psql {
   param([string]$Database, [string]$Command, [string]$File)
-  $args = @('-U', $pgUser, '-h', $pgHost, '-d', $Database, '-v', 'ON_ERROR_STOP=1', '--no-psqlrc', '-q')
-  if ($Command) { $args += @('-c', $Command) }
-  if ($File)    { $args += @('-f', $File) }
-  & $psql @args 2>&1
-  return $LASTEXITCODE
+  # Deliberately NOT named $args: that is a PowerShell automatic variable in a
+  # simple function, and overwriting it is a trap.
+  $psqlArgs = @('-U', $pgUser, '-h', $pgHost, '-d', $Database, '-v', 'ON_ERROR_STOP=1', '--no-psqlrc', '-q')
+  if ($Command) { $psqlArgs += @('-c', $Command) }
+  if ($File)    { $psqlArgs += @('-f', $File) }
+  # No `return $LASTEXITCODE` -- that would append the exit code to the output
+  # the caller captures. $LASTEXITCODE persists to the caller on its own.
+  & $psql @psqlArgs 2>&1
 }
 
 Write-Host "`n=== Preparing throwaway database: $scratchDb ===" -ForegroundColor Cyan
-Invoke-Psql -Database 'postgres' -Command "drop database if exists $scratchDb;" | Out-Null
+
+# Verify credentials before doing anything else, so a wrong password fails with
+# a clear message rather than a confusing cascade further down.
+Invoke-Psql -Database 'postgres' -Command 'select 1;' | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Write-Error "Could not connect as '$pgUser' to $pgHost. Check `$env:PGPASSWORD."
+}
+
+# WITH (FORCE) terminates any leftover connections to the scratch database.
+# Supported on PostgreSQL 13+; the local server is 18.
+Invoke-Psql -Database 'postgres' -Command "drop database if exists $scratchDb with (force);" | Out-Null
 Invoke-Psql -Database 'postgres' -Command "create database $scratchDb;" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Write-Error "Could not create $scratchDb."
+}
 
 # The bootstrap migration (orbit schema + orbit_app role) is authored by Aditya
 # and lives on his branch, not in this one. Pull the real file rather than
@@ -138,7 +154,7 @@ group by table_name order by table_name;
 }
 
 Write-Host "`n=== Dropping throwaway database ===" -ForegroundColor Cyan
-Invoke-Psql -Database 'postgres' -Command "drop database if exists $scratchDb;" | Out-Null
+Invoke-Psql -Database 'postgres' -Command "drop database if exists $scratchDb with (force);" | Out-Null
 Remove-Item $bootstrapTmp -ErrorAction SilentlyContinue
 
 if ($failed) {
