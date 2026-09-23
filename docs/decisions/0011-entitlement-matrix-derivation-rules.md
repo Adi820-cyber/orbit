@@ -1,4 +1,9 @@
-# ADR 0010: Entitlement matrix — derivation rules for grains and breakdowns
+# ADR 0011: Entitlement matrix — derivation rules for grains and breakdowns
+
+> Renumbered from 0010. Ayas's frontend-dependency record took 0010 first, in
+> PR #18; mine landed later in PR #20 and I had not checked for a collision
+> before numbering it. Two ADRs sharing a number makes every cross-reference
+> ambiguous, so the later one moved.
 
 - **Status:** Proposed. Needs Maruti (seeds and enforces it) and Ghansham (consumes it in the scope plugin). This is the content sign-off ARCHITECTURE.md §8.2 and §17 item 2 assign to me, and ADR 0005 left open.
 - **Owner:** Aditya
