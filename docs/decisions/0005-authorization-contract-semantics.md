@@ -1,6 +1,6 @@
 # ADR 0005: Entitlement matrix scope and the wire shape of a scope refusal
 
-- **Status:** Accepted — these are Aditya's calls to make (ARCHITECTURE.md §8.2, §17.2, §17.4). Recorded so the contracts in PR #5 can be frozen.
+- **Status:** Accepted — these are Aditya's calls to make (ARCHITECTURE.md §8.2, plus §17 items 2 and 4). Recorded so the contracts in PR #5 can be frozen.
 - **Owner:** Aditya
 - **Reviewers:** Ghansham (implements both in `services/api`), Maruti (entitlements are seeded data she generates)
 - **Date:** 2026-09-23
@@ -34,11 +34,38 @@ Why:
   looks the same.
 
 **Keyed per framework version, not just per role.** The matrix rows carry the
-framework/definition version (Maruti's generated manifest already emits
-`definitionVersion`, currently `"v1"`). A future workbook revision that
-changes what a role is entitled to must land as a new version rather than
-mutating existing rows, so an entitlement change is visible as a version
-bump instead of an invisible data edit.
+framework/definition version. `packages/kpi-framework`'s generated manifest
+emits `definitionVersion` (currently `"v1"`) — merged to `main` in PR #14, so
+this is a field that exists rather than a proposed one. A future workbook
+revision that changes what a role is entitled to must land as a new version
+rather than mutating existing rows, so an entitlement change is visible as a
+version bump instead of an invisible data edit.
+
+### Version selection is part of this decision, not a later detail
+
+Versioning the rows without defining which version is *authoritative* would
+create an authorization hole: once v2 rows exist, a lookup keyed on
+`(role, assignment_id)` alone matches both versions, and the request could be
+authorized against stale or not-yet-active entitlements depending on row order.
+Permissive-by-accident, and invisible in tests that only ever have one version
+loaded.
+
+So three rules, all required:
+
+1. **Exactly one framework version is active at a time.** It is configuration,
+   resolved once at startup — not inferred from the newest row, because "newest"
+   silently activates whatever was most recently seeded.
+2. **Every entitlement lookup filters on the active version.** A query that does
+   not constrain the version is a bug, not a broad query. The scope plugin should
+   take the version from one place so a handler cannot omit it.
+3. **Uniqueness invariant:** `(framework_version, role, assignment_id)` is
+   unique. That makes duplicate-row ambiguity within a version unrepresentable,
+   the same way ADR 0002 handles membership cardinality — constrain at the
+   database rather than detect in application code.
+
+Loading a second version must not change behaviour until the active version is
+deliberately switched. Worth a test that asserts exactly that: seed v2 alongside
+v1, and confirm every authorization answer is unchanged.
 
 Consequences:
 
@@ -74,9 +101,25 @@ is a product requirement:
   your scope is." Transporting it as an error would destroy the disclosure
   the requirement exists to guarantee.
 
-Guards on the Ask case, so 200 is not abused:
+**The Ask response schema is explicitly deferred, not decided here.** This ADR
+fixes the *transport* choice (200 with an outcome, rather than an HTTP error). It
+does **not** define the response union, the outcome field name, or the Evidence
+Card payload, and PR #5's contracts contain only auth/session shapes and
+`ErrorEnvelope` — no Ask response. Until that contract lands, two
+implementations could return incompatible 200 refusal payloads and both believe
+they were compliant.
 
-- The outcome field is explicit and typed. A refusal must not be
+So: no Ask handler may be built against an assumed shape. FR-05's six Evidence
+Card sections (answer, relevant records, definition/policy basis, reasoning,
+possible next action, scope/period/limitations) need a `packages/contracts` PR of
+their own, reviewed by whoever owns the Ask surface and the frontend. That is a
+prerequisite for Ask work, and it is a follow-up to this decision rather than
+part of it.
+
+Guards on the Ask case, so 200 is not abused — these constrain whatever schema
+is eventually agreed:
+
+- The outcome field must be explicit and typed. A refusal must not be
   representable as, or mistakable for, a successful data answer.
 - A refusal carries no entitlement-protected values — not in the answer, not
   in "relevant records," not in reasoning text.
@@ -105,7 +148,7 @@ both require. So: be explicit about scope, be opaque about accounts.
 ## Open, not decided here
 
 - **Matrix content.** This ADR fixes the matrix's *shape and scope*. The
-  109-row content still needs my sign-off per §17.2, drafted with Maruti and
+  109-row content still needs my sign-off per §17 item 2, drafted with Maruti and
   Ghansham. ADR 0004's bundled-assignment mapping is an input to it.
 - Evidence fields, action permissions, and audit access columns (§8.2)
   remain unspecified until that content review. Ghansham was right to leave
