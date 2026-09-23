@@ -1,0 +1,590 @@
+.login-page {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(27rem, 0.92fr);
+  background: var(--orbit-color-surface);
+}
+
+.login-story {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+  overflow: hidden;
+  padding: clamp(var(--orbit-space-6), 4vw, var(--orbit-space-12));
+  background:
+    radial-gradient(circle at 76% 23%, color-mix(in srgb, var(--orbit-brand-cyan) 14%, transparent), transparent 24rem),
+    radial-gradient(circle at 12% 88%, color-mix(in srgb, var(--orbit-brand-blue) 12%, transparent), transparent 27rem),
+    linear-gradient(145deg, var(--orbit-color-surface) 0%, var(--orbit-color-background) 58%, var(--orbit-color-secondary-soft) 100%);
+  border-right: var(--orbit-border-width) solid var(--orbit-color-border);
+}
+
+.login-story::before,
+.login-story::after {
+  position: absolute;
+  z-index: -1;
+  border: var(--orbit-border-width) solid color-mix(in srgb, var(--orbit-brand-blue) 20%, transparent);
+  border-radius: 50%;
+  content: "";
+}
+
+.login-story::before {
+  width: min(58vw, 47rem);
+  aspect-ratio: 1;
+  right: -28%;
+  bottom: -35%;
+}
+
+.login-story::after {
+  width: min(42vw, 34rem);
+  aspect-ratio: 1;
+  top: -25%;
+  left: 44%;
+}
+
+.login-story__glow {
+  position: absolute;
+  z-index: -1;
+  width: 14rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(1px);
+  opacity: 0.35;
+}
+
+.login-story__glow--one {
+  top: -8rem;
+  right: -2rem;
+  background: color-mix(in srgb, var(--orbit-brand-cyan) 28%, transparent);
+}
+
+.login-story__glow--two {
+  bottom: -7rem;
+  left: -6rem;
+  background: color-mix(in srgb, var(--orbit-brand-blue) 18%, transparent);
+}
+
+.login-story__content {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 43rem);
+  margin-top: clamp(4rem, 10vh, 8rem);
+}
+
+.login-eyebrow {
+  margin: 0 0 var(--orbit-space-4);
+  color: var(--orbit-brand-blue-strong);
+  font-size: var(--orbit-font-size-100);
+  font-weight: var(--orbit-font-weight-bold);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.login-story h1 {
+  max-width: 12ch;
+  margin: 0;
+  color: var(--orbit-brand-navy);
+  font-size: clamp(3rem, 6vw, 6.25rem);
+  font-weight: var(--orbit-font-weight-bold);
+  letter-spacing: -0.065em;
+  line-height: 0.95;
+}
+
+.login-story h1 span {
+  display: block;
+  color: var(--orbit-brand-blue);
+}
+
+.login-story__intro {
+  max-width: 35rem;
+  margin: var(--orbit-space-6) 0 0;
+  color: var(--orbit-color-text-muted);
+  font-size: clamp(var(--orbit-font-size-400), 1.6vw, var(--orbit-font-size-500));
+}
+
+.login-benefits {
+  display: grid;
+  gap: var(--orbit-space-3);
+  max-width: 28rem;
+  padding: 0;
+  margin: var(--orbit-space-8) 0 0;
+  list-style: none;
+}
+
+.login-benefits li {
+  display: flex;
+  align-items: center;
+  gap: var(--orbit-space-3);
+  color: var(--orbit-brand-navy);
+  font-size: var(--orbit-font-size-300);
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.login-benefits li span {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: var(--orbit-border-width) solid var(--orbit-color-border-strong);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--orbit-color-surface) 82%, transparent);
+  color: var(--orbit-brand-blue-strong);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+}
+
+.login-story__footnote {
+  margin: auto 0 0;
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+  font-weight: var(--orbit-font-weight-semibold);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.login-orbit-scene {
+  position: absolute;
+  right: clamp(2rem, 5vw, 6rem);
+  bottom: clamp(2rem, 6vh, 5rem);
+  width: min(31vw, 29rem);
+  aspect-ratio: 1;
+  opacity: 0.92;
+}
+
+.login-orbit-scene__ring,
+.login-orbit-scene__core,
+.login-orbit-scene__node {
+  position: absolute;
+}
+
+.login-orbit-scene__ring {
+  inset: 50% auto auto 50%;
+  border: var(--orbit-border-width) solid color-mix(in srgb, var(--orbit-brand-blue) 28%, transparent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.login-orbit-scene__ring--outer { width: 100%; height: 100%; }
+.login-orbit-scene__ring--middle { width: 72%; height: 72%; }
+.login-orbit-scene__ring--inner { width: 42%; height: 42%; }
+
+.login-orbit-scene__core {
+  inset: 50% auto auto 50%;
+  width: 1rem;
+  aspect-ratio: 1;
+  border: 0.25rem solid color-mix(in srgb, var(--orbit-color-surface) 80%, transparent);
+  border-radius: 50%;
+  background: var(--orbit-gradient-brand);
+  box-shadow: 0 0 0 0.4rem color-mix(in srgb, var(--orbit-brand-blue) 11%, transparent);
+  transform: translate(-50%, -50%);
+}
+
+.login-orbit-scene__node {
+  display: flex;
+  align-items: center;
+  gap: var(--orbit-space-2);
+  color: var(--orbit-color-text-muted);
+  font-size: 0.625rem;
+  font-weight: var(--orbit-font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.login-orbit-scene__node::before {
+  width: 0.65rem;
+  aspect-ratio: 1;
+  border: 0.15rem solid var(--orbit-color-surface);
+  border-radius: 50%;
+  background: var(--orbit-brand-blue);
+  box-shadow: 0 0 0 0.15rem color-mix(in srgb, var(--orbit-brand-blue) 16%, transparent);
+  content: "";
+}
+
+.login-orbit-scene__node--data { top: 5%; left: 52%; }
+.login-orbit-scene__node--evidence { top: 51%; right: -3%; }
+.login-orbit-scene__node--action { bottom: 9%; left: 3%; }
+.login-orbit-scene__node--evidence::before { background: var(--orbit-brand-cyan); }
+.login-orbit-scene__node--action::before { background: var(--orbit-brand-aqua); }
+
+.login-entry {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: 1fr auto;
+  place-items: center;
+  padding: clamp(var(--orbit-space-5), 5vw, var(--orbit-space-12));
+  background:
+    radial-gradient(circle at 90% 8%, color-mix(in srgb, var(--orbit-brand-cyan) 7%, transparent), transparent 16rem),
+    var(--orbit-color-surface);
+}
+
+.login-entry__mobile-brand {
+  display: none;
+}
+
+.login-card {
+  width: min(100%, 31rem);
+  padding: clamp(var(--orbit-space-6), 4vw, var(--orbit-space-10));
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--orbit-color-surface) 96%, transparent);
+  box-shadow: var(--orbit-shadow-raised);
+}
+
+.login-card__header h2 {
+  margin: 0;
+  color: var(--orbit-brand-navy);
+  font-size: clamp(var(--orbit-font-size-700), 3vw, var(--orbit-font-size-800));
+  letter-spacing: -0.045em;
+  line-height: var(--orbit-line-height-heading);
+}
+
+.login-card__header > p:last-child {
+  margin: var(--orbit-space-3) 0 0;
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-300);
+}
+
+.login-alert {
+  display: flex;
+  gap: var(--orbit-space-3);
+  align-items: flex-start;
+  margin-top: var(--orbit-space-5);
+  border: var(--orbit-border-width) solid color-mix(in srgb, var(--orbit-color-danger) 32%, transparent);
+  border-radius: var(--orbit-radius-compact);
+  padding: var(--orbit-space-3);
+  background: var(--orbit-color-danger-soft);
+  color: var(--orbit-color-danger);
+}
+
+.login-alert > span {
+  display: grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: var(--orbit-border-width) solid currentColor;
+  border-radius: 50%;
+  font-size: var(--orbit-font-size-100);
+  font-weight: var(--orbit-font-weight-bold);
+}
+
+.login-alert p {
+  margin: 0;
+  font-size: var(--orbit-font-size-200);
+}
+
+.login-form {
+  display: grid;
+  gap: var(--orbit-space-5);
+  margin-top: var(--orbit-space-8);
+}
+
+.login-field {
+  display: grid;
+  gap: var(--orbit-space-2);
+}
+
+.login-field label {
+  color: var(--orbit-brand-navy);
+  font-size: var(--orbit-font-size-300);
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.login-control {
+  position: relative;
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  border: var(--orbit-border-width) solid var(--orbit-color-border-strong);
+  border-radius: var(--orbit-radius-compact);
+  background: var(--orbit-color-surface);
+  transition:
+    border-color var(--orbit-duration-fast) var(--orbit-ease-standard),
+    box-shadow var(--orbit-duration-fast) var(--orbit-ease-standard);
+}
+
+.login-control:focus-within {
+  border-color: var(--orbit-brand-blue);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--orbit-brand-blue) 13%, transparent);
+}
+
+.login-control[data-invalid="true"] {
+  border-color: var(--orbit-color-danger);
+}
+
+.login-control input {
+  min-width: 0;
+  min-height: 3.15rem;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  padding: 0 var(--orbit-space-3);
+  background: transparent;
+  color: var(--orbit-color-text);
+  font-size: var(--orbit-font-size-300);
+}
+
+.login-control input::placeholder {
+  color: var(--orbit-color-text-subtle);
+}
+
+.login-control__icon {
+  display: grid;
+  width: 1.2rem;
+  margin-left: var(--orbit-space-4);
+  place-items: center;
+  color: var(--orbit-color-text-subtle);
+}
+
+.login-control__icon svg,
+.login-password-toggle svg,
+.login-submit svg {
+  width: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.login-password-toggle {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  margin-right: var(--orbit-space-1);
+  place-items: center;
+  border: 0;
+  border-radius: var(--orbit-radius-control);
+  background: transparent;
+  color: var(--orbit-color-text-muted);
+}
+
+.login-password-toggle:hover {
+  background: var(--orbit-color-secondary-soft);
+  color: var(--orbit-brand-blue-strong);
+}
+
+.login-field__error {
+  margin: 0;
+  color: var(--orbit-color-danger);
+  font-size: var(--orbit-font-size-200);
+}
+
+.login-submit {
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: var(--orbit-space-2);
+  border: 0;
+  border-radius: var(--orbit-radius-compact);
+  padding: 0 var(--orbit-space-5);
+  background: var(--orbit-brand-navy);
+  box-shadow: 0 0.5rem 1.25rem color-mix(in srgb, var(--orbit-brand-navy) 20%, transparent);
+  color: var(--orbit-color-on-primary);
+  font-size: var(--orbit-font-size-300);
+  font-weight: var(--orbit-font-weight-semibold);
+  transition:
+    background-color var(--orbit-duration-fast) var(--orbit-ease-standard),
+    transform var(--orbit-duration-fast) var(--orbit-ease-standard);
+}
+
+.login-submit:hover:not(:disabled) {
+  background: var(--orbit-brand-blue-strong);
+  transform: translateY(-1px);
+}
+
+.login-submit:disabled {
+  cursor: wait;
+  opacity: 0.78;
+}
+
+.login-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 0.12rem solid color-mix(in srgb, var(--orbit-color-on-primary) 35%, transparent);
+  border-top-color: var(--orbit-color-on-primary);
+  border-radius: 50%;
+  animation: login-spin 700ms linear infinite;
+}
+
+.login-access-note {
+  margin-top: var(--orbit-space-6);
+  border-top: var(--orbit-border-width) solid var(--orbit-color-border);
+  padding-top: var(--orbit-space-5);
+  text-align: center;
+}
+
+.login-access-note p {
+  margin: 0;
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-200);
+}
+
+.login-access-note p + p {
+  margin-top: var(--orbit-space-1);
+  font-size: var(--orbit-font-size-100);
+}
+
+.login-access-note strong {
+  color: var(--orbit-brand-navy);
+}
+
+.login-demo-note {
+  display: grid;
+  justify-items: center;
+  gap: var(--orbit-space-2);
+  margin-top: var(--orbit-space-5);
+  border-radius: var(--orbit-radius-compact);
+  padding: var(--orbit-space-3);
+  background: var(--orbit-color-background);
+  text-align: center;
+}
+
+.login-demo-note p {
+  margin: 0;
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+}
+
+.login-entry__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--orbit-space-2);
+  align-self: end;
+  margin-top: var(--orbit-space-6);
+  color: var(--orbit-color-text-subtle);
+  font-size: var(--orbit-font-size-100);
+}
+
+@keyframes login-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 68rem) {
+  .login-page {
+    grid-template-columns: minmax(21rem, 0.85fr) minmax(27rem, 1.15fr);
+  }
+
+  .login-story h1 {
+    font-size: clamp(2.75rem, 5vw, 4.5rem);
+  }
+
+  .login-orbit-scene {
+    right: -4rem;
+    width: 23rem;
+  }
+
+  .login-benefits {
+    max-width: 21rem;
+  }
+}
+
+@media (max-width: 50rem) {
+  .login-page {
+    min-height: 100svh;
+    display: block;
+    background: var(--orbit-color-background);
+  }
+
+  .login-story {
+    min-height: auto;
+    padding: var(--orbit-space-6) var(--orbit-space-6) var(--orbit-space-10);
+    border-right: 0;
+    border-bottom: var(--orbit-border-width) solid var(--orbit-color-border);
+  }
+
+  .login-story > .orbit-brand,
+  .login-benefits,
+  .login-orbit-scene,
+  .login-story__footnote {
+    display: none;
+  }
+
+  .login-story__content {
+    width: 100%;
+    margin-top: 0;
+  }
+
+  .login-story h1 {
+    max-width: none;
+    font-size: clamp(2.4rem, 10vw, 4.25rem);
+  }
+
+  .login-story__intro {
+    max-width: 40rem;
+    margin-top: var(--orbit-space-4);
+  }
+
+  .login-entry {
+    display: grid;
+    padding: var(--orbit-space-6);
+    background: var(--orbit-color-background);
+  }
+
+  .login-entry__mobile-brand {
+    display: block;
+    width: min(100%, 31rem);
+    margin: 0 auto var(--orbit-space-5);
+  }
+
+  .login-card {
+    padding: var(--orbit-space-6);
+  }
+}
+
+@media (max-width: 30rem) {
+  .login-story {
+    padding: var(--orbit-space-5) var(--orbit-space-4) var(--orbit-space-8);
+  }
+
+  .login-story__intro {
+    font-size: var(--orbit-font-size-300);
+  }
+
+  .login-entry {
+    padding: var(--orbit-space-5) var(--orbit-space-4);
+  }
+
+  .login-card {
+    border-radius: var(--orbit-radius-card);
+    padding: var(--orbit-space-5);
+    box-shadow: var(--orbit-shadow-surface);
+  }
+
+  .login-form {
+    margin-top: var(--orbit-space-6);
+  }
+
+  .login-entry__footer {
+    margin-top: var(--orbit-space-5);
+  }
+}
+
+@media (max-height: 48rem) and (min-width: 50.01rem) {
+  .login-story__content {
+    margin-top: var(--orbit-space-10);
+  }
+
+  .login-benefits {
+    margin-top: var(--orbit-space-6);
+  }
+
+  .login-orbit-scene {
+    right: -2rem;
+    bottom: -5rem;
+  }
+
+  .login-card {
+    padding-block: var(--orbit-space-6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-submit:hover:not(:disabled) {
+    transform: none;
+  }
+}

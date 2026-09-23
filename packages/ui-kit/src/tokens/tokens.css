@@ -1,0 +1,111 @@
+:root,
+[data-orbit-theme="light"] {
+  color-scheme: light;
+
+  /* Brand and semantic color primitives. Hex values live only in this layer. */
+  --orbit-brand-navy: #081f5c;
+  --orbit-brand-navy-deep: #051640;
+  --orbit-brand-blue: #0b78f6;
+  --orbit-brand-blue-strong: #075fc9;
+  --orbit-brand-cyan: #16c7e8;
+  --orbit-brand-aqua: #22d3c5;
+  --orbit-brand-sky: #8edcf7;
+  --orbit-gradient-brand: linear-gradient(135deg, #16c7e8 0%, #0b78f6 58%, #334bd6 100%);
+
+  --orbit-color-primary: var(--orbit-brand-navy);
+  --orbit-color-primary-strong: var(--orbit-brand-navy-deep);
+  --orbit-color-primary-soft: #e9f3ff;
+  --orbit-color-on-primary: #ffffff;
+
+  --orbit-color-secondary: var(--orbit-brand-blue);
+  --orbit-color-secondary-strong: var(--orbit-brand-blue-strong);
+  --orbit-color-secondary-soft: #e7f4ff;
+
+  --orbit-color-background: #f5f9ff;
+  --orbit-color-surface: #ffffff;
+  --orbit-color-surface-subtle: #eef5fc;
+  --orbit-color-text: #081f5c;
+  --orbit-color-text-muted: #536d99;
+  --orbit-color-text-subtle: #536d99;
+  --orbit-color-border: #dce8f6;
+  --orbit-color-border-strong: #bfd2e8;
+
+  --orbit-color-success: #087c59;
+  --orbit-color-success-soft: #e5f7ef;
+  --orbit-color-warning: #9b5a00;
+  --orbit-color-warning-soft: #fff1d5;
+  --orbit-color-danger: #b82e3b;
+  --orbit-color-danger-soft: #fdebed;
+  --orbit-color-info: #075fc9;
+  --orbit-color-info-soft: #e7f4ff;
+
+  --orbit-color-focus: #0b78f6;
+  --orbit-color-overlay: #051640cc;
+  --orbit-color-skeleton: #dce8f6;
+  --orbit-color-skeleton-highlight: #f5f9ff;
+
+  /* Semantic aliases keep consuming styles independent of palette names. */
+  --orbit-page-background: var(--orbit-color-background);
+  --orbit-page-text: var(--orbit-color-text);
+  --orbit-surface-background: var(--orbit-color-surface);
+  --orbit-surface-border: var(--orbit-color-border);
+  --orbit-interactive: var(--orbit-brand-blue-strong);
+  --orbit-interactive-hover: var(--orbit-brand-navy);
+  --orbit-focus-ring: var(--orbit-color-focus);
+
+  /* Typography */
+  --orbit-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --orbit-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --orbit-font-size-100: 0.75rem;
+  --orbit-font-size-200: 0.8125rem;
+  --orbit-font-size-300: 0.875rem;
+  --orbit-font-size-400: 1rem;
+  --orbit-font-size-500: 1.125rem;
+  --orbit-font-size-600: 1.375rem;
+  --orbit-font-size-700: 1.75rem;
+  --orbit-font-size-800: 2rem;
+  --orbit-font-weight-regular: 400;
+  --orbit-font-weight-medium: 500;
+  --orbit-font-weight-semibold: 600;
+  --orbit-font-weight-bold: 700;
+  --orbit-line-height-tight: 1.2;
+  --orbit-line-height-heading: 1.3;
+  --orbit-line-height-body: 1.5;
+
+  /* Spacing */
+  --orbit-space-0: 0;
+  --orbit-space-1: 0.25rem;
+  --orbit-space-2: 0.5rem;
+  --orbit-space-3: 0.75rem;
+  --orbit-space-4: 1rem;
+  --orbit-space-5: 1.25rem;
+  --orbit-space-6: 1.5rem;
+  --orbit-space-8: 2rem;
+  --orbit-space-10: 2.5rem;
+  --orbit-space-12: 3rem;
+
+  /* Shape and elevation */
+  --orbit-radius-control: 0.375rem;
+  --orbit-radius-compact: 0.625rem;
+  --orbit-radius-card: 0.875rem;
+  --orbit-border-width: 1px;
+  --orbit-shadow-surface: 0 1px 2px #081f5c0a, 0 8px 24px #081f5c0a;
+  --orbit-shadow-raised: 0 16px 48px #081f5c1a;
+
+  /* Layout */
+  --orbit-content-width: 90rem;
+  --orbit-reading-width: 45rem;
+  --orbit-control-height: 2.75rem;
+  --orbit-sidebar-width: 16rem;
+
+  /* Motion */
+  --orbit-duration-fast: 120ms;
+  --orbit-duration-standard: 180ms;
+  --orbit-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layering */
+  --orbit-z-navigation: 20;
+  --orbit-z-overlay: 40;
+  --orbit-z-dialog: 50;
+}
