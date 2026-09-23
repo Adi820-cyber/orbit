@@ -51,3 +51,9 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Scratch tool output at the repo root. Agents and humans both write these while
+# capturing command output; relying on remembering to delete each one is not a
+# control. Named files that belong in the repo are added explicitly.
+/*.txt
+!/LICENSE.txt
