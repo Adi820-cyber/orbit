@@ -3,11 +3,14 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { HealthResponseSchema, MeResponseSchema } from '@orbit/contracts';
 import { decorateMembership, membershipOf, requireAuth, type AuthOptions } from './plugins/auth.ts';
 import { registerErrorHandling } from './plugins/errors.ts';
+import { registerModules, type ModuleDeps } from './modules/index.ts';
 
 export interface AppOptions {
   auth: AuthOptions;
   /** Exact browser origins allowed by CORS; anything else receives no CORS grant. */
   allowedOrigins: readonly string[];
+  /** Data sources for the six modules; `pendingModuleDeps()` until the schema exists. */
+  modules: ModuleDeps;
   logger?: boolean;
 }
 
@@ -45,6 +48,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
           scopes: membership.scopes,
         });
       });
+
+      registerModules(api, options.modules);
     },
     { prefix: '/api' },
   );

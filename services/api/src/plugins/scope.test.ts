@@ -3,7 +3,7 @@ import { claimsFor, ENTITLEMENTS, fixtureEntitlements, fixtureResolver, SUBJECT 
 import { ApiError } from './errors.ts';
 import { assertInScope, decideScope, type ScopeDeps } from './scope.ts';
 
-const deps: ScopeDeps = { entitlements: fixtureEntitlements(), resolver: fixtureResolver };
+const deps: ScopeDeps = { entitlements: fixtureEntitlements(), resolver: fixtureResolver, frameworkVersion: 'v1' };
 const cooA = claimsFor(SUBJECT.cooRegionA);
 const cooB = claimsFor(SUBJECT.cooRegionB);
 
@@ -47,8 +47,17 @@ describe('decideScope', () => {
     await expect(decideScope(cooA, request, { ...deps, entitlements: duplicated })).rejects.toMatchObject({ code: 'internal' });
   });
 
+  it('ignores entitlement rows for another framework version', async () => {
+    const otherVersion = fixtureEntitlements([{ ...ENTITLEMENTS[1], frameworkVersion: 'v0' }]);
+    const request = { assignmentId: 'fixture-assignment-2', target: { grain: 'region', entityId: 'fixture-region-a' } } as const;
+    expect(await decideScope(cooA, request, { ...deps, entitlements: otherVersion })).toEqual({
+      allowed: false,
+      reason: 'no_entitlement',
+    });
+  });
+
   it('fails closed on an entitlement row that violates the contract', async () => {
-    const broken = fixtureEntitlements([{ role: 'regional-coo', assignmentId: 'fixture-assignment-1', grains: ['galaxy'], breakdowns: [] }]);
+    const broken = fixtureEntitlements([{ role: 'regional-coo', frameworkVersion: 'v1', assignmentId: 'fixture-assignment-1', grains: ['galaxy'], breakdowns: [] }]);
     const request = { assignmentId: 'fixture-assignment-1', target: { grain: 'region', entityId: 'fixture-region-a' } } as const;
     await expect(decideScope(cooA, request, { ...deps, entitlements: broken })).rejects.toMatchObject({ code: 'internal' });
   });

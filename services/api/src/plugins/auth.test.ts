@@ -3,6 +3,7 @@ import { generateKeyPair } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ErrorEnvelopeSchema, MeResponseSchema } from '@orbit/contracts';
 import { buildApp } from '../build.ts';
+import { pendingModuleDeps } from '../modules/pending.ts';
 import { fixtureMemberships, MEMBERSHIPS, SUBJECT } from '../../test/helpers/fixtures.ts';
 import { createTestIssuer, signHs256, TEST_AUDIENCE, TEST_ISSUER, unsignedToken } from '../../test/helpers/tokens.ts';
 
@@ -13,6 +14,7 @@ beforeAll(async () => {
   issuer = await createTestIssuer();
   app = await buildApp({
     allowedOrigins: [],
+    modules: pendingModuleDeps(),
     auth: { getKey: issuer.getKey, issuer: TEST_ISSUER, audience: TEST_AUDIENCE, memberships: fixtureMemberships() },
   });
 });
@@ -80,6 +82,7 @@ describe('membership loading', () => {
   it('fails closed when a membership row violates the contract', async () => {
     const broken = await buildApp({
       allowedOrigins: [],
+      modules: pendingModuleDeps(),
       auth: {
         getKey: issuer.getKey,
         issuer: TEST_ISSUER,

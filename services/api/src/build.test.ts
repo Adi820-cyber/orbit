@@ -5,6 +5,7 @@ import { buildApp } from './build.ts';
 import { fixtureMemberships } from '../test/helpers/fixtures.ts';
 import { createTestIssuer, TEST_AUDIENCE, TEST_ISSUER } from '../test/helpers/tokens.ts';
 import { ApiError } from './plugins/errors.ts';
+import { pendingModuleDeps } from './modules/pending.ts';
 
 const ALLOWED = 'https://orbit-web.fixture.example';
 let app: FastifyInstance;
@@ -13,6 +14,7 @@ beforeAll(async () => {
   const issuer = await createTestIssuer();
   app = await buildApp({
     allowedOrigins: [ALLOWED],
+    modules: pendingModuleDeps(),
     auth: {
       getKey: issuer.getKey,
       issuer: TEST_ISSUER,

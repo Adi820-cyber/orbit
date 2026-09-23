@@ -79,6 +79,7 @@ const HIERARCHY: Record<string, { organizationId: string; region: string }> = {
   'fixture-region-a': { organizationId: ORG_A, region: 'fixture-region-a' },
   'fixture-region-b': { organizationId: ORG_A, region: 'fixture-region-b' },
   'fixture-facility-a1': { organizationId: ORG_A, region: 'fixture-region-a' },
+  'fixture-facility-a2': { organizationId: ORG_A, region: 'fixture-region-a' },
   'fixture-facility-b1': { organizationId: ORG_A, region: 'fixture-region-b' },
   'fixture-facility-other-org': { organizationId: ORG_B, region: 'fixture-region-other-org' },
 };
