@@ -138,7 +138,7 @@ describe('POST /api/actions/:actionId/transitions', () => {
       transition(DHO_SUBJECT, { toState: 'acknowledged', expectedVersion: 1, reason: 'A' }),
       transition(DHO_SUBJECT, { toState: 'acknowledged', expectedVersion: 1, reason: 'B' }),
     ]);
-    expect(results.map((response) => response.statusCode).sort()).toEqual([200, 409]);
+    expect(results.map((response) => response.statusCode).sort((a, b) => a - b)).toEqual([200, 409]);
     expect(fixture.auditEvents.filter((event) => event.kind === 'action_transitioned')).toHaveLength(1);
   });
 
