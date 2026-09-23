@@ -14,6 +14,7 @@ import {
   type Action,
   type CreateActionRequest,
   type MembershipClaims,
+  type PermittedAssignee,
 } from '@orbit/contracts';
 import { membershipOf } from '../../plugins/auth.ts';
 import { ApiError } from '../../plugins/errors.ts';
@@ -53,9 +54,8 @@ export function registerActionRoutes(api: FastifyInstance, deps: ModuleDeps): vo
     const query = parseInput(AssigneeQuerySchema, request.query);
     const entity = { grain: query.grain, entityId: query.entityId };
     await assertInScope(membership, { assignmentId: query.assignmentId, target: entity }, deps.scope);
-    const rows = await deps.assignees.permitted(membership, { assignmentId: query.assignmentId, entity });
     return PermittedAssigneesResponseSchema.parse({
-      assignees: parseRows(PermittedAssigneeSchema, rows, 'assignee_row_failed_contract'),
+      assignees: await loadAssignees(deps, membership, { assignmentId: query.assignmentId, entity }),
     });
   });
 
@@ -169,10 +169,33 @@ async function verifyEvidence(deps: ModuleDeps, membership: MembershipClaims, bo
   }
 }
 
-/** The assignee must be one the directory says may see this evidence (PRD FR-06). */
-async function verifyAssignee(deps: ModuleDeps, membership: MembershipClaims, body: CreateActionRequest): Promise<void> {
-  const rows = await deps.assignees.permitted(membership, { assignmentId: body.assignmentId, entity: body.entity });
+/**
+ * Assignees from the directory, each re-checked against ADR 0011 §6: every
+ * scope the assignee holds must lie inside the caller's own scope, using the
+ * same resolver as reads. Never upward, never sideways. A directory row that
+ * fails the check is a source defect, so the request fails closed rather than
+ * quietly dropping it.
+ */
+async function loadAssignees(
+  deps: ModuleDeps,
+  membership: MembershipClaims,
+  target: { assignmentId: string; entity: CreateActionRequest['entity'] },
+): Promise<PermittedAssignee[]> {
+  const rows = await deps.assignees.permitted(membership, target);
   const assignees = parseRows(PermittedAssigneeSchema, rows, 'assignee_row_failed_contract');
+  for (const assignee of assignees) {
+    for (const scope of assignee.scopes) {
+      if (!(await deps.scope.resolver.contains(membership, scope))) {
+        throw new ApiError('internal', 'An internal error occurred.', 'assignee_scope_not_contained');
+      }
+    }
+  }
+  return assignees;
+}
+
+/** The assignee must come from the directory for this evidence (PRD FR-06, ADR 0011 §6). */
+async function verifyAssignee(deps: ModuleDeps, membership: MembershipClaims, body: CreateActionRequest): Promise<void> {
+  const assignees = await loadAssignees(deps, membership, { assignmentId: body.assignmentId, entity: body.entity });
   if (!assignees.some((assignee) => assignee.assigneeId === body.assigneeId)) {
     throw new ApiError('invalid_request', 'The selected assignee cannot be assigned this action.', 'assignee_not_permitted');
   }

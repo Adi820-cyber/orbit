@@ -36,4 +36,19 @@ describe('loadConfig', () => {
       expect(String(error)).not.toContain('not a url');
     }
   });
+
+  it('keeps every source fail-closed unless ORBIT_LIVE_SOURCES names it', () => {
+    expect(loadConfig(base).liveSources.size).toBe(0);
+    const config = loadConfig({ ...base, DATABASE_URL: 'postgresql://x', ORBIT_LIVE_SOURCES: ' memberships , scope ' });
+    expect([...config.liveSources]).toEqual(['memberships', 'scope']);
+  });
+
+  it('rejects an unknown source name instead of ignoring it', () => {
+    expect(() => loadConfig({ ...base, ORBIT_LIVE_SOURCES: 'memberships,everything' })).toThrow(/everything/);
+  });
+
+  it('requires DATABASE_URL for a database source, but not for transitions', () => {
+    expect(() => loadConfig({ ...base, ORBIT_LIVE_SOURCES: 'entitlements' })).toThrow(/DATABASE_URL/);
+    expect([...loadConfig({ ...base, ORBIT_LIVE_SOURCES: 'transitions' }).liveSources]).toEqual(['transitions']);
+  });
 });

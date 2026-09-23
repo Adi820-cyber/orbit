@@ -48,7 +48,7 @@ describe('GET /api/kpi', () => {
   it('fails closed when the matrix references an assignment outside the framework', async () => {
     const { call, fixture } = await setup();
     fixture.deps.scope.entitlements = {
-      forRole: async () => [...MODULE_ENTITLEMENTS.slice(0, 1), { ...MODULE_ENTITLEMENTS[0], assignmentId: 'regional-coo:not-a-kpi' }],
+      forMembership: async () => [...MODULE_ENTITLEMENTS.slice(0, 1), { ...MODULE_ENTITLEMENTS[0], assignmentId: 'regional-coo:not-a-kpi' }],
     };
     const response = await call(SUBJECT.cooRegionA, 'GET', '/api/kpi');
     expect(response.statusCode).toBe(500);
@@ -58,7 +58,7 @@ describe('GET /api/kpi', () => {
 describe('GET /api/kpi/:assignmentId', () => {
   it('serves the series, definitions, and scope for an entitled entity', async () => {
     const { call } = await setup();
-    const response = await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=fixture-region-a&from=2025-12-01'));
+    const response = await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=e0000000-0000-4000-8000-00000000000a&from=2025-12-01'));
     expect(response.statusCode).toBe(200);
     const body = KpiDetailResponseSchema.parse(response.json());
     expect(body.series.map((row) => row.observationId)).toEqual(['obs-cap-a-dec', 'obs-cap-a-jan']);
@@ -69,19 +69,19 @@ describe('GET /api/kpi/:assignmentId', () => {
 
   it('serves a permitted facility breakdown for the latest period', async () => {
     const { call } = await setup();
-    const response = await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=fixture-region-a&breakdown=facility'));
+    const response = await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=e0000000-0000-4000-8000-00000000000a&breakdown=facility'));
     const body = KpiDetailResponseSchema.parse(response.json());
     expect(body.breakdown?.observations.map((row) => row.entity.entityId).sort()).toEqual([
-      'fixture-facility-a1',
-      'fixture-facility-a2',
+      'e0000000-0000-4000-8000-0000000000a1',
+      'e0000000-0000-4000-8000-0000000000a2',
     ]);
   });
 
   it.each([
-    ['the other region', CAPACITY, 'grain=region&entityId=fixture-region-b'],
-    ['a breakdown the role does not hold', REVENUE, 'grain=region&entityId=fixture-region-a&breakdown=facility'],
-    ["another role's assignment", DHO_CAPACITY, 'grain=facility&entityId=fixture-facility-a1'],
-    ['an entity in another organization', CAPACITY, 'grain=facility&entityId=fixture-facility-other-org'],
+    ['the other region', CAPACITY, 'grain=region&entityId=e0000000-0000-4000-8000-00000000000b'],
+    ['a breakdown the role does not hold', REVENUE, 'grain=region&entityId=e0000000-0000-4000-8000-00000000000a&breakdown=facility'],
+    ["another role's assignment", DHO_CAPACITY, 'grain=facility&entityId=e0000000-0000-4000-8000-0000000000a1'],
+    ['an entity in another organization', CAPACITY, 'grain=facility&entityId=e0000000-0000-4000-8000-0000000000c1'],
   ])('refuses %s with out_of_scope and no data', async (_label, assignmentId, query) => {
     const { call } = await setup();
     const response = await call(SUBJECT.cooRegionA, 'GET', detail(assignmentId, query));
@@ -92,13 +92,13 @@ describe('GET /api/kpi/:assignmentId', () => {
 
   it('refuses the symmetric request from the other region', async () => {
     const { call } = await setup();
-    const response = await call(SUBJECT.cooRegionB, 'GET', detail(CAPACITY, 'grain=region&entityId=fixture-region-a'));
+    const response = await call(SUBJECT.cooRegionB, 'GET', detail(CAPACITY, 'grain=region&entityId=e0000000-0000-4000-8000-00000000000a'));
     expect(response.statusCode).toBe(403);
   });
 
   it('rejects a client-supplied role as invalid input', async () => {
     const { call } = await setup();
-    const response = await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=fixture-region-a&role=chairman'));
+    const response = await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=e0000000-0000-4000-8000-00000000000a&role=chairman'));
     expect(response.statusCode).toBe(400);
   });
 
@@ -108,15 +108,15 @@ describe('GET /api/kpi/:assignmentId', () => {
       ...fixture.deps.observations,
       series: async () => [observation('leak', CAPACITY, REGION_B, { cadence: 'month', start: '2026-01-01', end: '2026-01-31' }, 999)],
     };
-    const response = await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=fixture-region-a'));
+    const response = await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=e0000000-0000-4000-8000-00000000000a'));
     expect(response.statusCode).toBe(500);
     expect(response.body).not.toContain('999');
   });
 
   it('audits evidence access and scope denials', async () => {
     const { call, fixture } = await setup();
-    await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=fixture-region-a'));
-    await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=fixture-region-b'));
+    await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=e0000000-0000-4000-8000-00000000000a'));
+    await call(SUBJECT.cooRegionA, 'GET', detail(CAPACITY, 'grain=region&entityId=e0000000-0000-4000-8000-00000000000b'));
     expect(fixture.auditEvents.map((event) => [event.kind, event.outcome])).toEqual([
       ['evidence_viewed', 'served'],
       ['access_denied', 'out_of_scope'],

@@ -28,10 +28,10 @@ export const CAPACITY = 'regional-coo:hospital-and-clinic-capacity-utilisation';
 export const REVENUE = 'regional-coo:regional-net-revenue-vs-approved-budget';
 export const DHO_CAPACITY = 'hospital-dho:capacity-utilisation-and-patient-throughput';
 
-export const REGION_A: ScopeEntity = { grain: 'region', entityId: 'fixture-region-a' };
-export const REGION_B: ScopeEntity = { grain: 'region', entityId: 'fixture-region-b' };
-export const FACILITY_A1: ScopeEntity = { grain: 'facility', entityId: 'fixture-facility-a1' };
-export const FACILITY_A2: ScopeEntity = { grain: 'facility', entityId: 'fixture-facility-a2' };
+export const REGION_A: ScopeEntity = { grain: 'region', entityId: 'e0000000-0000-4000-8000-00000000000a' };
+export const REGION_B: ScopeEntity = { grain: 'region', entityId: 'e0000000-0000-4000-8000-00000000000b' };
+export const FACILITY_A1: ScopeEntity = { grain: 'facility', entityId: 'e0000000-0000-4000-8000-0000000000a1' };
+export const FACILITY_A2: ScopeEntity = { grain: 'facility', entityId: 'e0000000-0000-4000-8000-0000000000a2' };
 
 export const JAN: Period = { cadence: 'month', start: '2026-01-01', end: '2026-01-31' };
 export const DEC: Period = { cadence: 'month', start: '2025-12-01', end: '2025-12-31' };
@@ -177,7 +177,7 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
     disclosure: ILLUSTRATIVE_DISCLOSURE,
     scope: {
       frameworkVersion: 'v1',
-      entitlements: { forRole: async (_org, role) => MODULE_ENTITLEMENTS.filter((row) => row.role === role) },
+      entitlements: { forMembership: async ({ role }) => MODULE_ENTITLEMENTS.filter((row) => row.role === role) },
       resolver: fixtureResolver,
     },
     dataset: {
@@ -198,7 +198,7 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
             row.assignmentId === query.assignmentId &&
             row.entity.grain === query.grain &&
             row.period.start === query.period.start &&
-            (query.parent.entityId === 'fixture-region-a' ? row.entity.entityId.startsWith('fixture-facility-a') : false),
+            (query.parent.entityId === REGION_A.entityId ? [FACILITY_A1.entityId, FACILITY_A2.entityId].includes(row.entity.entityId) : false),
         ),
       byIds: async (_m, ids) => OBSERVATIONS.filter((row) => ids.includes(row.observationId)),
     },
@@ -256,7 +256,7 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
     },
     assignees: {
       permitted: async (_m, target) =>
-        target.assignmentId === CAPACITY && ['fixture-region-a', 'fixture-facility-a1'].includes(target.entity.entityId)
+        target.assignmentId === CAPACITY && ['e0000000-0000-4000-8000-00000000000a', 'e0000000-0000-4000-8000-0000000000a1'].includes(target.entity.entityId)
           ? [{ assigneeId: DHO_ASSIGNEE_ID, role: 'hospital-dho', scopes: [FACILITY_A1] }]
           : [],
     },
@@ -270,9 +270,15 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
     },
     audit: {
       record: async (membership, draft) => writeAudit(membership, draft),
-      list: async () => ({ items: [...auditEvents], nextCursor: null }),
+      // Events about actions the caller created or is assigned, nothing else (ADR 0011 §7).
+      list: async (membership) => ({
+        items: auditEvents.filter((event) => {
+          const stored = event.target?.type === 'action' ? actions.find((row) => row.action.actionId === event.target?.id) : undefined;
+          return stored !== undefined && relationOf(membership, stored) !== null;
+        }),
+        nextCursor: null,
+      }),
     },
-    auditAccess: { mayRead: async (role) => role === 'regional-coo' },
     ...overrides,
   };
   return { deps, auditEvents, actions };

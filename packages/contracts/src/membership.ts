@@ -2,13 +2,22 @@ import { z } from 'zod';
 import { RoleIdSchema } from './roles.ts';
 
 /** Data grains an entitlement or scope can refer to (ARCH §8.2). */
-export const GrainSchema = z.enum(['group', 'region', 'facility', 'coe', 'segment']);
+/**
+ * `segment` is not a grain: it is a payer/insurer breakdown dimension with no
+ * place in the organizational hierarchy (ADR 0012).
+ */
+export const GrainSchema = z.enum(['group', 'region', 'facility', 'coe']);
 export type Grain = z.infer<typeof GrainSchema>;
 
 /**
  * One organizational entity a membership is scoped to.
  *
  * TODO(ghansham): `entityId` should become `z.uuid()`. Agreed with Aditya.
+ * The API and contracts fixtures now use uuids, so tightening it no longer
+ * breaks `services/api` or `packages/contracts` (checked: both pass with it
+ * tightened). Still blocked on `apps/web` (Ayas): the brief fixture and e2e
+ * test use readable ids, and the UI shows `entityId` as the entity's label
+ * because no contract carries a display name yet.
  * RLS policies compare this directly against primary keys
  * (`orbit.regions.id`, `orbit.facilities.id`, `orbit.coes.id`, and the
  * organization's own id for `group` grain), and

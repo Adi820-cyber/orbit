@@ -11,8 +11,7 @@ import type { ModuleDeps } from './ports.ts';
  *   schema and seed (ARCH §7.1);
  * - entitlements: the signed entitlement matrix (ADR 0005, Aditya);
  * - scope resolver: the organization hierarchy tables (Maruti);
- * - transitions: the action transition matrix (ARCH §17.3, Aditya);
- * - audit access: the matrix's audit column (ADR 0005 "Open", Aditya).
+ * - transitions: the action transition matrix (ARCH §17.3, Aditya).
  */
 export function pendingModuleDeps(): ModuleDeps {
   const pending = (what: string): never => {
@@ -22,7 +21,7 @@ export function pendingModuleDeps(): ModuleDeps {
     disclosure: ILLUSTRATIVE_DISCLOSURE,
     scope: {
       frameworkVersion: FRAMEWORK_MANIFEST.definitionVersion,
-      entitlements: { forRole: async () => pending('entitlement_store') },
+      entitlements: { forMembership: async () => pending('entitlement_store') },
       resolver: { contains: async () => pending('scope_resolver') },
     },
     dataset: { current: async () => pending('dataset_store') },
@@ -47,6 +46,5 @@ export function pendingModuleDeps(): ModuleDeps {
       record: async () => pending('audit_store'),
       list: async () => pending('audit_store'),
     },
-    auditAccess: { mayRead: async () => pending('audit_access_matrix') },
   };
 }
