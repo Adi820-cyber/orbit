@@ -31,11 +31,19 @@
 --
 -- Business tables live in `orbit`, not `public`.
 --
--- Why: Supabase's Data API (PostgREST) only exposes schemas it is configured
--- to expose — `public` by default. A table in `orbit` is therefore not
--- reachable over the Data API at all, regardless of grants or policies.
--- That turns ARCHITECTURE.md §16's "Data API disabled or equivalently locked"
--- from a setting somebody has to remember into a structural property.
+-- Why: the Supabase Data API (PostgREST) only serves schemas listed in its
+-- exposed-schema configuration, and `public` is the default. Tables in `orbit`
+-- sit outside that default, so the Data API does not reach them as configured
+-- today.
+--
+-- This is defence in depth, NOT enforcement. The exposed-schema list is
+-- project-level configuration, and this migration neither reads nor sets it, so
+-- `orbit` can be added to it later. The schema choice raises the bar — exposing
+-- these tables now takes a second deliberate action in a reviewable place — but
+-- ARCHITECTURE.md §16's "Data API disabled or equivalently locked" stays OPEN
+-- until deployment config explicitly excludes `orbit` or disables the Data API,
+-- verified against the live project. Do not treat the schema name as the
+-- control.
 --
 -- It also matches the architecture's actual shape: the browser never talks to
 -- the database (§3), so nothing legitimately needs these tables exposed over
@@ -74,17 +82,64 @@ comment on schema orbit is
 -- nobypassrls. Migrations run as `postgres`, which owns the tables; keep it
 -- that way.
 -- ---------------------------------------------------------------------------
+-- Create if absent, then ALTER unconditionally.
+--
+-- `if not exists` alone would be unsafe: a pre-existing `orbit_app` could
+-- already carry superuser, bypassrls, createrole or inherit, and a create-only
+-- guard would skip every attribute while this migration still claimed a
+-- least-privilege posture. The ALTER runs on both paths, so the attributes are
+-- asserted rather than assumed — existence is not treated as sufficient.
 do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'orbit_app') then
-    create role orbit_app with
-      login
-      noinherit
-      nosuperuser
-      nocreatedb
-      nocreaterole
-      noreplication
-      nobypassrls;
+    create role orbit_app;
+  end if;
+end
+$$;
+
+alter role orbit_app with
+  login
+  noinherit
+  nosuperuser
+  nocreatedb
+  nocreaterole
+  noreplication
+  nobypassrls;
+
+-- Remove any membership in privileged built-ins. `noinherit` only stops
+-- *implicit* use of an inherited privilege; an explicit `set role` would still
+-- work, so the membership must not exist at all.
+do $$
+declare r record;
+begin
+  for r in
+    select g.rolname as grantor
+    from pg_auth_members m
+    join pg_roles g on g.oid = m.roleid
+    join pg_roles u on u.oid = m.member
+    where u.rolname = 'orbit_app'
+      and g.rolname in ('anon','authenticated','service_role','postgres','supabase_admin')
+  loop
+    execute format('revoke %I from orbit_app', r.grantor);
+  end loop;
+end
+$$;
+
+-- Fail closed if the posture is not what this file claims. A silent mismatch
+-- would make RLS decorative, so abort the migration rather than proceed.
+do $$
+declare bad text;
+begin
+  select string_agg(attr, ', ') into bad from (
+    select 'superuser'   as attr from pg_roles where rolname='orbit_app' and rolsuper
+    union all select 'bypassrls'   from pg_roles where rolname='orbit_app' and rolbypassrls
+    union all select 'createrole'  from pg_roles where rolname='orbit_app' and rolcreaterole
+    union all select 'createdb'    from pg_roles where rolname='orbit_app' and rolcreatedb
+    union all select 'inherit'     from pg_roles where rolname='orbit_app' and rolinherit
+    union all select 'replication' from pg_roles where rolname='orbit_app' and rolreplication
+  ) s;
+  if bad is not null then
+    raise exception 'orbit_app has forbidden attributes: %', bad;
   end if;
 end
 $$;
@@ -164,8 +219,15 @@ alter default privileges in schema orbit
 --
 -- Policies reading `orbit.subject` must use:
 --     nullif(current_setting('orbit.subject', true), '')::uuid
--- The nullif is not optional: an unset GUC reads back as the empty string, and
--- ''::uuid raises rather than matching no rows — turning a deny into a 500.
+--
+-- Both parts matter, for different reasons:
+--   * `missing_ok = true` (the second argument) makes an *unset* GUC return
+--     NULL instead of raising `unrecognized configuration parameter`.
+--   * `nullif(..., '')` handles the GUC being present but **empty**, which is
+--     what a reset-to-empty leaves behind on a reused pooled connection.
+--     `''::uuid` raises `invalid input syntax for type uuid`, turning what
+--     should be a clean deny into a 500.
+-- Neither guard covers the other case, so both are required.
 -- ---------------------------------------------------------------------------
 
 

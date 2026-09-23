@@ -20,16 +20,26 @@ to own the file and take this as a spec instead, that is fine and better.
 **Proposed decision: create a dedicated `orbit` schema and put every Orbit
 table in it.**
 
-The Supabase Data API (PostgREST) only exposes schemas it is configured to
-expose, and `public` is the default. A table in `orbit` is therefore not
-reachable over the Data API **at all** — independent of grants, independent of
-RLS, independent of whether someone later forgets a policy.
+The Supabase Data API (PostgREST) only serves schemas listed in its
+exposed-schema configuration, and `public` is the default. Putting tables in
+`orbit` means they are outside that default, so the Data API does not reach
+them as configured today.
 
-That converts ARCHITECTURE.md §16's checklist line, "Data API disabled or
-equivalently locked," from a setting somebody has to remember into a structural
-property of where the tables live. ADR 0008 §3 flagged that the current 401 on
-`/rest/v1/` is only PostgREST's default for a missing key and is not evidence
-of a deliberate lock. This closes that properly.
+**This is defence in depth, not enforcement — an earlier draft of this ADR
+overstated it and the correction matters.** The exposed-schema list is
+project-level configuration: someone can add `orbit` to it later, and this
+migration neither reads nor sets that configuration. So the schema choice
+raises the bar (a second deliberate action is now required to expose these
+tables, and it happens somewhere reviewable) but it does not make exposure
+impossible.
+
+Consequently ARCHITECTURE.md §16's line, "Data API disabled or equivalently
+locked," stays **open**. It is closed only when deployment configuration
+explicitly excludes `orbit` from the exposed schemas, or disables the Data API
+outright — and that must be verified against the live project, not inferred
+from where the tables sit. ADR 0008 §3 already flagged that the 401 on
+`/rest/v1/` proves only that the gateway rejects a missing key; the schema
+choice does not upgrade that evidence.
 
 It also matches the architecture's real shape. §3 states the browser never
 talks to the database and the backend is the only path to business data. Under
