@@ -5,22 +5,26 @@ import { ApiError } from '../../plugins/errors.ts';
 import type { ModuleDeps } from '../ports.ts';
 import { auditRead, parseInput, parseRows } from '../shared.ts';
 
+/** The only audit events a caller may read: those about actions (ADR 0011 §7). */
+const ACTION_EVENT_KINDS: ReadonlySet<string> = new Set(['action_created', 'action_transitioned']);
+
 /**
- * Audit trail (PRD FR-07, ARCH §10). Reading it needs explicit permission;
- * which roles hold it is an open matrix column, so the policy is a port.
+ * Audit trail (PRD FR-07, ARCH §10). Every member reads the events for the
+ * actions they created or are assigned, and nothing else (ADR 0011 §7): no
+ * per-role toggle, and no one reads denials or Ask outcomes in v1. The store
+ * filters by actor and assignee; the route re-checks that every returned event
+ * is an action event and fails closed otherwise.
  */
 export function registerAuditRoutes(api: FastifyInstance, deps: ModuleDeps): void {
   api.get('/audit', async (request) => {
     const membership = membershipOf(request);
-    if (!(await deps.auditAccess.mayRead(membership.role))) {
-      throw new ApiError('out_of_scope', 'The requested data is outside your authorized scope.', 'audit_access_not_granted');
-    }
     const page = parseInput(PageQuerySchema, request.query);
     const rows = await deps.audit.list(membership, page);
-    return AuditListResponseSchema.parse({
-      items: parseRows(AuditEventSchema, rows.items, 'audit_row_failed_contract'),
-      nextCursor: rows.nextCursor,
-    });
+    const items = parseRows(AuditEventSchema, rows.items, 'audit_row_failed_contract');
+    if (items.some((event) => !ACTION_EVENT_KINDS.has(event.kind) || event.target?.type !== 'action')) {
+      throw new ApiError('internal', 'An internal error occurred.', 'audit_store_returned_non_action_event');
+    }
+    return AuditListResponseSchema.parse({ items, nextCursor: rows.nextCursor });
   });
 }
 

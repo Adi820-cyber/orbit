@@ -19,7 +19,7 @@ import {
 
 /* Placeholder identifiers only; not generated entities or real KPI values. */
 const period = { cadence: 'month', start: '2026-01-01', end: '2026-01-31' } as const;
-const entity = { grain: 'facility', entityId: 'fixture-facility-a1' } as const;
+const entity = { grain: 'facility', entityId: 'e0000000-0000-4000-8000-0000000000a1' } as const;
 const dataQuality = {
   state: 'illustrative',
   reconciliation: 'reconciled',
@@ -69,7 +69,7 @@ const card = {
   answer: 'x',
   definitionBasis: [],
   reasoning: [],
-  scope: { role: 'regional-coo', entities: [{ grain: 'region', entityId: 'fixture-region-a' }] },
+  scope: { role: 'regional-coo', entities: [{ grain: 'region', entityId: 'e0000000-0000-4000-8000-00000000000a' }] },
   period,
   limitations: [],
   relevantRecords: { observations: [], exceptions: [] },

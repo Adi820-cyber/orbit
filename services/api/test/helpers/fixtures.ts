@@ -28,7 +28,7 @@ function membership(
     subject,
     organizationId: ORG_A,
     role: 'regional-coo',
-    scopes: [{ grain: 'region', entityId: 'fixture-region-a' }],
+    scopes: [{ grain: 'region', entityId: 'e0000000-0000-4000-8000-00000000000a' }],
     status: 'active',
     ...overrides,
   };
@@ -36,10 +36,10 @@ function membership(
 
 export const MEMBERSHIPS: readonly Membership[] = [
   membership(1, SUBJECT.cooRegionA),
-  membership(2, SUBJECT.cooRegionB, { scopes: [{ grain: 'region', entityId: 'fixture-region-b' }] }),
+  membership(2, SUBJECT.cooRegionB, { scopes: [{ grain: 'region', entityId: 'e0000000-0000-4000-8000-00000000000b' }] }),
   membership(3, SUBJECT.inactive, { status: 'inactive' }),
   membership(4, SUBJECT.ambiguous),
-  membership(5, SUBJECT.ambiguous, { role: 'hospital-dho', scopes: [{ grain: 'facility', entityId: 'fixture-facility-a1' }] }),
+  membership(5, SUBJECT.ambiguous, { role: 'hospital-dho', scopes: [{ grain: 'facility', entityId: 'e0000000-0000-4000-8000-0000000000a1' }] }),
 ];
 
 export function fixtureMemberships(rows: readonly unknown[] = MEMBERSHIPS): MembershipSource {
@@ -68,7 +68,7 @@ export const ENTITLEMENTS: readonly Entitlement[] = [
 
 export function fixtureEntitlements(rows: readonly unknown[] = ENTITLEMENTS): EntitlementSource {
   return {
-    async forRole(_organizationId, role) {
+    async forMembership({ role }) {
       return rows.filter((row) => typeof row === 'object' && row !== null && 'role' in row && row.role === role);
     },
   };
@@ -76,12 +76,12 @@ export function fixtureEntitlements(rows: readonly unknown[] = ENTITLEMENTS): En
 
 /** Fixture hierarchy: entity → (organization, region). */
 const HIERARCHY: Record<string, { organizationId: string; region: string }> = {
-  'fixture-region-a': { organizationId: ORG_A, region: 'fixture-region-a' },
-  'fixture-region-b': { organizationId: ORG_A, region: 'fixture-region-b' },
-  'fixture-facility-a1': { organizationId: ORG_A, region: 'fixture-region-a' },
-  'fixture-facility-a2': { organizationId: ORG_A, region: 'fixture-region-a' },
-  'fixture-facility-b1': { organizationId: ORG_A, region: 'fixture-region-b' },
-  'fixture-facility-other-org': { organizationId: ORG_B, region: 'fixture-region-other-org' },
+  'e0000000-0000-4000-8000-00000000000a': { organizationId: ORG_A, region: 'e0000000-0000-4000-8000-00000000000a' },
+  'e0000000-0000-4000-8000-00000000000b': { organizationId: ORG_A, region: 'e0000000-0000-4000-8000-00000000000b' },
+  'e0000000-0000-4000-8000-0000000000a1': { organizationId: ORG_A, region: 'e0000000-0000-4000-8000-00000000000a' },
+  'e0000000-0000-4000-8000-0000000000a2': { organizationId: ORG_A, region: 'e0000000-0000-4000-8000-00000000000a' },
+  'e0000000-0000-4000-8000-0000000000b1': { organizationId: ORG_A, region: 'e0000000-0000-4000-8000-00000000000b' },
+  'e0000000-0000-4000-8000-0000000000c1': { organizationId: ORG_B, region: 'fixture-region-other-org' },
 };
 
 export const fixtureResolver: ScopeResolver = {

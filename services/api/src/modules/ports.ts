@@ -124,7 +124,11 @@ export interface ActionStore {
   list(membership: MembershipClaims, page: PageQuery): Promise<{ items: readonly unknown[]; nextCursor: string | null }>;
 }
 
-/** Who the caller may assign an action on this evidence to (PRD FR-06: assignment must not leak evidence). */
+/**
+ * Who the caller may assign an action on this evidence to, resolved
+ * server-side (ADR 0011 §6). Only people whose scope lies inside the caller's
+ * own; the actions module re-checks that containment with the scope resolver.
+ */
 export interface AssigneeDirectory {
   permitted(membership: MembershipClaims, target: { assignmentId: string; entity: ScopeEntity }): Promise<readonly unknown[]>;
 }
@@ -139,12 +143,12 @@ export interface TransitionPolicy {
 /** Append-only audit trail (ARCH §10): INSERT and gated SELECT only. */
 export interface AuditStore {
   record(membership: MembershipClaims, event: AuditDraft): Promise<void>;
+  /**
+   * Audit events for actions the caller created or is assigned — nothing else
+   * (ADR 0011 §7). Filtered by actor and assignee from the verified claims,
+   * not by a per-role flag.
+   */
   list(membership: MembershipClaims, page: PageQuery): Promise<{ items: readonly unknown[]; nextCursor: string | null }>;
-}
-
-/** Audit access per role — an open entitlement-matrix column (ADR 0005, "Open"). */
-export interface AuditAccessPolicy {
-  mayRead(role: RoleId): Promise<boolean>;
 }
 
 export interface ModuleDeps {
@@ -156,7 +160,6 @@ export interface ModuleDeps {
   assignees: AssigneeDirectory;
   transitions: TransitionPolicy;
   audit: AuditStore;
-  auditAccess: AuditAccessPolicy;
   /** The disclosure rendered on every number surface (PRD §8.4). */
   disclosure: string;
 }
