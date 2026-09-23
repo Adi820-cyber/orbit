@@ -27,9 +27,9 @@ Every other move is refused: `409 invalid_transition` when nobody may make it, `
 
 ## Not covered: needs its own decision
 
-- **Cross-scope assignment** ([ADR 0010](../../docs/decisions/0010-entitlement-matrix-derivation-rules.md) §5.2). The PRD §5.3 vertical slice has a Regional COO assigning to a Hospital DHO, which ADR 0010 leaves open. **Until it is decided, the slice's action step cannot run**, whatever this matrix says.
+- **Cross-scope assignment** ([ADR 0011](../../docs/decisions/0011-entitlement-matrix-derivation-rules.md) §5.2). The PRD §5.3 vertical slice has a Regional COO assigning to a Hospital DHO, which ADR 0011 leaves open. **Until it is decided, the slice's action step cannot run**, whatever this matrix says.
 - **Reassignment, due-date changes, and title edits.** Not state transitions, so they are not in this matrix. v1 has no endpoint for them.
-- **Audit visibility of transitions.** Per ADR 0010 §3, each role reads audit entries for its own actions only. The audit store implementation must filter to those; the route's role-level `AuditAccessPolicy` gate should then allow every role. A follow-up once this and ADR 0010 are accepted.
+- **Audit visibility of transitions.** Per ADR 0011 §3, each role reads audit entries for its own actions only. The audit store implementation must filter to those; the route's role-level `AuditAccessPolicy` gate should then allow every role. A follow-up once this and ADR 0011 are accepted.
 
 ## Acceptance test
 
