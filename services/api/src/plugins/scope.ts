@@ -3,14 +3,18 @@ import {
   type Entitlement,
   type Grain,
   type MembershipClaims,
-  type RoleId,
   type ScopeEntity,
 } from '@orbit/contracts';
 import { ApiError } from './errors.ts';
 
-/** Reads entitlement rows for a role from the reviewed matrix (seeded data, not code). */
+/**
+ * Reads entitlement rows for the membership's role from the reviewed matrix
+ * (seeded data, not code). Takes the whole membership because the database
+ * implementation runs under its claims: RLS on `orbit.entitlements` reads the
+ * role from `orbit.membership`.
+ */
 export interface EntitlementSource {
-  forRole(organizationId: string, role: RoleId): Promise<readonly unknown[]>;
+  forMembership(membership: MembershipClaims): Promise<readonly unknown[]>;
 }
 
 /**
@@ -60,7 +64,7 @@ export type ScopeDecision =
  * rows for one assignment, rather than choosing one or merging them.
  */
 export async function entitlementsFor(membership: MembershipClaims, deps: ScopeDeps): Promise<Entitlement[]> {
-  const rows = await deps.entitlements.forRole(membership.organizationId, membership.role);
+  const rows = await deps.entitlements.forMembership(membership);
   const entitlements = rows.map((row) => {
     const result = EntitlementSchema.safeParse(row);
     if (!result.success) {

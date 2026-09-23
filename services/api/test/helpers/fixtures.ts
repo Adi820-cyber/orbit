@@ -68,7 +68,7 @@ export const ENTITLEMENTS: readonly Entitlement[] = [
 
 export function fixtureEntitlements(rows: readonly unknown[] = ENTITLEMENTS): EntitlementSource {
   return {
-    async forRole(_organizationId, role) {
+    async forMembership({ role }) {
       return rows.filter((row) => typeof row === 'object' && row !== null && 'role' in row && row.role === role);
     },
   };

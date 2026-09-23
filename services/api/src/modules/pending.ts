@@ -22,7 +22,7 @@ export function pendingModuleDeps(): ModuleDeps {
     disclosure: ILLUSTRATIVE_DISCLOSURE,
     scope: {
       frameworkVersion: FRAMEWORK_MANIFEST.definitionVersion,
-      entitlements: { forRole: async () => pending('entitlement_store') },
+      entitlements: { forMembership: async () => pending('entitlement_store') },
       resolver: { contains: async () => pending('scope_resolver') },
     },
     dataset: { current: async () => pending('dataset_store') },

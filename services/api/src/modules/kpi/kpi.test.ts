@@ -48,7 +48,7 @@ describe('GET /api/kpi', () => {
   it('fails closed when the matrix references an assignment outside the framework', async () => {
     const { call, fixture } = await setup();
     fixture.deps.scope.entitlements = {
-      forRole: async () => [...MODULE_ENTITLEMENTS.slice(0, 1), { ...MODULE_ENTITLEMENTS[0], assignmentId: 'regional-coo:not-a-kpi' }],
+      forMembership: async () => [...MODULE_ENTITLEMENTS.slice(0, 1), { ...MODULE_ENTITLEMENTS[0], assignmentId: 'regional-coo:not-a-kpi' }],
     };
     const response = await call(SUBJECT.cooRegionA, 'GET', '/api/kpi');
     expect(response.statusCode).toBe(500);

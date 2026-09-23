@@ -177,7 +177,7 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
     disclosure: ILLUSTRATIVE_DISCLOSURE,
     scope: {
       frameworkVersion: 'v1',
-      entitlements: { forRole: async (_org, role) => MODULE_ENTITLEMENTS.filter((row) => row.role === role) },
+      entitlements: { forMembership: async ({ role }) => MODULE_ENTITLEMENTS.filter((row) => row.role === role) },
       resolver: fixtureResolver,
     },
     dataset: {
