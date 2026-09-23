@@ -1,0 +1,264 @@
+/*
+ * Trend chart (the only chart primitive). One series hue, recessive solid
+ * grid, 2px line, 8px dots with a 2px surface ring, dashed target threshold.
+ */
+
+.orbit-trend {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--orbit-space-3);
+  margin: 0;
+}
+
+.orbit-trend__caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--orbit-space-2);
+}
+
+.orbit-trend__title {
+  color: var(--orbit-color-text);
+  font-size: var(--orbit-font-size-300);
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.orbit-trend__unit {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-200);
+}
+
+.orbit-trend__body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--orbit-space-2);
+}
+
+.orbit-trend__y {
+  position: relative;
+  min-width: 2.25rem;
+  height: 12rem;
+  margin-block: var(--orbit-space-3);
+}
+
+.orbit-trend__y span {
+  position: absolute;
+  right: 0;
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.orbit-trend__stage {
+  min-width: 0;
+}
+
+.orbit-trend__plot {
+  position: relative;
+  height: 12rem;
+  margin: var(--orbit-space-3) var(--orbit-space-5) 0 var(--orbit-space-3);
+  border-radius: var(--orbit-radius-control);
+}
+
+/* A transparent native range input over the plot: keyboard, pointer, and screen-reader value text for free. */
+.orbit-trend__input {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: crosshair;
+  touch-action: pan-y;
+  appearance: none;
+}
+
+.orbit-trend__input::-webkit-slider-thumb {
+  width: 1px;
+  height: 100%;
+  appearance: none;
+}
+
+.orbit-trend__input::-moz-range-thumb {
+  width: 1px;
+  height: 100%;
+  border: 0;
+}
+
+.orbit-trend__plot:has(.orbit-trend__input:focus-visible) {
+  outline: 3px solid var(--orbit-focus-ring);
+  outline-offset: var(--orbit-space-3);
+}
+
+.orbit-trend__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.orbit-trend__grid {
+  stroke: var(--orbit-color-border);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.orbit-trend__line {
+  fill: none;
+  stroke: var(--orbit-brand-blue);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+}
+
+.orbit-trend__target {
+  stroke: var(--orbit-color-text-muted);
+  stroke-dasharray: 4 4;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.orbit-trend__target-band {
+  fill: var(--orbit-color-surface-subtle);
+}
+
+.orbit-trend__gap {
+  stroke: var(--orbit-color-border-strong);
+  stroke-dasharray: 2 3;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.orbit-trend__crosshair {
+  stroke: var(--orbit-color-border-strong);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.orbit-trend__dot {
+  position: absolute;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--orbit-brand-blue);
+  box-shadow: 0 0 0 2px var(--orbit-color-surface);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.orbit-trend__dot[data-last="true"],
+.orbit-trend__dot[data-active="true"] {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.orbit-trend__end-label,
+.orbit-trend__target-label {
+  position: absolute;
+  color: var(--orbit-color-text);
+  font-size: var(--orbit-font-size-100);
+  font-weight: var(--orbit-font-weight-semibold);
+  line-height: 1;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.orbit-trend__end-label {
+  right: 0;
+  transform: translate(0, -180%);
+}
+
+.orbit-trend__target-label {
+  left: var(--orbit-space-1);
+  color: var(--orbit-color-text-muted);
+  font-weight: var(--orbit-font-weight-medium);
+  transform: translateY(-140%);
+}
+
+.orbit-trend__gap-label {
+  position: absolute;
+  top: var(--orbit-space-1);
+  border-radius: var(--orbit-radius-control);
+  padding: 0.125rem var(--orbit-space-1);
+  background: var(--orbit-color-warning-soft);
+  color: var(--orbit-color-warning);
+  font-size: 0.625rem;
+  font-weight: var(--orbit-font-weight-semibold);
+  line-height: 1.2;
+  pointer-events: none;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.orbit-trend__tooltip {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  gap: 0.125rem;
+  min-width: 7rem;
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  border-radius: var(--orbit-radius-compact);
+  padding: var(--orbit-space-2) var(--orbit-space-3);
+  background: var(--orbit-color-surface);
+  box-shadow: var(--orbit-shadow-raised);
+  pointer-events: none;
+}
+
+.orbit-trend__tooltip[data-side="right"] {
+  transform: translateX(var(--orbit-space-3));
+}
+
+.orbit-trend__tooltip[data-side="left"] {
+  transform: translateX(calc(-100% - var(--orbit-space-3)));
+}
+
+.orbit-trend__tooltip strong {
+  color: var(--orbit-color-text);
+  font-size: var(--orbit-font-size-400);
+  font-variant-numeric: tabular-nums;
+}
+
+.orbit-trend__tooltip small,
+.orbit-trend__tooltip span {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+  font-weight: var(--orbit-font-weight-regular);
+}
+
+.orbit-trend__x {
+  position: relative;
+  height: 1.5rem;
+  margin: var(--orbit-space-2) var(--orbit-space-5) 0 var(--orbit-space-3);
+}
+
+.orbit-trend__x span {
+  position: absolute;
+  top: 0;
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+@container (max-width: 34rem) {
+  .orbit-trend__x span[data-minor="true"] {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .orbit-trend__line,
+  .orbit-trend__target {
+    stroke: CanvasText;
+  }
+
+  .orbit-trend__dot {
+    background: CanvasText;
+  }
+}

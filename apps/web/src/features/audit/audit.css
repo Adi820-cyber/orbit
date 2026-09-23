@@ -1,0 +1,10 @@
+.audit-note {
+  max-width: var(--orbit-reading-width);
+  margin: 0 0 var(--orbit-space-5);
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-300);
+}
+
+.audit-time {
+  white-space: nowrap;
+}
