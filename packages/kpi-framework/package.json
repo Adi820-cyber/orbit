@@ -5,21 +5,20 @@
   "type": "module",
   "description": "Typed, versioned import of the workbook: 14 roles, 29 definition families, 109 assignments. Generated, never hand-edited.",
   "engines": {
-    "node": "22.x"
+    "node": ">=22.18 <23"
   },
   "main": "./src/index.ts",
   "scripts": {
     "import": "node scripts/import-workbook.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "lint": "echo 'No linter selected yet — open decision (see services/api/DEPENDENCIES.md)'"
-  },
-  "dependencies": {
-    "exceljs": "^4.4.0",
-    "pure-rand": "^8.4.2"
+    "lint": "oxlint --type-aware"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "exceljs": "^4.4.0",
+    "oxlint": "^1.85.0",
+    "oxlint-tsgolint": "^7.0.2002",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   }

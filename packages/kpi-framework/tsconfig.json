@@ -5,7 +5,21 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
-    "types": ["node"]
+    "types": ["node"],
+    // Overrides tsconfig.base.json's ["ES2022", "DOM", "DOM.Iterable"].
+    //
+    // ES2023 because the repo's Node floor is >=22.18 (ADR 0006) and Node 22
+    // implements ES2023 in full. It unlocks the non-mutating array methods
+    // (toSorted, toReversed, with) that oxlint's unicorn/no-array-sort rule
+    // steers toward, so the linter and the type checker agree.
+    //
+    // DOM is dropped deliberately: this is a Node-only package and should not
+    // typecheck against browser globals it can never have.
+    //
+    // Worth raising with Aditya as a base-config change -- every workspace is
+    // on the same Node floor, so ES2022 is conservative repo-wide. Overriding
+    // locally rather than editing his file (FILE_STRUCTURE.md §5).
+    "lib": ["ES2023"]
   },
   "include": ["src", "scripts"]
 }

@@ -1,6 +1,7 @@
 # ADR 0003: `packages/kpi-framework` import dependencies (`exceljs`, `pure-rand`)
 
-- **Status:** Proposed — pending Aditya's review, per RULES.md "Dependency decision record."
+- **Status:** **Accepted** — approved by Aditya on PR #13, 2026-09-23, with two
+  corrections now applied. See "Corrections from review" below.
 - **Owners:** Maruti (author), Aditya (reviewer)
 - **Date opened:** 2026-09-23
 - **Date resolved:** _(fill in when Accepted)_
@@ -66,11 +67,45 @@ Adopt:
   `sourceChecksum` in the generated manifest (byte-level reproducibility
   of the source hash, verified twice).
 
+## Corrections from review (Aditya, PR #13, 2026-09-23)
+
+Both were right and are applied.
+
+**1. Both packages were in `dependencies`; they belong in `devDependencies`.**
+
+`exceljs` is imported only by `scripts/import-workbook.ts`, which runs at
+development time, and the generated `src/generated/*.ts` it produces is
+committed. Nothing at runtime imports it. Left in `dependencies` it would be
+installed into the deployed API and count against Vercel's 250 MB function
+bundle limit (ARCH §11.4).
+
+Verified after the move: `npm run import` still works, and the generated output
+is unchanged.
+
+**This also largely resolves the `uuid` advisory recorded above.** A
+moderate-severity issue in a transitive dependency of a *dev* dependency never
+reaches production. The original risk assessment was defensible, but the
+correct fix made most of it moot rather than accepted — a better outcome than
+documenting an accepted risk.
+
+**2. `pure-rand` removed from `kpi-framework` entirely.**
+
+It was declared here but imported nowhere — `kpi-framework` has no use for a
+PRNG. It is declared in `packages/data-gen`, which is where the deterministic
+generator actually needs it (PRD §8.4). A dependency should appear where it is
+used, not where it was anticipated.
+
+**3. `@types/node` was `^26.6.2` against a Node 22 runtime** — already corrected
+to `^22.20.4` before this review landed. Aditya's reasoning is the sharper
+version of why it mattered: 26.x typings describe APIs that do not exist in the
+deployed runtime, so the failure surfaces at runtime rather than at typecheck.
+
 ## Consequences
 
-- Adopted now for `packages/kpi-framework`. `pure-rand` is not yet
-  exercised by any code; if `packages/data-gen` ends up not needing it
-  (unlikely, given PRD §8.4), this ADR should be updated to reflect that
-  rather than leaving an unused dependency unexplained.
-- The `uuid` advisory above should be re-checked next time `exceljs`
-  publishes a release that resolves it without a breaking downgrade.
+- `exceljs` is a development-time dependency only. If anything at runtime ever
+  needs to read a workbook, that is a new decision requiring its own record,
+  not a quiet promotion back to `dependencies`.
+- The `uuid` advisory is no longer a production concern. Still worth re-checking
+  when `exceljs` ships a release that resolves it without the breaking
+  downgrade to 3.4.0.
+- `pure-rand` is recorded in `packages/data-gen`'s own dependency set.

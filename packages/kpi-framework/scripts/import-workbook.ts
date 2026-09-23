@@ -91,25 +91,107 @@ const GROUP_SCORECARD_OUTCOME_ROWS = { start: 5, end: 12 };
 const GROUP_SCORECARD_CASCADE_ROWS = { start: 16, end: 29 };
 const GOVERNANCE_DATA_ROWS = { start: 5, end: 14 };
 
-function cellString(row: ExcelJS.Row, col: number): string {
-  const value = row.getCell(col).value;
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object" && "result" in value) {
-    // Formula cell (e.g. COUNTIF) — use its computed result.
-    return String((value as { result: unknown }).result ?? "");
+/**
+ * Reduces an ExcelJS cell value to a primitive.
+ *
+ * ExcelJS returns a union, not a string: numbers, booleans, Dates, formula
+ * wrappers `{formula, result}`, shared-formula wrappers, rich text
+ * `{richText:[{text}]}`, hyperlinks `{text, hyperlink}`, and error cells
+ * `{error}`.
+ *
+ * An earlier version of this called `String(value)` as a fallback, which is a
+ * silent data-corruption bug: a rich-text or hyperlink cell stringifies to
+ * "[object Object]" and that string would be written straight into the
+ * generated framework that every other package consumes. Caught by oxlint's
+ * type-aware `no-base-to-string` rule (ADR 0006).
+ *
+ * Unrecognised shapes and error cells THROW rather than degrade. This is a
+ * one-time import of a file we control, so a loud failure is strictly better
+ * than importing a placeholder that looks like real content.
+ */
+function cellPrimitive(
+  row: ExcelJS.Row,
+  col: number,
+  sheetName: string,
+): string | number | boolean | null {
+  const value: unknown = row.getCell(col).value;
+
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return value;
+  if (typeof value === "boolean") return value;
+  if (value instanceof Date) return value.toISOString();
+
+  if (typeof value === "object") {
+    // Narrowed via `in` checks and `prop()` rather than a cast. Asserting
+    // `value as Record<string, unknown>` would be an unsafe assertion on an
+    // unknown (oxlint typescript/no-unsafe-type-assertion), and the whole point
+    // of this function is to stop trusting the shape of a cell.
+    const prop = (key: string): unknown =>
+      Object.prototype.hasOwnProperty.call(value, key)
+        ? Reflect.get(value, key)
+        : undefined;
+
+    // Error cell (#REF!, #DIV/0!, …). Never silently swallow one.
+    if ("error" in value) {
+      throw new Error(
+        `${sheetName} row ${row.number}, column ${col}: cell contains the Excel ` +
+          `error "${String(prop("error"))}". Fix the workbook rather than importing it.`,
+      );
+    }
+
+    // Formula or shared formula: recurse into the cached result.
+    if ("formula" in value || "sharedFormula" in value) {
+      const result = prop("result");
+      if (result === null || result === undefined) return null;
+      if (typeof result === "string" || typeof result === "number" || typeof result === "boolean") {
+        return result;
+      }
+      if (result instanceof Date) return result.toISOString();
+      throw new Error(
+        `${sheetName} row ${row.number}, column ${col}: formula result has ` +
+          `unsupported type ${typeof result}. Extend cellPrimitive deliberately.`,
+      );
+    }
+
+    // Rich text: concatenate the runs, discarding formatting.
+    const richText = prop("richText");
+    if (Array.isArray(richText)) {
+      return richText
+        .map((run: unknown) => {
+          if (typeof run !== "object" || run === null) return "";
+          const text = Reflect.get(run, "text");
+          return typeof text === "string" ? text : "";
+        })
+        .join("");
+    }
+
+    // Hyperlink: keep the display text; the URL is not framework content.
+    const text = prop("text");
+    if (typeof text === "string") return text;
+
+    throw new Error(
+      `${sheetName} row ${row.number}, column ${col}: unsupported cell value shape ` +
+        `with keys [${Object.keys(value).join(", ")}]. Extend cellPrimitive deliberately ` +
+        `rather than letting it stringify to "[object Object]".`,
+    );
   }
-  return String(value).trim();
+
+  throw new Error(
+    `${sheetName} row ${row.number}, column ${col}: unsupported cell value type ` +
+      `${typeof value}.`,
+  );
 }
 
-function cellNumber(row: ExcelJS.Row, col: number): number {
-  const value = row.getCell(col).value;
-  if (typeof value === "number") return value;
-  if (value === null || value === undefined) return NaN;
-  if (typeof value === "object" && "result" in value) {
-    const result = (value as { result: unknown }).result;
-    return typeof result === "number" ? result : NaN;
-  }
-  return NaN;
+function cellString(row: ExcelJS.Row, col: number, sheetName: string): string {
+  const primitive = cellPrimitive(row, col, sheetName);
+  if (primitive === null) return "";
+  return String(primitive).trim();
+}
+
+function cellNumber(row: ExcelJS.Row, col: number, sheetName: string): number {
+  const primitive = cellPrimitive(row, col, sheetName);
+  return typeof primitive === "number" ? primitive : NaN;
 }
 
 /**
@@ -294,30 +376,32 @@ async function main() {
   }
 
   // --- KPI Definitions (must be parsed first; assignments resolve against it) ---
+  let sheetLabel = KPI_DEFINITIONS_SHEET;
   const definitionFamilies: KpiDefinitionFamily[] = [];
   for (let r = KPI_DEFINITIONS_DATA_ROWS.start; r <= KPI_DEFINITIONS_DATA_ROWS.end; r++) {
     const row = definitionsSheet.getRow(r);
-    const family = cellString(row, 1);
+    const family = cellString(row, 1, sheetLabel);
     if (!family) continue;
     definitionFamilies.push({
       sourceRow: r,
       family,
-      standardDefinition: cellString(row, 2),
-      numeratorDenominatorControl: cellString(row, 3),
-      targetSteward: cellString(row, 4),
-      primarySource: cellString(row, 5),
-      notes: cellString(row, 6),
+      standardDefinition: cellString(row, 2, sheetLabel),
+      numeratorDenominatorControl: cellString(row, 3, sheetLabel),
+      targetSteward: cellString(row, 4, sheetLabel),
+      primarySource: cellString(row, 5, sheetLabel),
+      notes: cellString(row, 6, sheetLabel),
     });
   }
 
   // --- Role KPI Matrix (109 assignments) ---
+  sheetLabel = ROLE_MATRIX_SHEET;
   const assignments: RoleKpiAssignment[] = [];
   for (let r = ROLE_MATRIX_DATA_ROWS.start; r <= ROLE_MATRIX_DATA_ROWS.end; r++) {
     const row = matrixSheet.getRow(r);
-    const role = cellString(row, 2);
+    const role = cellString(row, 2, sheetLabel);
     if (!role) continue;
 
-    const kpi = cellString(row, 5);
+    const kpi = cellString(row, 5, sheetLabel);
     const { families, unresolvedReason } = resolveDefinitionFamilies(kpi, definitionFamilies);
 
     const roleId = ROLE_NAME_TO_ID[role];
@@ -332,18 +416,18 @@ async function main() {
     assignments.push({
       assignmentId: `${roleId}:${slugify(kpi)}`,
       sourceRow: r,
-      level: cellString(row, 1),
+      level: cellString(row, 1, sheetLabel),
       role,
       roleId,
-      reportsTo: cellString(row, 3),
-      keyDeliverable: cellString(row, 4),
+      reportsTo: cellString(row, 3, sheetLabel),
+      keyDeliverable: cellString(row, 4, sheetLabel),
       kpi,
-      definition: cellString(row, 6),
-      weight: cellNumber(row, 7),
-      targetBasis: cellString(row, 8),
-      review: cellString(row, 9),
-      primaryDataSource: cellString(row, 10),
-      keyCollaborator: cellString(row, 11),
+      definition: cellString(row, 6, sheetLabel),
+      weight: cellNumber(row, 7, sheetLabel),
+      targetBasis: cellString(row, 8, sheetLabel),
+      review: cellString(row, 9, sheetLabel),
+      primaryDataSource: cellString(row, 10, sheetLabel),
+      keyCollaborator: cellString(row, 11, sheetLabel),
       definitionFamilies: families,
       unresolvedReason,
     });
@@ -365,19 +449,20 @@ async function main() {
   }
 
   // --- Group Scorecard: enterprise outcomes ---
+  sheetLabel = GROUP_SCORECARD_SHEET;
   const enterpriseOutcomes: EnterpriseOutcome[] = [];
   for (let r = GROUP_SCORECARD_OUTCOME_ROWS.start; r <= GROUP_SCORECARD_OUTCOME_ROWS.end; r++) {
     const row = scorecardSheet.getRow(r);
-    const outcome = cellString(row, 1);
+    const outcome = cellString(row, 1, sheetLabel);
     if (!outcome) continue;
     enterpriseOutcomes.push({
       sourceRow: r,
       outcome,
-      cmoAccountability: cellString(row, 2),
-      primaryContributionOwners: cellString(row, 3),
-      targetBasis: cellString(row, 4),
-      review: cellString(row, 5),
-      dataSource: cellString(row, 6),
+      cmoAccountability: cellString(row, 2, sheetLabel),
+      primaryContributionOwners: cellString(row, 3, sheetLabel),
+      targetBasis: cellString(row, 4, sheetLabel),
+      review: cellString(row, 5, sheetLabel),
+      dataSource: cellString(row, 6, sheetLabel),
     });
   }
 
@@ -385,7 +470,7 @@ async function main() {
   const roles: RoleDefinition[] = [];
   for (let r = GROUP_SCORECARD_CASCADE_ROWS.start; r <= GROUP_SCORECARD_CASCADE_ROWS.end; r++) {
     const row = scorecardSheet.getRow(r);
-    const name = cellString(row, 1);
+    const name = cellString(row, 1, sheetLabel);
     if (!name) continue;
     const roleId = ROLE_NAME_TO_ID[name];
     if (!roleId) {
@@ -400,11 +485,11 @@ async function main() {
       id: roleId,
       name,
       level: "", // filled in below from matrix rows
-      deployment: cellString(row, 2),
-      reportsTo: cellString(row, 3),
-      primaryFocus: cellString(row, 4),
-      kpiCount: cellNumber(row, 5),
-      cadence: cellString(row, 6),
+      deployment: cellString(row, 2, sheetLabel),
+      reportsTo: cellString(row, 3, sheetLabel),
+      primaryFocus: cellString(row, 4, sheetLabel),
+      kpiCount: cellNumber(row, 5, sheetLabel),
+      cadence: cellString(row, 6, sheetLabel),
     });
   }
   // Backfill "level" per role from the matrix (first matching assignment).
@@ -414,19 +499,20 @@ async function main() {
   }
 
   // --- Governance & Targeting ---
+  sheetLabel = GOVERNANCE_SHEET;
   const governanceRules: GovernanceRule[] = [];
   for (let r = GOVERNANCE_DATA_ROWS.start; r <= GOVERNANCE_DATA_ROWS.end; r++) {
     const row = governanceSheet.getRow(r);
-    const kpiFamily = cellString(row, 1);
+    const kpiFamily = cellString(row, 1, sheetLabel);
     if (!kpiFamily) continue;
     governanceRules.push({
       sourceRow: r,
       kpiFamily,
-      targetSettingApproach: cellString(row, 2),
-      targetOwner: cellString(row, 3),
-      definitionOwner: cellString(row, 4),
-      reportingCadence: cellString(row, 5),
-      escalationReview: cellString(row, 6),
+      targetSettingApproach: cellString(row, 2, sheetLabel),
+      targetOwner: cellString(row, 3, sheetLabel),
+      definitionOwner: cellString(row, 4, sheetLabel),
+      reportingCadence: cellString(row, 5, sheetLabel),
+      escalationReview: cellString(row, 6, sheetLabel),
     });
   }
 
