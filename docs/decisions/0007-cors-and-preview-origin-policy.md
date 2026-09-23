@@ -1,7 +1,7 @@
 # ADR 0007: CORS policy and preview-origin allowlisting
 
-- **Status:** Accepted as policy. The concrete slug values cannot be filled in until the Vercel projects exist, and the behaviour must be tested rather than assumed — see §6.
-- **Owner:** Aditya (ARCHITECTURE.md §11.3, and §17.4 "preview wildcard policy — Aditya")
+- **Status:** Accepted as policy. The concrete slug values cannot be filled in until the Vercel projects exist, and the behaviour must be tested rather than assumed — see §7.
+- **Owner:** Aditya (ARCHITECTURE.md §11.3, and §17 item 4, "Domains, regions, Vercel/Supabase plan tiers, preview wildcard policy — Aditya")
 - **Reviewer:** Ghansham (implements it in `services/api`)
 - **Date:** 2026-09-23
 - **Answers:** Ghansham's question on PR #7 — exact origins only, or a wildcard pattern for Vercel previews?
@@ -44,10 +44,40 @@ Three properties are mandatory, and each prevents a specific bypass:
 - **Escape the dots.** An unescaped `.` matches any character, so
   `vercel.app` written naively also matches `vercelxapp`.
 
+### The project segment must be matched exactly, not wildcarded
+
+An earlier draft of this ADR described the pattern as "bound to our project and
+scope" while making only the **scope slug** configurable. That was a real
+defect, and it would have produced exactly the bypass §2 claims to prevent:
+
+A pattern anchored on the scope alone — `^https://.*-ourscope\.vercel\.app$` —
+matches `https://evil-orbit-web-ourscope.vercel.app`. Anchoring `^` does not
+help, because the wildcard sits *inside* the anchors and swallows the project
+segment. It would also match any other project in the same scope, which is a
+smaller problem but still not what was intended.
+
+So the project segment is not a wildcard:
+
+- **The approved project slugs are reviewed source constants**, not env input.
+  There are exactly two (`web` and `api` projects), and they are known at review
+  time.
+- The only wildcarded segment is the deployment-unique part Vercel generates —
+  the hash or branch slug — and it must be constrained to the characters Vercel
+  actually produces there, not `.*`.
+- Concretely the shape is
+  `^https://<approved-project>-<constrained-unique>-<scope>\.vercel\.app$`,
+  with `<approved-project>` an exact alternation over the reviewed constants and
+  `<constrained-unique>` a bounded character class, never `.*`.
+
+Deriving the whole host from a single slug is what created the hole. The lesson
+is narrower than "anchor your regex": **every segment an attacker can influence
+must be either exact or character-constrained.**
+
 ## 3. The regex lives in code, not in an environment variable
 
 **`ALLOWED_ORIGINS` holds exact origin strings only. The preview pattern is
-constructed in reviewed source from a scope slug supplied by env.**
+constructed in reviewed source, parameterised only by the scope slug, with the
+project segment pinned to reviewed constants per the section above.**
 
 The reason is blast radius. If the whole pattern were an env var, a typo or a
 careless edit in a Vercel dashboard field could silently widen CORS to
@@ -81,9 +111,10 @@ production API's `ALLOWED_ORIGINS`.
 
 ## 6. The same scoping applies to Supabase redirect URLs — and matters more there
 
-ARCHITECTURE.md §11.3 and §17.4 reference Supabase's documented Vercel preview
-wildcard for the auth redirect allowlist. Use it, but **scope it to our slug
-for the same reason as above**, because the consequence of a loose redirect
+ARCHITECTURE.md §11.3 and §17 item 4 reference Supabase's documented Vercel
+preview wildcard for the auth redirect allowlist. Use it, but **scope it with
+the same exactness as above** — project segment pinned, not wildcarded —
+because the consequence of a loose redirect
 allowlist is worse than a loose CORS policy: a redirect allowlist that matches
 someone else's `vercel.app` deployment can deliver an authentication token to
 that deployment. CORS misconfiguration grants access to an API that still
