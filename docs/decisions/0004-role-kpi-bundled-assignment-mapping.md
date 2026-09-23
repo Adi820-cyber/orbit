@@ -71,17 +71,40 @@ re-import produces an unresolved row).
 - No RLS, auth, or contract-schema impact by itself — this is data-shape
   only, inside `@orbit/kpi-framework`.
 
+## Bundled-assignment weight: atomic — decided 2026-09-23 (Aditya)
+
+**A bundled assignment's weight stays atomic. It is NOT split across its
+component definition families.**
+
+Two reasons, both worth keeping rather than re-deriving:
+
+1. The workbook assigns weight to the *assignment row*, not to definition
+   families. Any split would be a distribution Orbit invented rather than one
+   the source specifies — the same class of error as hardcoding a
+   realistic-looking value, which `RULES.md` bans outright.
+2. No scoring formula is authorized yet (PRD §7: "Workbook weights do not
+   authorize a scoring formula"). Splitting the weight would invent the
+   distribution *and* imply a formula in one move.
+
+So for the 8 multi-family assignments, the single `weight` value belongs to the
+assignment as a whole, and `definitionFamilies` describes what it decomposes
+into for *evidence* purposes — not for apportioning score.
+
+Revisit only if a scoring formula is ever approved, and write the rationale
+down at that point.
+
 ## Sign-off
 
-- [ ] Aditya (matrix owner per ARCHITECTURE.md §8.2)
+- [x] Aditya (matrix owner per ARCHITECTURE.md §8.2) — 2026-09-23, on PR #13.
+      Approved the mapping and answered the weight question above.
 - [ ] Ghansham (consumes this shape in `services/api`'s `kpi` module)
-- [ ] Maruti (author)
+- [x] Maruti (author)
 
 ## Open questions
 
-- Should a bundled assignment's weight be split across its component
-  families for scoring purposes, or does the whole assignment's weight
-  stay atomic regardless of how many families it touches? RULES.md §7
+- ~~Should a bundled assignment's weight be split across its component
+  families?~~ **Resolved above: atomic.** Original framing retained for
+  context: RULES.md §7
   ("Keep weights at 100%... Workbook weights do not authorize a scoring
   formula") suggests no scoring formula exists yet, so this may not need
   an answer before Gate 1 — flagging so it isn't silently decided later

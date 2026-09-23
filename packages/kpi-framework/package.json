@@ -14,12 +14,9 @@
     "test": "vitest run",
     "lint": "oxlint --type-aware"
   },
-  "dependencies": {
-    "exceljs": "^4.4.0",
-    "pure-rand": "^8.4.2"
-  },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "exceljs": "^4.4.0",
     "oxlint": "^1.85.0",
     "oxlint-tsgolint": "^7.0.2002",
     "typescript": "^7.0.2",
