@@ -1,7 +1,7 @@
 # ADR 0001: Remediate exposed Supabase service-role credential
 
 - **Status:** Proposed — blocked on Aditya completing the rotation steps below and checking off the acceptance criteria. Do not mark Accepted until every checkbox is true and dated.
-- **Owners:** Aditya (lead), Maruti (co-owner per TEAM_ASSIGNMENTS.md §8.1)
+- **Owners:** Aditya (lead), Maruti (co-owner per TEAM_ASSIGNMENTS.md §8 item 1)
 - **Date opened:** 2026-09-22
 - **Date resolved:** _(fill in when Accepted)_
 
@@ -12,12 +12,19 @@ credential was found in `scripts/seed_supabase.mjs` in an old, unrelated
 remote repository. Per TEAM_ASSIGNMENTS.md §8 and ARCHITECTURE.md §7.5/§12,
 nobody on the current team has used this credential, but it is a live
 secret until proven otherwise, and its existence violates the project's
-non-negotiable rule that the API and any tooling connect as the
+non-negotiable rule that **the API** connects as the
 least-privilege `orbit_app` role, never `service_role` or `postgres`
 (service role bypasses RLS entirely).
 
+To be precise, since an earlier draft of this ADR said "the API and any
+tooling" and that was too broad: `orbit_app` is the **API's** connection role.
+Seed and reset tooling uses a **separate, environment-restricted seeder role**
+(ARCHITECTURE.md §6.3 and §7.5) — that separation is a requirement this ADR
+preserves, not an exception to it. What is banned everywhere, for API and
+tooling alike, is `service_role`.
+
 This is called out as the team's first required task: "before any new
-build" (TEAM_ASSIGNMENTS.md §8.1). Gate 0 cloud foundations (new Supabase
+build" (TEAM_ASSIGNMENTS.md §8 item 1). Gate 0 cloud foundations (new Supabase
 dev/prod projects) should not be treated as trustworthy until this is
 closed.
 
@@ -182,7 +189,7 @@ project(s) remains open until the remediation sequence above is completed. This
 ADR stays `Proposed` and cannot be marked Accepted on the strength of the new
 project existing. Decoupling the work is not closing the finding.
 
-## Acceptance criteria (from TEAM_ASSIGNMENTS.md §8.1, expanded after incident log above)
+## Acceptance criteria (from TEAM_ASSIGNMENTS.md §8 item 1, expanded after incident log above)
 
 - [ ] Original leaked key (from old repo's `scripts/seed_supabase.mjs`) neutralized in its project — note the same legacy-key constraint above applies, so this is migrate+rotate+revoke or delete, not a simple rotation
 - [ ] `xvqvqprztbvcywhrpnpf`: owner (Maruti) chooses migrate+rotate+revoke or delete, and the chosen path is completed
