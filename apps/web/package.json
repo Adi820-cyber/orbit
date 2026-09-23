@@ -18,6 +18,7 @@
     "lint": "oxlint --type-aware"
   },
   "dependencies": {
+    "@orbit/contracts": "^0.0.0",
     "@orbit/ui-kit": "^0.0.0",
     "@supabase/supabase-js": "^2.117.0",
     "react": "^19.3.0",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
+    "@orbit/kpi-framework": "^0.0.0",
     "@playwright/test": "^1.63.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
