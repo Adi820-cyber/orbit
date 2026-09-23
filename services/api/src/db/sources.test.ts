@@ -132,12 +132,9 @@ describe('scope resolver', () => {
     expect(calls[1]?.text).toContain('orbit.has_group_scope()');
   });
 
-  it.each([
-    ['segment, which has no table', { grain: 'segment', entityId: REGION }],
-    ['a non-uuid id', { grain: 'region', entityId: 'fixture-region-a' }],
-  ] as const)('never contains %s, without querying', async (_label, target) => {
+  it('never contains a non-uuid id, without querying', async () => {
     const { db, calls } = recordingDb([{ contained: true }]);
-    expect(await createDbScopeResolver(db).contains(claims, target)).toBe(false);
+    expect(await createDbScopeResolver(db).contains(claims, { grain: 'region', entityId: 'not-a-uuid' })).toBe(false);
     expect(calls).toHaveLength(0);
   });
 

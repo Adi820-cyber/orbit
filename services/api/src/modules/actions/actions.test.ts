@@ -47,26 +47,26 @@ function errorCode(body: string) {
 describe('GET /api/actions/assignees', () => {
   it('lists permitted assignees for in-scope evidence', async () => {
     const { call } = await setup();
-    const response = await call(SUBJECT.cooRegionA, 'GET', `/api/actions/assignees?assignmentId=${encodeURIComponent(CAPACITY)}&grain=facility&entityId=fixture-facility-a1`);
+    const response = await call(SUBJECT.cooRegionA, 'GET', `/api/actions/assignees?assignmentId=${encodeURIComponent(CAPACITY)}&grain=facility&entityId=e0000000-0000-4000-8000-0000000000a1`);
     expect(PermittedAssigneesResponseSchema.parse(response.json()).assignees.map((row) => row.assigneeId)).toEqual([DHO_ASSIGNEE_ID]);
   });
 
   it('refuses the other region', async () => {
     const { call } = await setup();
-    const response = await call(SUBJECT.cooRegionA, 'GET', `/api/actions/assignees?assignmentId=${encodeURIComponent(CAPACITY)}&grain=region&entityId=fixture-region-b`);
+    const response = await call(SUBJECT.cooRegionA, 'GET', `/api/actions/assignees?assignmentId=${encodeURIComponent(CAPACITY)}&grain=region&entityId=e0000000-0000-4000-8000-00000000000b`);
     expect(response.statusCode).toBe(403);
   });
 });
 
 describe('assignment containment (ADR 0011 §6)', () => {
-  const outOfScopeAssignee = { assigneeId: 'fixture-assignee-dho-b1', role: 'hospital-dho', scopes: [{ grain: 'facility', entityId: 'fixture-facility-b1' }] };
+  const outOfScopeAssignee = { assigneeId: 'fixture-assignee-dho-b1', role: 'hospital-dho', scopes: [{ grain: 'facility', entityId: 'e0000000-0000-4000-8000-0000000000b1' }] };
 
   it('fails closed when the directory offers someone outside the caller scope', async () => {
     const { call, fixture } = await setup();
     fixture.deps.assignees = { permitted: async () => [outOfScopeAssignee] };
-    const listed = await call(SUBJECT.cooRegionA, 'GET', `/api/actions/assignees?assignmentId=${encodeURIComponent(CAPACITY)}&grain=facility&entityId=fixture-facility-a1`);
+    const listed = await call(SUBJECT.cooRegionA, 'GET', `/api/actions/assignees?assignmentId=${encodeURIComponent(CAPACITY)}&grain=facility&entityId=e0000000-0000-4000-8000-0000000000a1`);
     expect(listed.statusCode).toBe(500);
-    expect(listed.body).not.toContain('fixture-facility-b1');
+    expect(listed.body).not.toContain('e0000000-0000-4000-8000-0000000000b1');
     const created = await call(SUBJECT.cooRegionA, 'POST', '/api/actions', { ...createBody, assigneeId: outOfScopeAssignee.assigneeId });
     expect(created.statusCode).toBe(500);
     expect(fixture.actions).toHaveLength(0);
@@ -74,12 +74,12 @@ describe('assignment containment (ADR 0011 §6)', () => {
 
   it('never lets a facility-scoped role assign upward to a region-scoped one', async () => {
     const { call, fixture } = await setup();
-    const coo = { assigneeId: 'fixture-assignee-coo-a', role: 'regional-coo', scopes: [{ grain: 'region', entityId: 'fixture-region-a' }] };
+    const coo = { assigneeId: 'fixture-assignee-coo-a', role: 'regional-coo', scopes: [{ grain: 'region', entityId: 'e0000000-0000-4000-8000-00000000000a' }] };
     fixture.deps.assignees = { permitted: async () => [coo] };
     fixture.deps.scope.entitlements = {
       forMembership: async () => [{ role: 'hospital-dho', frameworkVersion: 'v1', assignmentId: CAPACITY, grains: ['facility'], breakdowns: [] }],
     };
-    const response = await call(DHO_SUBJECT, 'GET', `/api/actions/assignees?assignmentId=${encodeURIComponent(CAPACITY)}&grain=facility&entityId=fixture-facility-a1`);
+    const response = await call(DHO_SUBJECT, 'GET', `/api/actions/assignees?assignmentId=${encodeURIComponent(CAPACITY)}&grain=facility&entityId=e0000000-0000-4000-8000-0000000000a1`);
     expect(response.statusCode).toBe(500);
   });
 });
@@ -211,14 +211,14 @@ describe('GET /api/audit (ADR 0011 §7)', () => {
 
   it('never lists denials or Ask outcomes, even ones the caller triggered', async () => {
     const { call, fixture } = await setup();
-    await call(SUBJECT.cooRegionA, 'GET', `/api/kpi/${encodeURIComponent(CAPACITY)}?grain=region&entityId=fixture-region-b`);
+    await call(SUBJECT.cooRegionA, 'GET', `/api/kpi/${encodeURIComponent(CAPACITY)}?grain=region&entityId=e0000000-0000-4000-8000-00000000000b`);
     expect(fixture.auditEvents.map((event) => event.kind)).toEqual(['access_denied']);
     expect(await kinds(call, SUBJECT.cooRegionA)).toEqual([]);
   });
 
   it('fails closed if the store returns a non-action event', async () => {
     const { call, fixture } = await setup();
-    await call(SUBJECT.cooRegionA, 'GET', `/api/kpi/${encodeURIComponent(CAPACITY)}?grain=region&entityId=fixture-region-b`);
+    await call(SUBJECT.cooRegionA, 'GET', `/api/kpi/${encodeURIComponent(CAPACITY)}?grain=region&entityId=e0000000-0000-4000-8000-00000000000b`);
     fixture.deps.audit = { ...fixture.deps.audit, list: async () => ({ items: [...fixture.auditEvents], nextCursor: null }) };
     expect((await call(SUBJECT.cooRegionA, 'GET', '/api/audit')).statusCode).toBe(500);
   });

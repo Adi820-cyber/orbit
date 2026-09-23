@@ -71,11 +71,9 @@ export function createDbEntitlementSource(db: Database): EntitlementSource {
  * policies already encode the hierarchy (a region scope sees its facilities;
  * group scope sees its own tenant only), so "visible under RLS, in the
  * caller's organization" is the containment test. `group` is the
- * organization itself and needs an explicit group scope. `segment` has no
- * table and is a breakdown dimension, not a scope grain (ADR 0012), so it
- * is never contained.
+ * organization itself and needs an explicit group scope.
  */
-const CONTAINS_SQL: Record<Exclude<ScopeEntity['grain'], 'segment'>, string> = {
+const CONTAINS_SQL: Record<ScopeEntity['grain'], string> = {
   group: 'select (orbit.has_group_scope() and $1::uuid = orbit.current_org() and $1::uuid = $2::uuid) as "contained"',
   region: 'select exists (select 1 from orbit.regions where id = $1::uuid and organization_id = $2::uuid) as "contained"',
   facility: 'select exists (select 1 from orbit.facilities where id = $1::uuid and organization_id = $2::uuid) as "contained"',
@@ -100,7 +98,7 @@ export function createDbScopeResolver(db: Database): ScopeResolver {
     async contains(membership: MembershipClaims, target: ScopeEntity): Promise<boolean> {
       // A non-uuid id names nothing in the database; answer "not contained"
       // rather than letting the ::uuid cast raise.
-      if (target.grain === 'segment' || !EntityIdSchema.safeParse(target.entityId).success) {
+      if (!EntityIdSchema.safeParse(target.entityId).success) {
         return false;
       }
       const sql = CONTAINS_SQL[target.grain];

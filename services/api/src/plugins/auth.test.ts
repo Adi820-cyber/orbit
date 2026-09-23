@@ -106,7 +106,7 @@ describe('membership loading', () => {
     expect(MeResponseSchema.parse(response.json())).toEqual({
       role: 'regional-coo',
       organizationId: MEMBERSHIPS[0]?.organizationId,
-      scopes: [{ grain: 'region', entityId: 'fixture-region-a' }],
+      scopes: [{ grain: 'region', entityId: 'e0000000-0000-4000-8000-00000000000a' }],
     });
   });
 });
@@ -120,7 +120,7 @@ describe('role and scope never come from the request', () => {
     expect(response.statusCode).toBe(200);
     const body = MeResponseSchema.parse(response.json());
     expect(body.role).toBe('regional-coo');
-    expect(body.scopes).toEqual([{ grain: 'region', entityId: 'fixture-region-a' }]);
+    expect(body.scopes).toEqual([{ grain: 'region', entityId: 'e0000000-0000-4000-8000-00000000000a' }]);
   });
 
   it('ignores role claims placed inside the token payload', async () => {
