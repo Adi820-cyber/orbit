@@ -360,6 +360,12 @@ select is(
   'DENY: absent membership claims match no facility rows'
 );
 
+-- Back to the owner before finishing. pgTAP keeps its plan and results in
+-- temp objects created when plan() was called, which was before the role
+-- switch -- so finish() should read them as the role that created them rather
+-- than relying on orbit_app having access to another role's temp schema.
+reset role;
+
 select * from finish();
 
 rollback;
