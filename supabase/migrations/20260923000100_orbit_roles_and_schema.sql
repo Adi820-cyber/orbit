@@ -97,14 +97,52 @@ begin
 end
 $$;
 
+-- ONLY the attributes a CREATEROLE role is permitted to change.
+--
+-- This originally listed nosuperuser, noreplication and nobypassrls here too,
+-- and it FAILED on hosted Supabase:
+--
+--   ERROR: permission denied to alter role (SQLSTATE 42501)
+--   Only roles with the SUPERUSER attribute may alter roles with the
+--   SUPERUSER attribute.
+--
+-- PostgreSQL restricts SUPERUSER, REPLICATION and BYPASSRLS to superusers --
+-- in BOTH directions. Naming them at all, even to turn them off, requires
+-- superuser. Supabase's `postgres` is CREATEROLE but NOT superuser (verified:
+-- `select rolsuper from pg_roles where rolname = current_user` returns false),
+-- so those three cannot be set from a migration on this platform.
+--
+-- This is the constraint ADR 0009 §2 asked to be tested before designing the
+-- seeder role. Answer: bypassrls is not grantable here, and it is not
+-- revocable here either.
+--
+-- Why the security posture is unchanged:
+--
+--   `create role` defaults to NOSUPERUSER, NOREPLICATION and NOBYPASSRLS. A
+--   freshly created orbit_app therefore already has the posture we want for
+--   those three -- we simply cannot restate it.
+--
+--   INHERIT is the one default that is wrong for us (CREATE ROLE defaults to
+--   INHERIT), and LOGIN defaults off when we need it on. Both are alterable by
+--   CREATEROLE, so both are set below.
+--
+--   The three we cannot set are instead PROVEN by the assertion block further
+--   down, which only READS pg_roles and needs no special privilege. If a
+--   pre-existing orbit_app carries any of them, the migration now ABORTS
+--   rather than proceeding while claiming least privilege. That is fail-closed,
+--   and it is a stronger guarantee than the original ALTER gave: the old
+--   version would have silently succeeded on a platform where it worked and
+--   silently misrepresented the posture on one where it did not.
+--
+--   If the assertion ever fires on hosted Supabase, the attribute cannot be
+--   stripped from a migration -- the role has to be dropped and recreated, or
+--   escalated to Supabase support. Recorded so nobody wastes time trying to
+--   ALTER their way out of it.
 alter role orbit_app with
   login
   noinherit
-  nosuperuser
   nocreatedb
-  nocreaterole
-  noreplication
-  nobypassrls;
+  nocreaterole;
 
 -- Remove any membership in privileged built-ins. `noinherit` only stops
 -- *implicit* use of an inherited privilege; an explicit `set role` would still
