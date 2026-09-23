@@ -80,15 +80,37 @@ describe('withSubjectTx (unit)', () => {
 });
 
 /*
- * Integration: needs a disposable Postgres (a local one, or the approved
- * dev/test Supabase project). Set ORBIT_TEST_DATABASE_URL to run; set
+ * Integration: needs a Postgres with the migrations applied (a local one, or
+ * the dev Supabase project). Set ORBIT_TEST_DATABASE_URL to run; set
  * ORBIT_TEST_DATABASE_SSL=false for a local database without TLS.
  * Skipped otherwise — a skip is "not verified", never "passed".
- * No live project may be used until ADR 0001 is Accepted.
+ *
+ * ── Why the timeout is raised ─────────────────────────────────────────────
+ *
+ * These were written for a local database, where a round trip is sub-millisecond
+ * and Vitest's 5s default is ample. Against the dev Supabase project over the
+ * Supavisor pooler in ap-south-1 the first connection costs far more: measured
+ * from a developer machine, the opening query took **3728ms** (TLS handshake
+ * plus pooler assignment) and subsequent queries 25-300ms. A test that opens two
+ * transactions can therefore exceed 5s through latency alone, and it did — the
+ * `nullif(...)` case failed with "Test timed out in 5000ms" while asserting
+ * correctly.
+ *
+ * A timeout that fails on network latency tells you nothing about RLS, and the
+ * obvious reading of that red test is "claims leak", which would be wrong. So
+ * the budget is raised here rather than globally: the rest of the suite is
+ * in-memory and should stay on the strict default, because a slow unit test is
+ * a real signal.
+ *
+ * Deliberately NOT a retry. A flaky-passing authorization test is worse than a
+ * failing one.
  */
 const url = process.env.ORBIT_TEST_DATABASE_URL;
 
-describe.skipIf(!url)('RLS settings (integration: never leak across transactions)', () => {
+/** Generous enough to absorb one cold connection, tight enough to catch a hang. */
+const REMOTE_DB_TIMEOUT_MS = 30_000;
+
+describe.skipIf(!url)('RLS settings (integration: never leak across transactions)', { timeout: REMOTE_DB_TIMEOUT_MS }, () => {
   let sql: Sql;
   let db: Database;
 

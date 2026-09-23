@@ -33,8 +33,27 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     credentials: false,
   });
 
-  // The only unauthenticated route.
-  app.get('/health', async () => HealthResponseSchema.parse({ status: 'ok' }));
+  /*
+   * The only unauthenticated routes, and the same handler on both paths.
+   *
+   * `/api/health` exists because of how the deployment routes traffic. Under the
+   * same-origin topology in ADR 0013, a rewrite sends `/api/(.*)` to this
+   * service and a catch-all sends everything else to the SPA — and Vercel
+   * forwards the ORIGINAL path without stripping the matched prefix. A probe of
+   * `/health` would therefore be answered by the SPA, which returns 200 with
+   * `index.html` for unknown paths. A health check would report the API up while
+   * it was entirely down.
+   *
+   * So the deployed check must target `/api/health`. `/health` is kept because
+   * it costs nothing, is the conventional path, and works when the API is
+   * addressed directly (locally, or from a platform probe that bypasses the
+   * rewrite). Registered at the top level rather than inside the `/api` plugin
+   * below, because that plugin applies `requireAuth` and a health check must
+   * not need a token.
+   */
+  const health = async (): Promise<unknown> => HealthResponseSchema.parse({ status: 'ok' });
+  app.get('/health', health);
+  app.get('/api/health', health);
 
   await app.register(
     async (api) => {
