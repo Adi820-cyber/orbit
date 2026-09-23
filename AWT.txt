@@ -1,0 +1,24 @@
+
+> @orbit/web@0.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+
+> @orbit/api@0.0.0 typecheck
+> tsc -p tsconfig.json
+
+
+> @orbit/contracts@0.0.0 typecheck
+> tsc -p tsconfig.json
+
+
+> @orbit/data-gen@0.0.0 typecheck
+> tsc -p tsconfig.json
+
+
+> @orbit/kpi-framework@0.0.0 typecheck
+> tsc -p tsconfig.json
+
+
+> @orbit/ui-kit@0.0.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
