@@ -5,7 +5,7 @@
 
 The API and the frontend now agree route for route. The next milestone is the Regional COO demo running on real data rather than the preview fixture. Three things stand between here and there:
 
-1. Your open branches merging (five stacked, plus one independent lint fix).
+1. Your two remaining branches merging (entity directory, lint fix). Branches 1–4 are merged (#33).
 2. One authorization ruling from Aditya.
 3. Maruti's fact tables.
 
@@ -20,14 +20,14 @@ The API and the frontend now agree route for route. The next milestone is the Re
 | Regional COO workspace: brief, inbox, explorer, Ask, actions, audit | Ayas | Merged (#30), running on an in-browser fixture API |
 | CI: typecheck, test, oxlint, gitleaks | Aditya | Merged (#21) |
 
-### Your open branches (open the PRs in this order; each builds on the one before)
+### Your branches
 
 | # | Branch | What it adds | Reviewers |
 |---|---|---|---|
-| 1 | `ghansham/api-transition-matrix-draft` | Proposed action transition matrix and `TRANSITIONS.md` | Aditya (sign-off) |
-| 2 | `ghansham/api-live-sources-flag` | Real SQL for memberships, entitlements, and scope checks, switched on by `ORBIT_LIVE_SOURCES` | Aditya, Maruti |
-| 3 | `ghansham/api-adr-0011-assign-audit` | ADR 0011 §6 downward-only assignment, §7 audit filtered to own actions, `.env.example` fix | Aditya |
-| 4 | `ghansham/contracts-uuid-entity-ids` | `segment` removed from the grains (ADR 0012); API and contracts test data moved to uuid entity ids | Ayas, Maruti, Aditya |
+| ✓ 1 | `ghansham/api-transition-matrix-draft` (merged in #33) | Proposed action transition matrix and `TRANSITIONS.md` | Aditya (sign-off) |
+| ✓ 2 | `ghansham/api-live-sources-flag` (merged in #33) | Real SQL for memberships, entitlements, and scope checks, switched on by `ORBIT_LIVE_SOURCES` | Aditya, Maruti |
+| ✓ 3 | `ghansham/api-adr-0011-assign-audit` (merged in #33) | ADR 0011 §6 downward-only assignment, §7 audit filtered to own actions, `.env.example` fix | Aditya |
+| ✓ 4 | `ghansham/contracts-uuid-entity-ids` (merged in #33) | `segment` removed from the grains (ADR 0012); API and contracts test data moved to uuid entity ids | Ayas, Maruti, Aditya |
 | 5 | `ghansham/api-entity-directory` | `GET /api/entities`: entity names for the UI (additive draft contract), `entities` live source | Ayas, Aditya |
 | — | `ghansham/api-lint-fastify` (from `main`, independent) | Turns off the Express-only lint rule; Ask switches end in `unreachable()` | Aditya |
 
@@ -44,7 +44,8 @@ Checked on 23 Sep: branches 1–4 merge cleanly with `main`, and combined with `
 
 ### Phase A — get the branches reviewed and merged (now)
 
-- [ ] Open PRs 1 to 5, each based on the previous branch, so every PR shows only its own diff. Open the lint PR against `main`.
+- [x] Branches 1–4 merged as #33.
+- [ ] Open PRs for `ghansham/api-entity-directory` and `ghansham/api-lint-fastify`, both against `main`.
 - [ ] In PR 2, state that the SQL has not yet run against a database.
 - [ ] In PR 3, point Aditya at the `.env.example` change (his file).
 - [ ] In PR 4, ask Ayas to confirm that dropping `segment` is fine for the UI. His tests pass either way.
