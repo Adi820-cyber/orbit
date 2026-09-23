@@ -2,14 +2,26 @@
   "name": "@orbit/ui-kit",
   "version": "0.0.0",
   "type": "module",
-  "description": "Design tokens, illustrative styles, chart wrappers (Recharts imported ONLY here)",
+  "description": "Orbit design tokens, visual primitives, and chart wrappers",
   "engines": {
-    "node": "22.x"
+    "node": ">=22.18 <23"
   },
-  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/index.css",
+    "./tokens.css": "./src/tokens/tokens.css"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
-    "typecheck": "echo 'Not yet implemented — see docs/orbit/ARCHITECTURE.md §5'",
-    "test": "echo 'Not yet implemented'",
-    "lint": "echo 'Not yet implemented'"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^7.0.2"
   }
 }

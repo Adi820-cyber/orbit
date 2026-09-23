@@ -3,15 +3,34 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Orbit frontend — React 19 + Vite SPA (Vercel Project 1)",
+  "description": "Orbit frontend - React 19 and Vite SPA",
   "engines": {
-    "node": "22.x"
+    "node": ">=22.18 <23"
   },
   "scripts": {
-    "dev": "echo 'Not yet implemented — see docs/orbit/ARCHITECTURE.md §5'",
-    "build": "echo 'Not yet implemented'",
-    "typecheck": "echo 'Not yet implemented'",
-    "test": "echo 'Not yet implemented'",
-    "lint": "echo 'Not yet implemented'"
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@orbit/ui-kit": "^0.0.0",
+    "@supabase/supabase-js": "^2.117.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router": "^7.18.4"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
   }
 }
