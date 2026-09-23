@@ -1,7 +1,7 @@
 import type { BriefResponse, DataLimitation } from "@orbit/contracts";
 import { useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { assignmentLabel, formatDateTime, humanize, periodLabel } from "../../lib/format";
-import { regionalCooViewConfig } from "../../roles/regional-coo/config";
+import { roleViewConfigFor } from "../../roles/config";
 import {
   Disclosure,
   ExceptionCard,
@@ -38,13 +38,20 @@ function LimitationItem({ item }: { item: DataLimitation }) {
 }
 
 export function BriefPage({ brief }: { brief: BriefResponse }) {
+  const { membership } = useWorkspace();
+  const roleConfig = roleViewConfigFor(membership.role);
+
+  if (!roleConfig) {
+    throw new Error("Brief rendered for an unsupported role view.");
+  }
+
   return (
     <>
       <title>Morning brief | Orbit</title>
       <SurfaceHeading
-        eyebrow={regionalCooViewConfig.eyebrow}
+        eyebrow={roleConfig.eyebrow}
         title="Your morning decision brief"
-        description={regionalCooViewConfig.description}
+        description={roleConfig.description}
         aside={
           <div className="brief-period-card" aria-label="Reporting period">
             <span>Reporting period</span>

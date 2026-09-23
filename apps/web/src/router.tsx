@@ -35,6 +35,13 @@ if (import.meta.env.DEV) {
   routes.push(
     workspaceRoutes({
       kind: "preview",
+      basePath: "/preview/chairman",
+      routeId: "preview-chairman-workspace",
+      client: async () => (await loadPreview()).previewClient("chairman"),
+      reset: async () => (await loadPreview()).resetPreview("chairman"),
+    }),
+    workspaceRoutes({
+      kind: "preview",
       basePath: "/preview/regional-coo",
       routeId: "preview-workspace",
       client: async () => (await loadPreview()).previewClient(),
