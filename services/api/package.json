@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Orbit backend — Fastify 5 API (Vercel Project 2)",
   "engines": {
-    "node": "22.x"
+    "node": ">=22.18 <23"
   },
   "scripts": {
     "dev": "node --env-file-if-exists=.env src/app.ts",

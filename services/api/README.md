@@ -12,7 +12,8 @@ npm run dev -w @orbit/api        # needs Node >= 22.18 and services/api/.env (se
 
 `npm run lint` is a placeholder until a linter is chosen (see [DEPENDENCIES.md](DEPENDENCIES.md)).
 
-To run the RLS claim-leak integration tests, point them at a **disposable** Postgres (never production):
+To run the database integration tests, point them at a Postgres with the
+migrations applied — the dev Supabase project, or a local throwaway:
 
 ```sh
 ORBIT_TEST_DATABASE_URL=... [ORBIT_TEST_DATABASE_SSL=false] npm run test -w @orbit/api
@@ -20,20 +21,33 @@ ORBIT_TEST_DATABASE_URL=... [ORBIT_TEST_DATABASE_SSL=false] npm run test -w @orb
 
 Without that variable those tests are skipped. A skipped test means **not verified**.
 
+| | Tests | Skipped |
+|---|---|---|
+| Without `ORBIT_TEST_DATABASE_URL` | 210 pass | **17** |
+| Against the dev Supabase project | **227 pass** | 0 |
+
+The 17 are two suites: transaction-claim isolation (`db/rls.test.ts`) and the
+real SQL under forced RLS (`db/sources.test.ts`). Both are **read-only** — they
+insert and update nothing — which is why pointing them at the shared dev project
+cannot alter its state. Both raise the Vitest timeout to 30s, because a cold
+connection through the Supavisor pooler in `ap-south-1` measured **3728ms** from
+a developer machine while warm queries were 25-300ms. A timeout failing on
+network latency reads as "claims leaked", which would be the wrong conclusion.
+
 ## What exists
 
 | Path | Purpose | Status |
 |---|---|---|
 | `src/app.ts` | Vercel entrypoint; loads config, wires real JWKS and the configured sources, listens | Implemented |
 | `src/wiring.ts` | Picks a real or fail-closed implementation for each source from `ORBIT_LIVE_SOURCES` | Implemented and tested |
-| `src/db/sources.ts` | SQL for memberships, entitlements, and scope containment against migrations 000400–000500 | Tested against a recording fake; **not yet run against a database** |
+| `src/db/sources.ts` | SQL for memberships, entitlements, and scope containment against migrations 000400–000500 | **Verified against the dev Supabase project** (2026-09-23): all 14 roles resolve, 109 entitlement rows total, cross-role reads denied by RLS alone |
 | `src/build.ts` | App factory: errors, CORS, `/health`, protected `/api` scope, `GET /api/me` | Implemented |
 | `src/config.ts` | Only reader of `process.env`; exact-origin CORS parsing | Implemented |
 | `src/plugins/auth.ts` | Bearer → JWKS verify (ES256/RS256, iss, aud, exp, sub, role) → exactly one active membership | Implemented against a `MembershipSource` port |
 | `src/plugins/scope.ts` | Deny-by-default entitlement check → `out_of_scope` | Implemented against `EntitlementSource` / `ScopeResolver` ports |
 | `src/plugins/errors.ts` | Typed `ApiError` + contract error envelope; no internals leaked | Implemented |
-| `src/db/client.ts` | postgres.js, `prepare: false`, one connection per transaction | Implemented; not yet run against a database |
-| `src/db/rls.ts` | `withMembershipTx` (`orbit.membership`) and `withSubjectTx` (`orbit.subject`, membership bootstrap, Option A): transaction-local `set_config(…, true)` | Unit-tested; leak tests need a database |
+| `src/db/client.ts` | postgres.js, `prepare: false`, one connection per transaction | **Connects to the dev Supabase project** as `orbit_app` over the `ap-south-1` pooler |
+| `src/db/rls.ts` | `withMembershipTx` (`orbit.membership`) and `withSubjectTx` (`orbit.subject`, membership bootstrap, Option A): transaction-local `set_config(…, true)` | **Leak tests pass against a real database** — claims do not survive commit or rollback, and region A claims do not reach a region B transaction |
 | `src/db/memberships.ts` | `createDbMembershipSource`: runs the membership query under `withSubjectTx` | Unit-tested; the SELECT lives in `src/db/sources.ts` |
 | `src/modules/ports.ts` | The interfaces each module reads and writes through (observations, exceptions, dataset, actions, assignees, transition policy, audit) | Defined; SQL implementations wait for the schema |
 | `src/modules/{brief,inbox,kpi,ask,actions,audit}` | The six modules, against the draft payload contracts | Implemented and tested against in-memory ports (`test/helpers/modules.ts`) |
@@ -76,7 +90,17 @@ Every source is fail-closed (`503 unavailable`) unless `ORBIT_LIVE_SOURCES` name
 
 Example: `ORBIT_LIVE_SOURCES=memberships,entitlements,scope`. The observation, exception, dataset, action, assignee, and audit stores have no tables yet, so they have no live option and stay fail-closed.
 
-**Not yet verified:** none of the SQL has run against a database. Before switching a database source on anywhere shared, run it against a disposable database with the migrations applied (`ORBIT_TEST_DATABASE_URL`) and confirm the membership, entitlement, and containment answers for a seeded COO North, COO South, and Chairman. `ORBIT_LIVE_SOURCES` also needs adding to `.env.example` (Aditya's file).
+**Verified 2026-09-23 against the dev Supabase project** (`sxpnsnfzkpkzhsxjugde`), as `orbit_app`, by `db/sources.test.ts`:
+
+- Connected role is `orbit_app` with `rolsuper`, `rolbypassrls` and `rolreplication` all false — asserted in the test, because every RLS claim below is meaningless if it is not.
+- 15 tables in `orbit`, RLS **enabled and forced** on all 15, 15 policies, **zero** using `USING(true)`.
+- **Fail-closed:** with no claims set, `entitlements`, `organizations`, `org_memberships`, `regions` and `facilities` all return **0 rows**.
+- `ENTITLEMENT_SQL` resolves for **all 14 roles**, summing to exactly **109** assignments, every row carrying the requested role.
+- **Isolation by policy, not by `WHERE`:** with the `WHERE` clause removed so only RLS can filter, `regional-coo` sees exactly its own 9 rows and **0** of chairman's.
+- A forged role and an empty scope list are both refused by `MembershipClaimsSchema` **before** any SQL runs.
+- Non-uuid entity ids, `group` grain without an explicit group scope, and out-of-organization entities all resolve to "not contained" rather than raising.
+
+**Still not verified:** the membership *positive* path. `org_memberships` has no rows, because `subject` must be a real Supabase Auth user id (see `data/snapshots/seed-manifest.json`). `findBySubject` is confirmed to return `[]` for an unknown subject; it has never returned an actual membership. Until demo accounts are provisioned, `/api/me` answers `403 no_membership` and no surface can render.
 
 **Known cost:** every source call opens its own short transaction and connection (`createDatabase`), so a request that checks several rows opens several connections. Correct, but slow; a request-scoped transaction is the follow-up once a database is available to measure.
 
