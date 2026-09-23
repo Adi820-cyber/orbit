@@ -48,8 +48,13 @@ comment on table orbit.framework_versions is
   'One row per workbook import. Checksum ties rows to exact source bytes.';
 
 -- Exactly one version may be current at a time.
+--
+-- Indexes the boolean column filtered to true rows, rather than the
+-- `((true))` constant-expression idiom. Both express "at most one current
+-- row", but a constant index expression is an unusual construct I could not
+-- verify against a server, and this form is plainly valid.
 create unique index framework_versions_single_current
-  on orbit.framework_versions ((true))
+  on orbit.framework_versions (is_current)
   where is_current;
 
 -- ---------------------------------------------------------------------------
@@ -181,7 +186,7 @@ create index role_kpi_assignments_role_idx
 -- metrics"). A join table is required -- a nullable column on the assignment
 -- could not represent the bundled case without losing one of the families.
 --
--- `position` preserves the order the assignment's own title presents the
+-- `component_position` preserves the order the assignment's own title presents the
 -- measures in, so "claim clean rate and denial value" keeps acceptance before
 -- denial rather than acquiring an arbitrary order.
 -- ---------------------------------------------------------------------------
@@ -190,14 +195,17 @@ create table orbit.definition_components (
   framework_version_id uuid not null references orbit.framework_versions (id) on delete cascade,
   assignment_id        text not null,
   family               text not null,
-  position             smallint not null,
+  -- Named `component_position`, not `position`: POSITION is a SQL keyword and
+  -- a Postgres function name. It is usable as a column name, but only with
+  -- care in expressions, and there is no reason to spend that care here.
+  component_position   smallint not null,
   -- Set when the workbook's wording could not be resolved to a family with
   -- confidence. RULES.md requires unresolved compound-metric decompositions to
   -- be flagged, never faked. Currently zero rows carry this; the column exists
   -- so a future workbook revision has somewhere honest to land.
   unresolved_reason    text,
 
-  constraint definition_components_position_positive check (position >= 0),
+  constraint definition_components_position_positive check (component_position >= 0),
   unique (framework_version_id, assignment_id, family),
   foreign key (framework_version_id, assignment_id)
     references orbit.role_kpi_assignments (framework_version_id, assignment_id) on delete cascade,
