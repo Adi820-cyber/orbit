@@ -5,7 +5,22 @@ import { RoleIdSchema } from './roles.ts';
 export const GrainSchema = z.enum(['group', 'region', 'facility', 'coe', 'segment']);
 export type Grain = z.infer<typeof GrainSchema>;
 
-/** One organizational entity a membership is scoped to. */
+/**
+ * One organizational entity a membership is scoped to.
+ *
+ * TODO(ghansham): `entityId` should become `z.uuid()`. Agreed with Aditya.
+ * RLS policies compare this directly against primary keys
+ * (`orbit.regions.id`, `orbit.facilities.id`, `orbit.coes.id`, and the
+ * organization's own id for `group` grain), and
+ * `orbit.org_membership_scopes.entity_id` is a generated `uuid` column — so a
+ * free string here permits values the database cannot store.
+ *
+ * NOT changed yet, deliberately. Tightening it fails 69 tests in
+ * `services/api`, because the fixtures use readable ids
+ * (`fixture-region-a`, `fixture-facility-a1`) and `HIERARCHY` is keyed on
+ * them. Reworking those to UUIDs is real work in Ghansham's path, so it is his
+ * to sequence rather than mine to impose. Raised with the exact failure list.
+ */
 export const ScopeEntitySchema = z.strictObject({
   grain: GrainSchema,
   entityId: z.string().min(1),
