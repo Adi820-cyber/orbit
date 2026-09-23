@@ -1,31 +1,12 @@
-import { createBrowserRouter, redirect, type LoaderFunctionArgs } from "react-router";
-import { BriefPlaceholder } from "./features/brief/route";
+import { createBrowserRouter, type RouteObject } from "react-router";
 import {
   LoginRoute,
   loginAction,
   loginLoader,
 } from "./features/auth/login-route";
-import { AuthConfigurationError, getCurrentSession } from "./lib/auth";
+import { BriefRoute, briefLoader } from "./features/brief/route";
 
-async function requireSession({ request }: LoaderFunctionArgs) {
-  try {
-    const session = await getCurrentSession();
-
-    if (session) {
-      return null;
-    }
-  } catch (error: unknown) {
-    if (!(error instanceof AuthConfigurationError)) {
-      throw error;
-    }
-  }
-
-  const requestUrl = new URL(request.url);
-  const returnTo = `${requestUrl.pathname}${requestUrl.search}`;
-  return redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-}
-
-export const router = createBrowserRouter([
+const routes: RouteObject[] = [
   {
     path: "/login",
     loader: loginLoader,
@@ -34,7 +15,21 @@ export const router = createBrowserRouter([
   },
   {
     path: "/",
-    loader: requireSession,
-    Component: BriefPlaceholder,
+    loader: briefLoader,
+    Component: BriefRoute,
   },
-]);
+];
+
+if (import.meta.env.DEV) {
+  routes.push({
+    path: "/preview/regional-coo",
+    lazy: async () => {
+      const { RegionalCooBriefPreviewRoute } = await import(
+        "./features/brief/preview-route"
+      );
+      return { Component: RegionalCooBriefPreviewRoute };
+    },
+  });
+}
+
+export const router = createBrowserRouter(routes);
