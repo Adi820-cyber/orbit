@@ -62,8 +62,8 @@ export function claimsFor(subject: string): MembershipClaims {
 }
 
 export const ENTITLEMENTS: readonly Entitlement[] = [
-  { role: 'regional-coo', assignmentId: 'fixture-assignment-1', grains: ['region', 'facility'], breakdowns: ['facility'] },
-  { role: 'regional-coo', assignmentId: 'fixture-assignment-2', grains: ['region'], breakdowns: [] },
+  { role: 'regional-coo', frameworkVersion: 'v1', assignmentId: 'fixture-assignment-1', grains: ['region', 'facility'], breakdowns: ['facility'] },
+  { role: 'regional-coo', frameworkVersion: 'v1', assignmentId: 'fixture-assignment-2', grains: ['region'], breakdowns: [] },
 ];
 
 export function fixtureEntitlements(rows: readonly unknown[] = ENTITLEMENTS): EntitlementSource {
