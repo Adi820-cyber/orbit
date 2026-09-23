@@ -42,15 +42,34 @@ select plan(26);
 -- ---------------------------------------------------------------------------
 set local role postgres;
 
--- `set local role orbit_app` below requires the test role to be a member of
--- orbit_app. Postgres 16+ gives a CREATEROLE role implicit ADMIN OPTION on
--- roles it created, but the running server version is not something this file
--- should assume, so the membership is granted explicitly.
+-- `set local role orbit_app` below requires the executing role to hold
+-- MEMBERSHIP in orbit_app with the SET option -- not merely to have created it.
 --
--- This grants postgres no privilege it lacks -- it is already the table owner.
--- The whole test runs inside a transaction that ROLLS BACK, so the grant does
--- not persist and the deployed posture is unchanged.
-grant orbit_app to postgres;
+-- Whether `postgres` gets that membership automatically when the bootstrap
+-- migration runs `create role orbit_app` depends on `createrole_self_grant`,
+-- which we do not control on hosted Supabase. If it does not, every policy test
+-- below fails with `permission denied to set role "orbit_app"` -- and would
+-- fail in a way that looks like a policy problem rather than a grant problem.
+-- So the membership is granted explicitly.
+--
+-- Version-gated because PostgreSQL 16 made INHERIT and SET per-grant
+-- properties: `WITH SET TRUE` is valid from 16 onward and a syntax error
+-- before it. On 16+ SET already defaults to true, so this is belt-and-braces,
+-- but being explicit documents the requirement rather than relying on a
+-- default that changed once already.
+--
+-- Grants `postgres` no privilege it lacks -- it already owns these tables. The
+-- whole file runs in a transaction that ROLLS BACK, so nothing persists and the
+-- deployed posture is unchanged.
+do $$
+begin
+  if current_setting('server_version_num')::int >= 160000 then
+    execute 'grant orbit_app to postgres with set true';
+  else
+    execute 'grant orbit_app to postgres';
+  end if;
+end
+$$;
 
 insert into orbit.organizations (id, slug, name, kind, currency, fiscal_year_start_month, timezone)
 values

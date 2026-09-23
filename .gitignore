@@ -25,6 +25,10 @@ test-results/
 supabase/.branches/
 supabase/.temp/
 
+# Downloaded pgTAP source, cached by supabase/validate-local.ps1.
+# Third-party source, fetched on demand; never committed.
+supabase/.pgtap-cache/
+
 # Sensitive source material (workbook, pitch exports) — never commit.
 # See docs/source-material/README.md. Keep outside Git or in an explicitly
 # approved ignored path such as this one.
