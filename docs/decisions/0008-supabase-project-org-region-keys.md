@@ -13,7 +13,8 @@
 | Project | `orbit Project` — ref `sxpnsnfzkpkzhsxjugde` |
 | Region | `ap-south-1` (Mumbai) |
 | Status | `ACTIVE_HEALTHY` |
-| Schema | none — `supabase migration list` returns empty |
+| Migration history | empty — `supabase migration list` returns no rows |
+| Schema inventory | **not verified** — see §3 |
 
 **A dedicated organization was the right call.** ADR 0001's second exposure was
 made harder to resolve precisely because the affected project sat in one
@@ -46,18 +47,39 @@ inheriting that trap.
 Verified by reading a public endpoint. JWKS publishes only the public half of
 the keypair, so nothing sensitive was accessed to confirm it.
 
-## 3. Verified — clean slate, and the Data API is not anonymously readable
+## 3. What the two checks actually establish — and what they do not
 
-- `supabase migration list` against the linked project returns no rows. No
-  tables, no leftover schema. Maruti starts from empty, which is what the
-  migration discipline in ARCHITECTURE.md §7.2 assumes.
-- `GET /rest/v1/` without a key returns **401 Unauthorized**, so the PostgREST
-  Data API is not open anonymously.
+Both checks below are weaker than they first look, so they are recorded with
+their limits rather than as clean bills of health.
 
-The §16 checklist item "Data API disabled or equivalently locked" is **not yet
-closed** by that 401 alone. 401 is PostgREST's default for a missing key, not
-evidence of a deliberate lock. With no tables it is moot today; it must be
-explicitly settled before any table carries real rows.
+**Migration history is empty.** `supabase migration list` against the linked
+project returns no rows. That reports **migration history only, not the database
+catalog.** A project can carry manually created schemas or tables with no
+migration rows at all, so this is not evidence the database is empty.
+
+Why it matters: applying migrations to a project assumed empty but actually
+populated is how you get a failed migration mid-run, or worse, a silent
+collision with an existing object. **A real schema inventory — querying
+`information_schema` / `pg_catalog` for non-system schemas and tables — has not
+been run,** because it needs a database connection and the `orbit_app` password
+is deliberately not yet set. Maruti should run it before the first `db push`,
+now that she has access. The project is newly created, so empty is *likely*;
+likely is not verified.
+
+**The Data API rejects an unauthenticated request.** `GET /rest/v1/` with no key
+returns **401 Unauthorized**.
+
+That proves only that the gateway rejects a **missing** key. It says nothing
+about the anonymous role, which is normally exercised *with* the publishable or
+`anon` key — the case that actually matters for accidental table exposure. This
+check was not run with a key, deliberately, to avoid handling key material after
+the ADR 0001 incident.
+
+So ARCHITECTURE.md §16's "Data API disabled or equivalently locked" is **open**,
+and neither check above moves it. ADR 0009 discusses putting tables in a
+non-exposed `orbit` schema, which raises the bar but is also not enforcement.
+Closing this requires deployment configuration that explicitly excludes the
+schema or disables the Data API, verified against the live project.
 
 ## 4. Not yet met — two open items
 
