@@ -31,6 +31,7 @@ describe('pending module wiring (deployment until the schema exists)', () => {
     ['GET', '/api/ask/prompts'],
     ['GET', '/api/actions'],
     ['GET', '/api/audit'],
+    ['GET', '/api/entities'],
   ] as const)('%s %s fails closed as unavailable, never with fixture data', async (method, url) => {
     const response = await app.inject({ method, url, headers: { authorization: `Bearer ${await sign(SUBJECT.cooRegionA)}` } });
     expect(response.statusCode).toBe(503);

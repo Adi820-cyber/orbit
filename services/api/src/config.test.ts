@@ -49,6 +49,7 @@ describe('loadConfig', () => {
 
   it('requires DATABASE_URL for a database source, but not for transitions', () => {
     expect(() => loadConfig({ ...base, ORBIT_LIVE_SOURCES: 'entitlements' })).toThrow(/DATABASE_URL/);
+    expect(() => loadConfig({ ...base, ORBIT_LIVE_SOURCES: 'entities' })).toThrow(/DATABASE_URL/);
     expect([...loadConfig({ ...base, ORBIT_LIVE_SOURCES: 'transitions' }).liveSources]).toEqual(['transitions']);
   });
 });

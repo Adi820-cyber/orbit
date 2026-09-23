@@ -151,6 +151,11 @@ export interface AuditStore {
   list(membership: MembershipClaims, page: PageQuery): Promise<{ items: readonly unknown[]; nextCursor: string | null }>;
 }
 
+/** Names of the organizational entities the caller can see (`GET /api/entities`). */
+export interface EntityDirectory {
+  visible(membership: MembershipClaims): Promise<readonly unknown[]>;
+}
+
 export interface ModuleDeps {
   scope: ScopeDeps;
   dataset: DatasetSource;
@@ -160,6 +165,7 @@ export interface ModuleDeps {
   assignees: AssigneeDirectory;
   transitions: TransitionPolicy;
   audit: AuditStore;
+  entities: EntityDirectory;
   /** The disclosure rendered on every number surface (PRD §8.4). */
   disclosure: string;
 }

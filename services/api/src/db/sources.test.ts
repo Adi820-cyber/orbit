@@ -7,6 +7,8 @@ import { createDbMembershipSource } from './memberships.ts';
 import { MEMBERSHIP_SETTING, SUBJECT_SETTING } from './rls.ts';
 import {
   createDbEntitlementSource,
+  createDbEntityDirectory,
+  ENTITY_DIRECTORY_SQL,
   createDbScopeResolver,
   ENTITLEMENT_SQL,
   MEMBERSHIP_SQL,
@@ -145,4 +147,36 @@ describe('scope resolver', () => {
       expect(await createDbScopeResolver(db).contains(claims, { grain: 'region', entityId: REGION })).toBe(false);
     },
   );
+});
+
+describe('entity directory', () => {
+  const FACILITY = '00000000-0000-4000-8000-0000000000e1';
+
+  it('runs under the membership claims, pinned to the caller organization', async () => {
+    const { db, calls } = recordingDb([]);
+    await createDbEntityDirectory(db).visible(claims);
+    expect(calls[0]?.params[0]).toBe(MEMBERSHIP_SETTING);
+    expect(calls[1]).toMatchObject({ text: ENTITY_DIRECTORY_SQL, params: [ORG] });
+  });
+
+  it('lists the organization only with an explicit group scope', () => {
+    expect(ENTITY_DIRECTORY_SQL).toContain('orbit.has_group_scope()');
+  });
+
+  it('maps the parent columns onto a ScopeEntity, or null for the organization', async () => {
+    const { db } = recordingDb([
+      { grain: 'facility', entityId: FACILITY, label: 'Facility', parentGrain: 'region', parentId: REGION },
+      { grain: 'group', entityId: ORG, label: 'Org', parentGrain: null, parentId: null },
+    ]);
+    expect(await createDbEntityDirectory(db).visible(claims)).toEqual([
+      { grain: 'facility', entityId: FACILITY, label: 'Facility', parent: { grain: 'region', entityId: REGION } },
+      { grain: 'group', entityId: ORG, label: 'Org', parent: null },
+    ]);
+  });
+
+  it('passes an unexpected row through untouched so the route fails closed on it', async () => {
+    const odd = { grain: 'segment', entityId: 'x', label: 'y', parentGrain: null, parentId: null };
+    const { db } = recordingDb([odd]);
+    expect(await createDbEntityDirectory(db).visible(claims)).toEqual([odd]);
+  });
 });

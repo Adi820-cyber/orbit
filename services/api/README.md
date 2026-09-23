@@ -59,6 +59,7 @@ All `/api` routes require a verified token and exactly one active membership. Pa
 | `GET /api/actions/:actionId` | `ActionResponse` | `404` when the caller is neither creator nor assignee |
 | `POST /api/actions` | `CreateActionRequest` → `ActionResponse` | `201` new, `200` idempotent replay, `409` key reused or evidence from an older dataset |
 | `POST /api/actions/:actionId/transitions` | `TransitionActionRequest` → `ActionResponse` | `409` stale version or invalid transition, `403` not permitted |
+| `GET /api/entities` | `EntityDirectoryResponse` | Names of the regions, facilities, and COEs the caller can see, with parents (draft; for display) |
 | `GET /api/audit?cursor&limit` | `AuditListResponse` | Events for actions the caller created or is assigned, nothing else (ADR 0011 §7) |
 
 Authorization checks, in order: token → membership → entitlement for the served framework version → grain → breakdown → entity inside the membership scope. Rows returned by a source are re-checked; a row outside the request fails the whole request (`500`) instead of being dropped.
@@ -72,6 +73,7 @@ Every source is fail-closed (`503 unavailable`) unless `ORBIT_LIVE_SOURCES` name
 | `memberships` | `orbit.org_memberships` + scopes, subject-only transaction (ADR 0002) | Migrations 000400–000500 are applied and accounts are provisioned |
 | `entitlements` | `orbit.entitlements` joined to `framework_versions`, under membership claims | The ADR 0011 matrix is seeded |
 | `scope` | RLS-visible `regions` / `facilities` / `coes` in the caller's organization; `group` needs an explicit group scope | Organization rows are seeded |
+| `entities` | Names from `organizations` / `regions` / `facilities` / `coes`, under the same RLS | Organization rows are seeded (already true since #28) |
 | `transitions` | `PROPOSED_TRANSITIONS` ([TRANSITIONS.md](TRANSITIONS.md)) | Aditya signs off the matrix |
 
 Example: `ORBIT_LIVE_SOURCES=memberships,entitlements,scope`. The observation, exception, dataset, action, assignee, and audit stores have no tables yet, so they have no live option and stay fail-closed.

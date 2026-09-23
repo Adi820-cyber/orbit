@@ -1,7 +1,7 @@
 import type { ApiConfig } from './config.ts';
 import { createDatabase, type Database } from './db/client.ts';
 import { createDbMembershipSource } from './db/memberships.ts';
-import { createDbEntitlementSource, createDbScopeResolver, membershipQuery } from './db/sources.ts';
+import { createDbEntitlementSource, createDbEntityDirectory, createDbScopeResolver, membershipQuery } from './db/sources.ts';
 import { createMatrixTransitionPolicy, PROPOSED_TRANSITIONS } from './modules/actions/transitions.ts';
 import type { ModuleDeps } from './modules/index.ts';
 import { pendingModuleDeps } from './modules/pending.ts';
@@ -47,6 +47,9 @@ export function wireSources(
   }
   if (live.has('scope')) {
     modules.scope.resolver = createDbScopeResolver(database());
+  }
+  if (live.has('entities')) {
+    modules.entities = createDbEntityDirectory(database());
   }
   if (live.has('transitions')) {
     modules.transitions = createMatrixTransitionPolicy(PROPOSED_TRANSITIONS);
