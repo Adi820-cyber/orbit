@@ -48,12 +48,12 @@ export function AuditPage({ audit }: { audit: AuditListResponse }) {
       <SurfaceHeading
         eyebrow="Accountability"
         title="Audit trail"
-        description="Accepted actions, state changes, Ask outcomes, evidence views, and access denials. App users cannot rewrite or delete these entries; no tokens, secrets, or question text are recorded."
+        description="The recorded history of actions you created or were assigned: each creation and state change, with who made it and the outcome. App users cannot rewrite or delete these entries; no tokens, secrets, or question text are recorded."
       />
       <Disclosure text={kpis.disclosure} />
       <p className="audit-note" role="note">
-        This is an application-protected persistent audit trail, not a claim of cryptographic immutability. Which entries
-        each role may read is still an open entitlement decision.
+        This is an application-protected persistent audit trail, not a claim of cryptographic immutability. Ask outcomes,
+        evidence views, and access denials are also recorded, but no role reads them in v1 (ADR 0011 §7).
       </p>
 
       {audit.items.length ? (

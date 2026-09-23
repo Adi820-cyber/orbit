@@ -143,8 +143,10 @@ describe("preview fixture API", () => {
       expect(ErrorEnvelopeSchema.parse(reply.body).error.code).toBe("out_of_scope");
     }
 
+    // Denials are recorded but, per ADR 0011 §7, never readable through the audit route.
     const audit = AuditListResponseSchema.parse((await api.handle(get("/api/audit"))).body);
-    expect(audit.items.filter((event) => event.kind === "access_denied")).toHaveLength(probes.length);
+    expect(audit.items.every((event) => event.target?.type === "action")).toBe(true);
+    expect(audit.items.some((event) => event.kind === "access_denied")).toBe(false);
   });
 
   it("denies Regional COO South the North facility request from the vertical slice (PRD §5.3 step 7)", async () => {

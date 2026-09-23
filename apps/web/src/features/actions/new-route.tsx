@@ -178,7 +178,7 @@ export function NewActionPage({ data, result }: { data: NewActionData; result: N
           <SurfaceState
             kind="empty"
             title="No permitted assignee exists for this evidence."
-            message="Orbit only offers assignees who may see this evidence. Cross-scope assignment is still an open decision (ADR 0011 §5.2), so none was invented."
+            message="Orbit only offers assignees whose scope sits inside yours (ADR 0011 §6) and who may be assigned this assignment. None was found, and none was invented."
           />
         ) : (
           <section className="workspace-panel" aria-labelledby="action-form-title">

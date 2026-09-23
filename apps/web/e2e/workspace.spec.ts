@@ -134,8 +134,9 @@ test("completes the Regional COO vertical slice from exception to audit (PRD §5
   await page.getByRole("link", { name: "Audit", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Audit trail" })).toBeVisible();
   await expect(page.getByText("Action Created").first()).toBeVisible();
-  await expect(page.getByText("Evidence Viewed").first()).toBeVisible();
-  await expect(page.getByText("Ask Answered").first()).toBeVisible();
+  // ADR 0011 §7: Ask outcomes and evidence views are recorded but not readable.
+  await expect(page.getByText("Ask Answered")).toHaveCount(0);
+  await expect(page.getByText("Evidence Viewed")).toHaveCount(0);
 });
 
 test("denies Regional COO South the North facility evidence (PRD §5.3 step 7)", async ({ page }) => {

@@ -63,6 +63,9 @@ import {
  *   - guided prompts and Ask templates: `modules/ask/{prompts,catalogue}.ts`
  *   - evidence and assignee re-verification: `modules/actions/routes.ts`
  *   - transitions: Ghansham's PROPOSED matrix (not yet signed off)
+ *   - assignment: ADR 0011 §6, downward only, to scopes inside the caller's
+ *   - audit: ADR 0011 §7, only events for the caller's own actions are listed;
+ *     Ask outcomes, evidence views, and denials are recorded but never read
  * Preview entitlements follow ADR 0011 (proposed) plus the facility grain the
  * backend's own module fixture grants for capacity, which PRD §5.3 needs.
  */
@@ -206,7 +209,7 @@ function breakdownRows(assignmentId: string, parent: ScopeEntity, grain: ScopeEn
   );
 }
 
-/** Placeholder directory: Hospital DHOs of the facilities in scope. Cross-scope assignment is open (ADR 0011 §5.2). */
+/** Placeholder directory: Hospital DHOs of facilities inside the (already scope-checked) target — downward only, ADR 0011 §6. */
 function permittedAssignees(assignmentId: string, entity: ScopeEntity): PermittedAssignee[] {
   if (!ENTITLEMENTS.some((row) => row.assignmentId === assignmentId)) return [];
   const facilities = entity.grain === "facility" ? [entity] : entity.grain === "region" ? facilitiesIn(entity) : [];
@@ -834,8 +837,15 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     }
 
     if (method === "GET" && resource === "audit" && !id) {
+      // ADR 0011 §7: a member reads events for actions it created or is assigned, nothing else.
+      const ownActions = new Set(state.actions.map((row) => row.action.actionId));
       const items = sorted(
-        state.audit,
+        state.audit.filter(
+          (event) =>
+            (event.kind === "action_created" || event.kind === "action_transitioned") &&
+            event.target?.type === "action" &&
+            ownActions.has(event.target.id),
+        ),
         (a, b) => b.occurredAt.localeCompare(a.occurredAt) || b.eventId.localeCompare(a.eventId),
       );
       return { status: 200, body: page(items, request.query) };
