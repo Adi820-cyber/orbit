@@ -1,0 +1,31 @@
+# gitleaks configuration for Orbit.
+#
+# Keeps every default rule. The allowlist below is deliberately narrow: it
+# exempts one specific identifier in test files, not a rule, not a directory.
+#
+# Why this exists rather than a broader exclusion: the first CI secret scan
+# reported three findings, all `generic-api-key` matching `idempotencyKey: "..."`
+# literals in `apps/web/src/preview/fixture-api.test.ts`. An idempotency key is
+# a required API concept (PRD FR-06 — actions must be idempotent), not a
+# credential. The rule fires on the substring "Key", not on anything secret.
+#
+# The temptation was to disable `generic-api-key` or exclude the preview folder.
+# Both would have been wrong: `generic-api-key` is the rule most likely to catch
+# a real leaked credential, and the preview folder is exactly where a fake-token
+# fixture would plausibly end up. So the exemption is scoped to the identifier.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Idempotency-key fixtures in tests are not credentials (PRD FR-06)."
+# Both conditions must hold: the line assigns an idempotencyKey, and the file is
+# a test. A real key on any other line, or in non-test source, still fails.
+regexTarget = "line"
+regexes = [
+  '''(?i)idempotencykey\s*[:=]\s*["'][^"']*["']''',
+]
+paths = [
+  '''.*\.test\.ts$''',
+  '''.*\.test\.tsx$''',
+]

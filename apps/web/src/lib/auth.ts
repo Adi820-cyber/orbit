@@ -56,6 +56,23 @@ export async function getCurrentSession() {
   return data.session;
 }
 
+export async function signOut() {
+  const client = await getAuthClient();
+  await client.auth.signOut();
+}
+
+/** Calls `onEnded` when the session is signed out elsewhere or can no longer be refreshed. */
+export async function onSessionEnded(onEnded: () => void) {
+  const client = await getAuthClient();
+  const { data } = client.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT" || !session) {
+      onEnded();
+    }
+  });
+
+  return () => data.subscription.unsubscribe();
+}
+
 export async function signInWithPassword(
   email: string,
   password: string,
