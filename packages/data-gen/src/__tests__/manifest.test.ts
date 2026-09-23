@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COMPANY_MANIFEST as M } from "../manifest.ts";
+import { monthOrdinal, parseMonth } from "../index.ts";
 
 /**
  * Invariants on the fictional-company manifest. These guard the structural
@@ -145,18 +146,16 @@ describe("period range", () => {
   });
 
   it("spans exactly monthCount months inclusive of both bounds", () => {
-    const [fy, fm] = M.periods.firstMonth.split("-").map(Number) as [number, number];
-    const [ly, lm] = M.periods.lastMonth.split("-").map(Number) as [number, number];
-    const span = (ly - fy) * 12 + (lm - fm) + 1;
+    const span = monthOrdinal(M.periods.lastMonth) - monthOrdinal(M.periods.firstMonth) + 1;
     expect(span).toBe(M.periods.monthCount);
   });
 
   it("ends on a month that is already complete", () => {
     // A partial month must never be presented as a finished period.
-    const [ly, lm] = M.periods.lastMonth.split("-").map(Number) as [number, number];
+    const { year, month } = parseMonth(M.periods.lastMonth);
     const now = new Date();
     const lastComplete = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const declared = new Date(Date.UTC(ly, lm - 1, 1));
+    const declared = new Date(Date.UTC(year, month - 1, 1));
     expect(declared.getTime()).toBeLessThan(lastComplete.getTime());
   });
 });
@@ -186,7 +185,7 @@ describe("scenarios (PRD §8.3)", () => {
   ];
 
   it("covers all nine required narratives", () => {
-    expect([...M.scenarios.map((s) => s.narrative)].sort()).toEqual([...requiredNarratives].sort());
+    expect(M.scenarios.map((s) => s.narrative).toSorted()).toEqual(requiredNarratives.toSorted());
   });
 
   it("uses unique scenario slugs", () => {
@@ -208,14 +207,10 @@ describe("scenarios (PRD §8.3)", () => {
   });
 
   it("places every scenario onset inside the period range", () => {
-    const toIndex = (m: string) => {
-      const [y, mo] = m.split("-").map(Number) as [number, number];
-      return y * 12 + mo;
-    };
-    const first = toIndex(M.periods.firstMonth);
-    const last = toIndex(M.periods.lastMonth);
+    const first = monthOrdinal(M.periods.firstMonth);
+    const last = monthOrdinal(M.periods.lastMonth);
     for (const s of M.scenarios) {
-      const at = toIndex(s.onsetMonth);
+      const at = monthOrdinal(s.onsetMonth);
       expect(at, `${s.slug} onset ${s.onsetMonth} before range`).toBeGreaterThanOrEqual(first);
       expect(at, `${s.slug} onset ${s.onsetMonth} after range`).toBeLessThanOrEqual(last);
     }
@@ -226,6 +221,27 @@ describe("scenarios (PRD §8.3)", () => {
     for (const s of M.scenarios) {
       expect(s.explanation.length, `${s.slug} explanation too thin`).toBeGreaterThan(80);
     }
+  });
+});
+
+describe("parseMonth", () => {
+  it("parses a well-formed period", () => {
+    expect(parseMonth("2026-08")).toEqual({ year: 2026, month: 8 });
+    expect(parseMonth("2024-01")).toEqual({ year: 2024, month: 1 });
+    expect(parseMonth("2024-12")).toEqual({ year: 2024, month: 12 });
+  });
+
+  it("rejects malformed input instead of silently yielding NaN", () => {
+    // Each of these would previously have destructured to undefined and
+    // produced NaN arithmetic without complaint.
+    for (const bad of ["2024", "2024-", "2024-00", "2024-13", "2024-9", "2024-09-01", "", "abcd-09"]) {
+      expect(() => parseMonth(bad), `should reject "${bad}"`).toThrow();
+    }
+  });
+
+  it("orders periods correctly across a year boundary", () => {
+    expect(monthOrdinal("2025-01") - monthOrdinal("2024-12")).toBe(1);
+    expect(monthOrdinal("2026-08") - monthOrdinal("2024-09")).toBe(23);
   });
 });
 

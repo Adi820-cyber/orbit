@@ -5,7 +5,11 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
-    "types": ["node"]
+    "types": ["node"],
+    // See the note in packages/kpi-framework/tsconfig.json: ES2023 matches the
+    // Node >=22.18 floor from ADR 0006, and DOM is dropped because this is a
+    // Node-only package.
+    "lib": ["ES2023"]
   },
   "include": ["src", "scripts"]
 }

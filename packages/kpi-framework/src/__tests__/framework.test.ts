@@ -35,7 +35,7 @@ describe("workbook invariants", () => {
   });
 
   it("records the canonical 14 role names from the workbook", () => {
-    const names = ROLES.map((r) => r.name).sort();
+    const names = ROLES.map((r) => r.name).toSorted();
     expect(names).toEqual(
       [
         "Business Development Lead",
@@ -52,7 +52,7 @@ describe("workbook invariants", () => {
         "People Executive",
         "Procurement Head",
         "Regional COO",
-      ].sort(),
+      ].toSorted(),
     );
   });
 
@@ -132,7 +132,7 @@ describe("workbook invariants", () => {
       "procurement-head",
       "regional-coo",
     ];
-    expect([...ROLES.map((r) => r.id)].sort()).toEqual(expected);
+    expect(ROLES.map((r) => r.id).toSorted()).toEqual(expected);
   });
 
   it("gives all 109 assignments a unique, well-formed assignmentId", () => {

@@ -49,16 +49,49 @@ export function getFacility(facilitySlug: string): FacilityManifest | undefined 
   return COMPANY_MANIFEST.facilities.find((f) => f.slug === facilitySlug);
 }
 
+/** A calendar month, parsed from a `YYYY-MM` string. */
+export interface YearMonth {
+  year: number;
+  /** 1-12. */
+  month: number;
+}
+
+/**
+ * Parses a `YYYY-MM` period string, rejecting anything else.
+ *
+ * Replaces an earlier `.split("-").map(Number) as [number, number]`, which
+ * asserted a tuple shape nothing had checked: a malformed string such as
+ * "2024" or "2024-09-01" would have destructured to `undefined` and produced
+ * NaN arithmetic silently, in the code that defines every reporting period in
+ * the dataset. Flagged by oxlint's typescript/no-unsafe-type-assertion.
+ */
+export function parseMonth(value: string): YearMonth {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
+  const yearPart = match?.[1];
+  const monthPart = match?.[2];
+  if (yearPart === undefined || monthPart === undefined) {
+    throw new Error(`Invalid period "${value}". Expected YYYY-MM with month 01-12.`);
+  }
+  return { year: Number(yearPart), month: Number(monthPart) };
+}
+
+/**
+ * Absolute month ordinal, for comparing or differencing two periods without
+ * date arithmetic. Only meaningful relative to another value from this
+ * function.
+ */
+export function monthOrdinal(value: string): number {
+  const { year, month } = parseMonth(value);
+  return year * 12 + month;
+}
+
 /**
  * Every monthly period in the dataset range as `YYYY-MM`, ascending.
  * Derived from the manifest rather than stored, so the range and the period
  * list cannot disagree.
  */
 export function monthlyPeriods(): readonly string[] {
-  const [startYear, startMonth] = COMPANY_MANIFEST.periods.firstMonth.split("-").map(Number) as [
-    number,
-    number,
-  ];
+  const { year: startYear, month: startMonth } = parseMonth(COMPANY_MANIFEST.periods.firstMonth);
   const out: string[] = [];
   for (let i = 0; i < COMPANY_MANIFEST.periods.monthCount; i++) {
     const zeroBased = startMonth - 1 + i;

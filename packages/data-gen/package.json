@@ -9,10 +9,9 @@
   },
   "main": "./src/index.ts",
   "scripts": {
-    "generate": "node scripts/generate.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "lint": "echo 'oxlint adoption pending (ADR 0006) — not yet wired'"
+    "lint": "oxlint --type-aware"
   },
   "dependencies": {
     "@orbit/kpi-framework": "*",
@@ -20,6 +19,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.4",
+    "oxlint": "^1.85.0",
+    "oxlint-tsgolint": "^7.0.2002",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   }
