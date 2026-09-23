@@ -67,7 +67,7 @@ describe("workspace shell", () => {
     const fixture = createFixtureApi();
     const transport: ApiTransport = async (request) =>
       request.path === "/api/me"
-        ? { status: 200, body: { role: "chairman", organizationId: "30000000-0000-4000-8000-000000000001", scopes: [{ grain: "group", entityId: "fixture-group" }] } }
+        ? { status: 200, body: { role: "clinical-director", organizationId: "30000000-0000-4000-8000-000000000001", scopes: [{ grain: "group", entityId: "fixture-group" }] } }
         : fixture.handle(request);
     const markup = textOf(render(await open("/", transport)));
     expect(markup).toContain("Your role's workspace is not available yet.");
@@ -81,6 +81,14 @@ describe("workspace shell", () => {
     const markup = textOf(render(await open("/", transport)));
     expect(markup).toContain("Orbit received data it could not trust.");
     expect(markup).toContain("Priority inbox");
+  });
+
+  it("renders the Chairman role view from the shared workspace surfaces", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "chairman" }).transport)));
+    expect(markup).toContain("Chairman");
+    expect(markup).toContain("Group governance");
+    expect(markup).toContain("fixture-group");
+    expect(markup).toContain("Critical governance, legal and audit actions closed");
   });
 });
 

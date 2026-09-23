@@ -23,6 +23,7 @@ import {
   type Period,
   type PermittedAssignee,
   type PolicyBasis,
+  type RoleId,
   type ScopeEntity,
   type Target,
 } from "@orbit/contracts";
@@ -37,18 +38,22 @@ import { sorted } from "../lib/sorted";
 import {
   AS_OF,
   ASSIGNMENTS,
+  CHAIRMAN_ASSIGNMENTS,
   CURRENT_PERIOD,
   DATASET_CHECKSUM,
   DEFINITION_VERSION,
+  GROUP,
   OBSERVATIONS,
   ORGANIZATION_ID,
   PREVIEW_DISCLOSURE,
   REGION_NORTH,
   REGION_SOUTH,
   briefFor,
+  chairmanBrief,
   facilitiesIn,
   findObservation,
   regionOf,
+  REGIONS,
   seriesFor,
 } from "./dataset";
 
@@ -70,7 +75,7 @@ import {
  * backend's own module fixture grants for capacity, which PRD §5.3 needs.
  */
 
-export type PreviewPersona = "north" | "south";
+export type PreviewPersona = "north" | "south" | "chairman";
 
 export interface StateStorage {
   getItem(key: string): string | null;
@@ -143,11 +148,18 @@ interface PreviewEntitlement {
   breakdowns: ScopeEntity["grain"][];
 }
 
-const ENTITLEMENTS: readonly PreviewEntitlement[] = getAssignmentsForRole("regional-coo").map((assignment) => ({
-  assignmentId: assignment.assignmentId,
-  grains: assignment.assignmentId === ASSIGNMENTS.capacity ? ["region", "facility"] : ["region"],
-  breakdowns: ["facility"],
-}));
+function entitlementsFor(role: RoleId): readonly PreviewEntitlement[] {
+  return getAssignmentsForRole(role).map((assignment) => ({
+    assignmentId: assignment.assignmentId,
+    grains:
+      role === "regional-coo"
+        ? assignment.assignmentId === ASSIGNMENTS.capacity
+          ? ["region", "facility"]
+          : ["region"]
+        : ["group"],
+    breakdowns: role === "chairman" ? ["region"] : ["facility"],
+  }));
+}
 
 const SEVERITY: Record<Exception["category"], number> = { safety: 0, legal: 1, compliance: 2, performance: 3 };
 
@@ -199,6 +211,14 @@ function limitationsOf(observations: readonly Observation[]) {
 }
 
 function breakdownRows(assignmentId: string, parent: ScopeEntity, grain: ScopeEntity["grain"], period: Period) {
+  if (parent.grain === "group" && grain === "region") {
+    return OBSERVATIONS.filter(
+      (row) =>
+        row.assignmentId === assignmentId &&
+        row.period.start === period.start &&
+        REGIONS.some((region) => region.entityId === row.entity.entityId),
+    );
+  }
   if (parent.grain !== "region" || grain !== "facility") return [];
   const children = facilitiesIn(parent);
   return OBSERVATIONS.filter(
@@ -209,9 +229,20 @@ function breakdownRows(assignmentId: string, parent: ScopeEntity, grain: ScopeEn
   );
 }
 
-/** Placeholder directory: Hospital DHOs of facilities inside the (already scope-checked) target — downward only, ADR 0011 §6. */
-function permittedAssignees(assignmentId: string, entity: ScopeEntity): PermittedAssignee[] {
-  if (!ENTITLEMENTS.some((row) => row.assignmentId === assignmentId)) return [];
+/** Placeholder directory for assignees inside the already scope-checked target — downward only, ADR 0011 §6. */
+function permittedAssignees(entitlements: readonly PreviewEntitlement[], assignmentId: string, entity: ScopeEntity): PermittedAssignee[] {
+  if (!entitlements.some((row) => row.assignmentId === assignmentId)) return [];
+  if (entity.grain === "group") {
+    return [
+      { assigneeId: "fixture-assignee-cfo-group", role: "group-cfo", scopes: [entity] },
+      { assigneeId: "fixture-assignee-legal-group", role: "legal-head", scopes: [entity] },
+      ...REGIONS.map((region) => ({
+        assigneeId: `fixture-assignee-coo-${region.entityId}`,
+        role: "regional-coo" as const,
+        scopes: [region],
+      })),
+    ];
+  }
   const facilities = entity.grain === "facility" ? [entity] : entity.grain === "region" ? facilitiesIn(entity) : [];
   return facilities.map((facility) => ({
     assigneeId: `fixture-assignee-dho-${facility.entityId}`,
@@ -220,29 +251,36 @@ function permittedAssignees(assignmentId: string, entity: ScopeEntity): Permitte
   }));
 }
 
-function seedState(region: ScopeEntity): PreviewState {
+function seedState(role: RoleId, scope: ScopeEntity): PreviewState {
+  const assignmentId = role === "chairman" ? CHAIRMAN_ASSIGNMENTS.cash : ASSIGNMENTS.revenue;
   const revenue = OBSERVATIONS.find(
     (row) =>
-      row.assignmentId === ASSIGNMENTS.revenue &&
-      sameEntity(row.entity, region) &&
+      row.assignmentId === assignmentId &&
+      sameEntity(row.entity, scope) &&
       row.period.start === CURRENT_PERIOD.start,
   );
-  if (!revenue) throw new Error("Preview fixture is missing the seeded revenue observation.");
+  if (!revenue) throw new Error("Preview fixture is missing the seeded action observation.");
 
   const action: Action = {
     actionId: "act-seed-1",
     state: "open",
     version: 1,
-    title: "Confirm when the August 2026 management-accounts close will be reconciled",
-    assignmentId: ASSIGNMENTS.revenue,
-    entity: region,
+    title:
+      role === "chairman"
+        ? "Confirm the cash and working-capital review owner for September governance"
+        : "Confirm when the August 2026 management-accounts close will be reconciled",
+    assignmentId,
+    entity: scope,
     evidence: {
       observationIds: [revenue.observationId],
       definitionVersion: DEFINITION_VERSION,
       datasetChecksum: DATASET_CHECKSUM,
     },
-    creatorRole: "chairman",
-    assignee: { assigneeId: `fixture-assignee-coo-${region.entityId}`, role: "regional-coo" },
+    creatorRole: role === "chairman" ? "chairman" : "chairman",
+    assignee:
+      role === "chairman"
+        ? { assigneeId: "fixture-assignee-cfo-group", role: "group-cfo" }
+        : { assigneeId: `fixture-assignee-coo-${scope.entityId}`, role: "regional-coo" },
     dueDate: "2026-09-15",
     createdAt: "2026-09-02T08:00:00Z",
     updatedAt: "2026-09-02T08:00:00Z",
@@ -318,13 +356,15 @@ function page<T>(items: readonly T[], query: URLSearchParams | undefined) {
 
 export function createFixtureApi(options: FixtureApiOptions = {}) {
   const persona = options.persona ?? "north";
-  const region = persona === "north" ? REGION_NORTH : REGION_SOUTH;
+  const role: RoleId = persona === "chairman" ? "chairman" : "regional-coo";
+  const scope = persona === "chairman" ? GROUP : persona === "north" ? REGION_NORTH : REGION_SOUTH;
   const storage = options.storage ?? null;
   const now = options.now ?? (() => new Date());
   const storageKey = `orbit-preview-state:${persona}:v1`;
-  const membership: MeResponse = { role: "regional-coo", organizationId: ORGANIZATION_ID, scopes: [region] };
+  const membership: MeResponse = { role, organizationId: ORGANIZATION_ID, scopes: [scope] };
+  const entitlements = entitlementsFor(role);
 
-  let state = restoreState(storage?.getItem(storageKey) ?? null) ?? seedState(region);
+  let state = restoreState(storage?.getItem(storageKey) ?? null) ?? seedState(role, scope);
 
   function save() {
     storage?.setItem(storageKey, JSON.stringify(state));
@@ -349,11 +389,12 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
   }
 
   function contains(target: ScopeEntity) {
-    return regionOf(target) === region.entityId;
+    if (scope.grain === "group") return sameEntity(target, scope);
+    return regionOf(target) === scope.entityId;
   }
 
   function decide(assignmentId: string, target: ScopeEntity, breakdown?: ScopeEntity["grain"]) {
-    const entitlement = ENTITLEMENTS.find((row) => row.assignmentId === assignmentId);
+    const entitlement = entitlements.find((row) => row.assignmentId === assignmentId);
     if (!entitlement) return null;
     if (!entitlement.grains.includes(target.grain)) return null;
     if (breakdown !== undefined && !entitlement.breakdowns.includes(breakdown)) return null;
@@ -405,7 +446,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
 
   function exceptions() {
     return sorted(
-      briefFor(region).exceptions.map((exception) => ({ ...exception, actionState: actionStateFor(exception) })),
+      (role === "chairman" ? chairmanBrief() : briefFor(scope)).exceptions.map((exception) => ({ ...exception, actionState: actionStateFor(exception) })),
       (a, b) =>
         (a.priority === b.priority ? 0 : a.priority === "act_now" ? -1 : 1) ||
         SEVERITY[a.category] - SEVERITY[b.category] ||
@@ -491,7 +532,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
 
     switch (request.intent) {
       case "explain_definition": {
-        if (!ENTITLEMENTS.some((row) => row.assignmentId === request.assignmentId)) {
+        if (!entitlements.some((row) => row.assignmentId === request.assignmentId)) {
           return emptyAnswer("out_of_scope", OUT_OF_SCOPE_ANSWER, period);
         }
         const assignment = framework(request.assignmentId);
@@ -616,7 +657,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
       { promptId: "summarize_exceptions", label: "Summarize my open exceptions", request: { intent: "summarize_exceptions" } },
     ];
     const ranked = sorted(
-      ENTITLEMENTS.map((entitlement, order) => ({ entitlement, order, assignment: framework(entitlement.assignmentId) })),
+      entitlements.map((entitlement, order) => ({ entitlement, order, assignment: framework(entitlement.assignmentId) })),
       (a, b) => b.assignment.weight - a.assignment.weight || a.order - b.order,
     ).slice(0, PROMPTED_ASSIGNMENTS);
 
@@ -673,7 +714,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
       }
       if (!decide(input.assignmentId, observation.entity)) throw new FixtureError("out_of_scope", OUT_OF_SCOPE_MESSAGE);
     }
-    const assignee = permittedAssignees(input.assignmentId, input.entity).find((row) => row.assigneeId === input.assigneeId);
+    const assignee = permittedAssignees(entitlements, input.assignmentId, input.entity).find((row) => row.assigneeId === input.assigneeId);
     if (!assignee) {
       throw new FixtureError("invalid_request", "The selected assignee cannot be assigned this action.");
     }
@@ -743,7 +784,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     if (method === "GET" && resource === "me" && !id) return { status: 200, body: membership };
 
     if (method === "GET" && resource === "brief" && !id) {
-      const brief = briefFor(region);
+      const brief = role === "chairman" ? chairmanBrief() : briefFor(scope);
       const items = exceptions();
       return {
         status: 200,
@@ -767,7 +808,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     if (method === "GET" && resource === "kpi" && !id) {
       return {
         status: 200,
-        body: { frameworkVersion: DEFINITION_VERSION, assignments: ENTITLEMENTS.map(summary), disclosure: PREVIEW_DISCLOSURE },
+        body: { frameworkVersion: DEFINITION_VERSION, assignments: entitlements.map(summary), disclosure: PREVIEW_DISCLOSURE },
       };
     }
 
@@ -829,7 +870,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
         }
         const entity = { grain: grain.data, entityId: query.entityId };
         assertInScope(query.assignmentId, entity);
-        return { status: 200, body: { assignees: permittedAssignees(query.assignmentId, entity) } };
+        return { status: 200, body: { assignees: permittedAssignees(entitlements, query.assignmentId, entity) } };
       }
       if (method === "GET" && id && !sub) return { status: 200, body: { action: stored(id).action, replayed: false } };
       if (method === "POST" && !id) return createAction(request.body, requestId);
@@ -871,7 +912,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
 
   function reset() {
     storage?.removeItem(storageKey);
-    state = seedState(region);
+    state = seedState(role, scope);
   }
 
   const transport: ApiTransport = handle;

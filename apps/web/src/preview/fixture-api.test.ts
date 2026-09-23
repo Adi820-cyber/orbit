@@ -15,7 +15,7 @@ import {
 } from "@orbit/contracts";
 import { describe, expect, it } from "vitest";
 import type { ApiRequest } from "../lib/api";
-import { ASSIGNMENTS, CURRENT_PERIOD, OBSERVATIONS, REGION_NORTH, facilitiesIn } from "./dataset";
+import { ASSIGNMENTS, CHAIRMAN_ASSIGNMENTS, CURRENT_PERIOD, GROUP, OBSERVATIONS, REGION_NORTH, facilitiesIn } from "./dataset";
 import { createFixtureApi, type StateStorage } from "./fixture-api";
 
 function get(path: string, query: Record<string, string> = {}): ApiRequest {
@@ -125,6 +125,27 @@ describe("preview fixture API", () => {
       expect(reply.status).toBe(200);
       KpiDetailResponseSchema.parse(reply.body);
     }
+  });
+
+  it("serves the Chairman preview as group-scoped contract-valid payloads", async () => {
+    const api = createFixtureApi({ persona: "chairman" });
+    const me = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(me).toMatchObject({ role: "chairman", scopes: [GROUP] });
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(CHAIRMAN_ASSIGNMENTS.governance);
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(7);
+    expect(kpis.assignments.reduce((total, row) => total + row.weight, 0)).toBeCloseTo(1, 10);
+
+    const detail = await api.handle(get(`/api/kpi/${CHAIRMAN_ASSIGNMENTS.revenue}`, { grain: GROUP.grain, entityId: GROUP.entityId, breakdown: "region" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).breakdown?.grain).toBe("region");
+
+    const directRegion = await api.handle(get(`/api/kpi/${CHAIRMAN_ASSIGNMENTS.revenue}`, { grain: "region", entityId: REGION_NORTH.entityId }));
+    expect(directRegion.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(directRegion.body).error.code).toBe("out_of_scope");
   });
 
   it("refuses other regions, ungranted grains, and ungranted breakdowns with an explicit out_of_scope", async () => {
