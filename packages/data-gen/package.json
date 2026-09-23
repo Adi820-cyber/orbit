@@ -1,16 +1,26 @@
 {
   "name": "@orbit/data-gen",
+  "private": true,
   "version": "0.0.0",
   "type": "module",
   "description": "Deterministic synthetic data generator + invariant checks",
   "engines": {
-    "node": "22.x"
+    "node": ">=22.18 <23"
   },
   "main": "./src/index.ts",
   "scripts": {
-    "generate": "echo 'Not yet implemented — see docs/orbit/TEAM_ASSIGNMENTS.md §5'",
-    "typecheck": "echo 'Not yet implemented'",
-    "test": "echo 'Not yet implemented'",
-    "lint": "echo 'Not yet implemented'"
+    "generate": "node scripts/generate.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "echo 'oxlint adoption pending (ADR 0006) — not yet wired'"
+  },
+  "dependencies": {
+    "@orbit/kpi-framework": "*",
+    "pure-rand": "^8.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }
