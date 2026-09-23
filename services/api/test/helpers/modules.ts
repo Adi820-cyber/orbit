@@ -270,9 +270,15 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
     },
     audit: {
       record: async (membership, draft) => writeAudit(membership, draft),
-      list: async () => ({ items: [...auditEvents], nextCursor: null }),
+      // Events about actions the caller created or is assigned, nothing else (ADR 0011 §7).
+      list: async (membership) => ({
+        items: auditEvents.filter((event) => {
+          const stored = event.target?.type === 'action' ? actions.find((row) => row.action.actionId === event.target?.id) : undefined;
+          return stored !== undefined && relationOf(membership, stored) !== null;
+        }),
+        nextCursor: null,
+      }),
     },
-    auditAccess: { mayRead: async (role) => role === 'regional-coo' },
     ...overrides,
   };
   return { deps, auditEvents, actions };

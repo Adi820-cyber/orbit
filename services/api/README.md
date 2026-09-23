@@ -35,7 +35,7 @@ Without that variable those tests are skipped. A skipped test means **not verifi
 | `src/db/client.ts` | postgres.js, `prepare: false`, one connection per transaction | Implemented; not yet run against a database |
 | `src/db/rls.ts` | `withMembershipTx` (`orbit.membership`) and `withSubjectTx` (`orbit.subject`, membership bootstrap, Option A): transaction-local `set_config(…, true)` | Unit-tested; leak tests need a database |
 | `src/db/memberships.ts` | `createDbMembershipSource`: runs the membership query under `withSubjectTx` | Unit-tested; the SELECT lives in `src/db/sources.ts` |
-| `src/modules/ports.ts` | The interfaces each module reads and writes through (observations, exceptions, dataset, actions, assignees, transition policy, audit, audit access) | Defined; SQL implementations wait for the schema |
+| `src/modules/ports.ts` | The interfaces each module reads and writes through (observations, exceptions, dataset, actions, assignees, transition policy, audit) | Defined; SQL implementations wait for the schema |
 | `src/modules/{brief,inbox,kpi,ask,actions,audit}` | The six modules, against the draft payload contracts | Implemented and tested against in-memory ports (`test/helpers/modules.ts`) |
 | `src/modules/pending.ts` | Fail-closed ports for every source not switched on | Implemented; answers `503 unavailable` |
 | `src/modules/actions/transitions.ts` | Proposed transition matrix as data ([TRANSITIONS.md](TRANSITIONS.md)) | Awaiting Aditya's sign-off |
@@ -55,11 +55,11 @@ All `/api` routes require a verified token and exactly one active membership. Pa
 | `GET /api/ask/prompts` | `AskPromptsResponse` | Deterministic mode, disclosed |
 | `POST /api/ask` | `AskRequest` → `AskResponse` | Always `200` for a member; refusals are `out_of_scope` answers with no records (ADR 0005 §2) |
 | `GET /api/actions?cursor&limit` | `ActionListResponse` | Actions the caller created or is assigned |
-| `GET /api/actions/assignees?assignmentId&grain&entityId` | `PermittedAssigneesResponse` | |
+| `GET /api/actions/assignees?assignmentId&grain&entityId` | `PermittedAssigneesResponse` | Only people whose scope lies inside the caller's (ADR 0011 §6) |
 | `GET /api/actions/:actionId` | `ActionResponse` | `404` when the caller is neither creator nor assignee |
 | `POST /api/actions` | `CreateActionRequest` → `ActionResponse` | `201` new, `200` idempotent replay, `409` key reused or evidence from an older dataset |
 | `POST /api/actions/:actionId/transitions` | `TransitionActionRequest` → `ActionResponse` | `409` stale version or invalid transition, `403` not permitted |
-| `GET /api/audit?cursor&limit` | `AuditListResponse` | `403 out_of_scope` unless the audit-access policy grants the role |
+| `GET /api/audit?cursor&limit` | `AuditListResponse` | Events for actions the caller created or is assigned, nothing else (ADR 0011 §7) |
 
 Authorization checks, in order: token → membership → entitlement for the served framework version → grain → breakdown → entity inside the membership scope. Rows returned by a source are re-checked; a row outside the request fails the whole request (`500`) instead of being dropped.
 
