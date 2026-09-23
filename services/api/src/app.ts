@@ -1,6 +1,7 @@
 import { createRemoteJWKSet } from 'jose';
 import { buildApp } from './build.ts';
 import { loadConfig } from './config.ts';
+import { pendingModuleDeps } from './modules/pending.ts';
 import { ApiError } from './plugins/errors.ts';
 import type { MembershipSource } from './plugins/auth.ts';
 
@@ -21,6 +22,7 @@ const pendingMembershipSource: MembershipSource = {
 const app = await buildApp({
   logger: true,
   allowedOrigins: config.allowedOrigins,
+  modules: pendingModuleDeps(),
   auth: {
     getKey: createRemoteJWKSet(config.jwksUrl),
     issuer: config.issuer,
