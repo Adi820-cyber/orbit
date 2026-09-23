@@ -1,0 +1,162 @@
+import { z } from 'zod';
+import {
+  PeriodSchema,
+  type ActionState,
+  type AuditEventKind,
+  type Grain,
+  type MembershipClaims,
+  type PageQuery,
+  type Period,
+  type RoleId,
+  type ScopeEntity,
+} from '@orbit/contracts';
+import type { ScopeDeps } from '../plugins/scope.ts';
+
+/*
+ * Ports between the API modules and the data they read or write.
+ *
+ * Every port takes the verified membership so its database implementation can
+ * run inside `withMembershipTx` and let RLS filter rows (ARCH §6.3, §8.3).
+ * Ports return rows unparsed; modules parse them against contracts and fail
+ * closed on a mismatch. The SQL implementations land once Maruti's schema
+ * (ARCH §7.1) fixes table and column names; until then `app.ts` wires
+ * `pendingModuleDeps()`, which answers `unavailable`.
+ */
+
+/** Dataset facts the modules attach to every response (PRD §8.4, FR-07). */
+export const DatasetInfoSchema = z.strictObject({
+  datasetChecksum: z.string().min(1),
+  definitionVersion: z.string().min(1),
+  /** Simulated as-of time of the synthetic dataset. */
+  asOf: z.iso.datetime({ offset: true }),
+  /** The reporting period the brief and guided prompts default to. */
+  currentPeriod: PeriodSchema,
+});
+export type DatasetInfo = z.infer<typeof DatasetInfoSchema>;
+
+export interface DatasetSource {
+  current(membership: MembershipClaims): Promise<unknown>;
+}
+
+export interface SeriesQuery {
+  assignmentId: string;
+  entity: ScopeEntity;
+  from?: string | undefined;
+  to?: string | undefined;
+}
+
+export interface BreakdownQuery {
+  assignmentId: string;
+  parent: ScopeEntity;
+  grain: Grain;
+  period: Period;
+}
+
+/** Derived KPI observations (`kpi_observations`, ARCH §7.1). */
+export interface ObservationSource {
+  /** Observations for one entity, oldest period first. */
+  series(membership: MembershipClaims, query: SeriesQuery): Promise<readonly unknown[]>;
+  /** Observations for the children of `parent` at `grain`, for one period. */
+  breakdown(membership: MembershipClaims, query: BreakdownQuery): Promise<readonly unknown[]>;
+  /** Observations by id, for verifying evidence a client sends back. */
+  byIds(membership: MembershipClaims, observationIds: readonly string[]): Promise<readonly unknown[]>;
+}
+
+/** Brief content before the module splits and checks it. */
+export interface BriefRows {
+  exceptions: readonly unknown[];
+  onTrack: readonly unknown[];
+  dataLimitations: readonly unknown[];
+}
+
+export interface InboxRows {
+  items: readonly unknown[];
+  nextCursor: string | null;
+  /** How the source ordered the items; returned to the user verbatim (PRD FR-03). */
+  orderingBasis: string;
+}
+
+/** Exceptions raised by a reviewed rule or a labelled seeded scenario (PRD FR-03). */
+export interface ExceptionSource {
+  brief(membership: MembershipClaims, period: Period): Promise<BriefRows>;
+  inbox(membership: MembershipClaims, page: PageQuery): Promise<InboxRows>;
+}
+
+export type ActionRelation = 'creator' | 'assignee';
+
+export interface AuditDraft {
+  kind: AuditEventKind;
+  target: { type: 'action' | 'assignment' | 'ask' | 'route'; id: string } | null;
+  outcome: string;
+  requestId: string;
+}
+
+export interface NewAction {
+  idempotencyKey: string;
+  title: string;
+  assignmentId: string;
+  entity: ScopeEntity;
+  evidence: { observationIds: string[]; definitionVersion: string; datasetChecksum: string };
+  assigneeId: string;
+  dueDate: string;
+}
+
+export type TransitionResult =
+  | { status: 'ok'; action: unknown }
+  | { status: 'stale' }
+  | { status: 'not_found' };
+
+/**
+ * Actions and their audit rows. Implementations must write the action, its
+ * `action_events` row, and the audit event in one transaction (ARCH §10).
+ */
+export interface ActionStore {
+  /** Returns the existing action with `replayed: true` when the idempotency key was already used by this creator. */
+  create(membership: MembershipClaims, action: NewAction, audit: AuditDraft): Promise<{ action: unknown; replayed: boolean }>;
+  /** The action and the caller's relation to it, or null when the caller may not see it. */
+  get(membership: MembershipClaims, actionId: string): Promise<{ action: unknown; relation: ActionRelation } | null>;
+  /** Compare-and-swap on `expectedVersion`; a mismatch returns `stale`, never an overwrite. */
+  transition(
+    membership: MembershipClaims,
+    change: { actionId: string; expectedVersion: number; toState: ActionState; reason: string },
+    audit: AuditDraft,
+  ): Promise<TransitionResult>;
+  list(membership: MembershipClaims, page: PageQuery): Promise<{ items: readonly unknown[]; nextCursor: string | null }>;
+}
+
+/** Who the caller may assign an action on this evidence to (PRD FR-06: assignment must not leak evidence). */
+export interface AssigneeDirectory {
+  permitted(membership: MembershipClaims, target: { assignmentId: string; entity: ScopeEntity }): Promise<readonly unknown[]>;
+}
+
+export type TransitionDecision = 'allowed' | 'invalid_transition' | 'not_permitted';
+
+/** Aditya's action transition matrix (ARCH §17.3) — open decision, supplied as data. */
+export interface TransitionPolicy {
+  decide(input: { role: RoleId; relation: ActionRelation; from: ActionState; to: ActionState }): Promise<TransitionDecision>;
+}
+
+/** Append-only audit trail (ARCH §10): INSERT and gated SELECT only. */
+export interface AuditStore {
+  record(membership: MembershipClaims, event: AuditDraft): Promise<void>;
+  list(membership: MembershipClaims, page: PageQuery): Promise<{ items: readonly unknown[]; nextCursor: string | null }>;
+}
+
+/** Audit access per role — an open entitlement-matrix column (ADR 0005, "Open"). */
+export interface AuditAccessPolicy {
+  mayRead(role: RoleId): Promise<boolean>;
+}
+
+export interface ModuleDeps {
+  scope: ScopeDeps;
+  dataset: DatasetSource;
+  observations: ObservationSource;
+  exceptions: ExceptionSource;
+  actions: ActionStore;
+  assignees: AssigneeDirectory;
+  transitions: TransitionPolicy;
+  audit: AuditStore;
+  auditAccess: AuditAccessPolicy;
+  /** The disclosure rendered on every number surface (PRD §8.4). */
+  disclosure: string;
+}

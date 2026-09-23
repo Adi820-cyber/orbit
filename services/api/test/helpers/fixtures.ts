@@ -62,8 +62,8 @@ export function claimsFor(subject: string): MembershipClaims {
 }
 
 export const ENTITLEMENTS: readonly Entitlement[] = [
-  { role: 'regional-coo', assignmentId: 'fixture-assignment-1', grains: ['region', 'facility'], breakdowns: ['facility'] },
-  { role: 'regional-coo', assignmentId: 'fixture-assignment-2', grains: ['region'], breakdowns: [] },
+  { role: 'regional-coo', frameworkVersion: 'v1', assignmentId: 'fixture-assignment-1', grains: ['region', 'facility'], breakdowns: ['facility'] },
+  { role: 'regional-coo', frameworkVersion: 'v1', assignmentId: 'fixture-assignment-2', grains: ['region'], breakdowns: [] },
 ];
 
 export function fixtureEntitlements(rows: readonly unknown[] = ENTITLEMENTS): EntitlementSource {
@@ -79,6 +79,7 @@ const HIERARCHY: Record<string, { organizationId: string; region: string }> = {
   'fixture-region-a': { organizationId: ORG_A, region: 'fixture-region-a' },
   'fixture-region-b': { organizationId: ORG_A, region: 'fixture-region-b' },
   'fixture-facility-a1': { organizationId: ORG_A, region: 'fixture-region-a' },
+  'fixture-facility-a2': { organizationId: ORG_A, region: 'fixture-region-a' },
   'fixture-facility-b1': { organizationId: ORG_A, region: 'fixture-region-b' },
   'fixture-facility-other-org': { organizationId: ORG_B, region: 'fixture-region-other-org' },
 };

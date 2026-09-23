@@ -3,9 +3,9 @@ import { z } from 'zod';
 /**
  * The 14 workbook role types (PRD §4).
  *
- * DRAFT: slugs mirror the `apps/web/src/roles/*` folders from the Gate 0
- * scaffold. Once `packages/kpi-framework` is generated from the workbook,
- * this list must be derived from (or verified against) that package.
+ * Slugs mirror the `apps/web/src/roles/*` folders and are verified against the
+ * generated `@orbit/kpi-framework` role list by `roles.test.ts`, so the two
+ * cannot drift. Kept as a literal here so this package stays dependency-light.
  */
 export const ROLE_IDS = [
   'chairman',
