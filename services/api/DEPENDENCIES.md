@@ -17,6 +17,8 @@ All runtime choices below are already named in [ARCHITECTURE §3 and §6](../../
 
 No `fastify-plugin`: auth is applied through Fastify's own encapsulated scopes instead.
 
+**Workspace:** `@orbit/kpi-framework` (`*`, this repo) supplies assignment titles, definitions, and the served `definitionVersion`. The API imports only its `src/index.ts`; that package's `exceljs` and `pure-rand` dependencies are used by its import script, not by the API. Whether Vercel's file tracing leaves them out of the function bundle is **unverified** until a deploy.
+
 ## Development only
 
 | Package | Version | Why |

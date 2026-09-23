@@ -25,6 +25,12 @@ export interface ScopeResolver {
 export interface ScopeDeps {
   entitlements: EntitlementSource;
   resolver: ScopeResolver;
+  /**
+   * The kpi-framework `definitionVersion` the API serves. Entitlement rows for
+   * any other version are ignored, so a matrix change lands as a version bump
+   * rather than a silent edit (ADR 0005 §1).
+   */
+  frameworkVersion: string;
 }
 
 export interface ScopeRequest {
@@ -48,11 +54,12 @@ export type ScopeDecision =
  * assignment, at the requested grain and breakdown, for an entity inside the
  * membership's scope. No role inherits another role's scope.
  */
-export async function decideScope(
-  membership: MembershipClaims,
-  request: ScopeRequest,
-  deps: ScopeDeps,
-): Promise<ScopeDecision> {
+/**
+ * Every entitlement the membership's role holds for the served framework
+ * version, parsed against contracts. Fails closed on a malformed row or on two
+ * rows for one assignment, rather than choosing one or merging them.
+ */
+export async function entitlementsFor(membership: MembershipClaims, deps: ScopeDeps): Promise<Entitlement[]> {
   const rows = await deps.entitlements.forRole(membership.organizationId, membership.role);
   const entitlements = rows.map((row) => {
     const result = EntitlementSchema.safeParse(row);
@@ -62,15 +69,27 @@ export async function decideScope(
     return result.data;
   });
 
-  const matching = entitlements.filter(
-    (entitlement) => entitlement.role === membership.role && entitlement.assignmentId === request.assignmentId,
+  const current = entitlements.filter(
+    (entitlement) => entitlement.role === membership.role && entitlement.frameworkVersion === deps.frameworkVersion,
   );
-  if (matching.length > 1) {
-    // Never union duplicate rows into a wider grant.
-    throw new ApiError('internal', 'An internal error occurred.', 'duplicate_entitlement_rows');
+  const seen = new Set<string>();
+  for (const entitlement of current) {
+    if (seen.has(entitlement.assignmentId)) {
+      // Never union duplicate rows into a wider grant.
+      throw new ApiError('internal', 'An internal error occurred.', 'duplicate_entitlement_rows');
+    }
+    seen.add(entitlement.assignmentId);
   }
+  return current;
+}
 
-  const [entitlement] = matching;
+export async function decideScope(
+  membership: MembershipClaims,
+  request: ScopeRequest,
+  deps: ScopeDeps,
+): Promise<ScopeDecision> {
+  const entitlements = await entitlementsFor(membership, deps);
+  const entitlement = entitlements.find((row) => row.assignmentId === request.assignmentId);
   if (!entitlement) {
     return { allowed: false, reason: 'no_entitlement' };
   }
