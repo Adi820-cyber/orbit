@@ -147,6 +147,41 @@ both require. So: be explicit about scope, be opaque about accounts.
 
 ## Open, not decided here
 
+### The `segment` grain is undefined, and it may not be a scope grain at all
+
+`GrainSchema` lists `segment` alongside `group`, `region`, `facility` and `coe`
+because ARCHITECTURE.md §8.2 names all five. But **no segment entity exists in
+the organization model**, so an entitlement or scope row naming `segment` would
+store an authorization claim nothing can verify.
+
+Decision for now: **keep `segment` in the enum, and keep Maruti's `CHECK` that
+rejects it.** Removing it from the enum is a spec change; accepting it without
+an entity is a fail-open. Rejecting it is the honest middle. Two conditions hold
+today and must keep holding: the entitlement matrix grants `segment` to no role,
+and no scope row stores it.
+
+**The unresolved question is what `segment` means, and it is not cosmetic.** Two
+readings, with different consequences:
+
+- **A payer/insurer segment** — plausible, given the Corporate Revenue &
+  Insurance Lead's assignments. If so, `segment` is *not an organizational
+  grain*. It does not sit in the region/facility hierarchy, scope ancestry does
+  not apply to it, and `ScopeEntity` — designed as a grain plus an entity id in
+  an org tree — is likely the wrong shape to carry it.
+- **An organizational unit** — a service line or business unit under a facility
+  or region. If so it behaves like the other grains, needs its own table, and
+  `ScopeEntity` is fine as-is.
+
+Getting this wrong in the first direction is the expensive one: it would mean
+modelling a payer dimension as if it were an org unit, and discovering that only
+once a role legitimately needs payer-scoped data.
+
+**This must be resolved before the entitlement matrix content is drafted**, not
+after, because the matrix is where a `segment` grant would first appear. Owner:
+me, resolved against the workbook rather than inferred. Raised by Maruti while
+implementing the `CHECK`, and recorded here at her suggestion rather than as a
+separate ADR.
+
 - **Matrix content.** This ADR fixes the matrix's *shape and scope*. The
   109-row content still needs my sign-off per §17 item 2, drafted with Maruti and
   Ghansham. ADR 0004's bundled-assignment mapping is an input to it.

@@ -127,15 +127,17 @@ $$;
 
 -- Fail closed if the posture is not what this file claims. A silent mismatch
 -- would make RLS decorative, so abort the migration rather than proceed.
+--
+-- Two separate assertions, because they prove different things:
 do $$
 declare bad text;
 begin
+  -- (a) Role-level attributes.
   select string_agg(attr, ', ') into bad from (
     select 'superuser'   as attr from pg_roles where rolname='orbit_app' and rolsuper
     union all select 'bypassrls'   from pg_roles where rolname='orbit_app' and rolbypassrls
     union all select 'createrole'  from pg_roles where rolname='orbit_app' and rolcreaterole
     union all select 'createdb'    from pg_roles where rolname='orbit_app' and rolcreatedb
-    union all select 'inherit'     from pg_roles where rolname='orbit_app' and rolinherit
     union all select 'replication' from pg_roles where rolname='orbit_app' and rolreplication
   ) s;
   if bad is not null then
@@ -143,6 +145,49 @@ begin
   end if;
 end
 $$;
+
+-- (b) Membership. This is the assertion that actually matters, and the earlier
+-- version of this file got it wrong.
+--
+-- `rolinherit` was previously asserted here as if it proved orbit_app inherits
+-- nothing. It does not. From PostgreSQL 16, INHERIT is a property of each
+-- individual GRANT, not of the role — so `alter role ... noinherit` sets only
+-- the default for grants made *afterwards*, and `not rolinherit` says nothing
+-- about grants that already exist. The attribute check was testing the weaker
+-- property while reading like the strong one.
+--
+-- The real control is that orbit_app holds no role membership at all. Asserted
+-- against pg_auth_members rather than inferred from an attribute, and asserted
+-- for ANY grantor rather than the named list the revoke loop above clears —
+-- so a membership nobody thought to revoke still fails the migration instead
+-- of passing silently.
+do $$
+declare memberships text;
+begin
+  select string_agg(g.rolname, ', ' order by g.rolname)
+    into memberships
+  from pg_auth_members m
+  join pg_roles g on g.oid = m.roleid
+  join pg_roles u on u.oid = m.member
+  where u.rolname = 'orbit_app';
+
+  if memberships is not null then
+    raise exception
+      'orbit_app is a member of: %. A least-privilege application role must hold no role membership: noinherit does not prevent an explicit SET ROLE, and from PG16 inheritance is per-grant.',
+      memberships;
+  end if;
+end
+$$;
+
+-- Note for anyone adding a grant later: `grant <role> to orbit_app` will make
+-- the next run of this migration fail, by design. If a membership is ever
+-- genuinely required, it needs a reviewed decision and an explicit allowlist
+-- here — not a quiet relaxation of the assertion.
+--
+-- The converse direction is fine and deliberately not asserted: `postgres`
+-- being a member of `orbit_app` (which pgTAP needs for `set role orbit_app`)
+-- does not appear above, because that grant makes postgres a member of
+-- orbit_app, not the reverse.
 
 comment on role orbit_app is
   'Least-privilege role used by services/api. Never postgres, never '
