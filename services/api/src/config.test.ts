@@ -116,4 +116,10 @@ describe('ask narration providers', () => {
       expect(String(error)).toContain('SUPABASE_URL');
     }
   });
+
+  it('treats an empty optional variable as not set, instead of refusing to start', () => {
+    const config = loadConfig({ ...base, GROQ_API_KEY: '', OPENROUTER_API_KEY: '', OPENROUTER_MODEL: '', SUPABASE_JWKS_URL: '' });
+    expect(config.askProviders).toEqual([]);
+    expect(config.jwksUrl.href).toBe('https://fixture-project.supabase.co/auth/v1/.well-known/jwks.json');
+  });
 });

@@ -15,10 +15,11 @@ import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { COMPANY_MANIFEST } from "../src/manifest.ts";
-import { deriveFinancialObservations } from "../src/observations.ts";
+import { deriveFinancialObservations, deriveSeededExceptions, SEEDED_SCENARIO_LABEL } from "../src/observations.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const seedPath = resolve(here, "../../../supabase/seed/0002_financial_observations.sql");
+const exceptionsPath = resolve(here, "../../../supabase/seed/0003_seeded_exceptions.sql");
 
 function q(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
@@ -32,6 +33,7 @@ function monthBounds(month: string): { start: string; end: string } {
 }
 
 const rows = deriveFinancialObservations();
+const exceptions = deriveSeededExceptions(rows);
 const demo = COMPANY_MANIFEST.organizations.find((org) => org.kind === "demo");
 if (!demo) throw new Error("company manifest has no demo organization");
 
@@ -119,6 +121,73 @@ w("on conflict (dataset_id, observation_key) do nothing;");
 w();
 w("commit;");
 w();
-
 writeFileSync(seedPath, lines.join("\n"));
-console.log(`Wrote ${rows.length} observations to ${seedPath} (dataset ${checksum.slice(0, 12)}…)`);
+
+// Exceptions get their own file: the CLI records each seed file's hash and
+// does not re-run a file whose content changed, so new rows need a new file.
+lines.length = 0;
+w("-- =========================================================================");
+w("-- 0003_seeded_exceptions.sql");
+w("--");
+w("-- GENERATED FILE — DO NOT EDIT BY HAND.");
+w("-- Produced by packages/data-gen/scripts/generate-observations.ts");
+w(`-- Dataset checksum: ${checksum}`);
+w(`-- Exceptions      : ${exceptions.length} labelled seeded scenarios (below approved budget, latest month)`);
+w("--");
+w("-- Illustrative synthetic data (PRD §8.4). Idempotent. Requires seed 0002.");
+w("-- Needs Maruti's plausibility review before an external demo (PRD §8.2).");
+w("-- =========================================================================");
+w();
+w("begin;");
+w();
+w("create temp table _entities (grain text, slug text, id uuid) on commit drop;");
+w(`insert into _entities select 'group', o.slug, o.id from orbit.organizations o where o.slug = ${q(demo.slug)};`);
+w(`insert into _entities select 'region', r.slug, r.id from orbit.regions r join orbit.organizations o on o.id = r.organization_id where o.slug = ${q(demo.slug)};`);
+w(`insert into _entities select 'facility', f.slug, f.id from orbit.facilities f join orbit.organizations o on o.id = f.organization_id where o.slug = ${q(demo.slug)};`);
+w();
+if (exceptions.length > 0) {
+  const detection = JSON.stringify({ kind: "seeded_scenario", scenarioLabel: SEEDED_SCENARIO_LABEL });
+  w("-- Labelled seeded scenarios (PRD FR-03): derived from the rows above, not a reviewed rule.");
+  w("insert into orbit.exceptions (exception_key, organization_id, dataset_id, assignment_id, entity_grain, entity_id, period_cadence, period_start, period_end, priority, category, comparison_basis, detection, what_changed, why_it_matters, owner_role, evidence, data_quality)");
+  w("select v.exception_key, d.organization_id, d.id, v.assignment_id, v.grain, e.id, 'month', v.period_start::date, v.period_end::date, v.priority, 'performance', 'budget', v.detection::jsonb, v.what_changed, v.why_it_matters, v.owner_role, v.evidence::jsonb, v.data_quality::jsonb");
+  w("from (values");
+  exceptions.forEach((exception, index) => {
+    const bounds = monthBounds(exception.month);
+    const evidence = JSON.stringify({
+      observationIds: exception.evidenceKeys,
+      definitionVersion: rows[0]?.definitionVersion ?? "v1",
+      datasetChecksum: checksum,
+    });
+    const sep = index === exceptions.length - 1 ? "" : ",";
+    w(
+      `  (${[
+        exception.exceptionKey,
+        exception.assignmentId,
+        exception.entity.grain,
+        exception.entity.slug,
+        bounds.start,
+        bounds.end,
+        exception.priority,
+        detection,
+        exception.whatChanged,
+        exception.whyItMatters,
+        exception.ownerRole,
+        evidence,
+        dataQuality,
+      ]
+        .map(q)
+        .join(", ")})${sep}`,
+    );
+  });
+  w(") as v(exception_key, assignment_id, grain, slug, period_start, period_end, priority, detection, what_changed, why_it_matters, owner_role, evidence, data_quality)");
+  w("join _entities e on e.grain = v.grain and e.slug = v.slug");
+  w(`join orbit.datasets d on d.checksum = ${q(checksum)}`);
+  w(`join orbit.organizations o on o.id = d.organization_id and o.slug = ${q(demo.slug)}`);
+  w("on conflict (dataset_id, exception_key) do nothing;");
+  w();
+}
+w("commit;");
+w();
+
+writeFileSync(exceptionsPath, lines.join("\n"));
+console.log(`Wrote ${rows.length} observations and ${exceptions.length} seeded exceptions (dataset ${checksum.slice(0, 12)}…)`);

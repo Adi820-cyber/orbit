@@ -5,10 +5,18 @@ import { groqProvider, openRouterProvider, type ModelProvider } from './modules/
  * The only module that reads `process.env` (ARCH §13: keep platform-specific
  * env names behind one config module). Variable names follow `.env.example`.
  */
+/**
+ * An optional variable present but empty (`KEY=`) means "not set". Env files
+ * routinely carry empty placeholders, and treating one as an invalid value
+ * would stop the API at startup for a key nobody meant to configure.
+ */
+const optional = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+
 const EnvSchema = z.object({
   SUPABASE_URL: z.url(),
-  SUPABASE_JWKS_URL: z.url().optional(),
-  DATABASE_URL: z.string().min(1).optional(),
+  SUPABASE_JWKS_URL: optional(z.url()),
+  DATABASE_URL: optional(z.string().min(1)),
   ALLOWED_ORIGINS: z.string().default(''),
   ORBIT_LIVE_SOURCES: z.string().default(''),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -20,10 +28,10 @@ const EnvSchema = z.object({
    * SERVER ONLY. Never expose these as VITE_* — Vite inlines VITE_* into the
    * browser bundle, so a model key in one is a published key.
    */
-  GROQ_API_KEY: z.string().min(1).optional(),
+  GROQ_API_KEY: optional(z.string().min(1)),
   GROQ_MODEL: z.string().min(1).default('openai/gpt-oss-20b'),
-  OPENROUTER_API_KEY: z.string().min(1).optional(),
-  OPENROUTER_MODEL: z.string().min(1).optional(),
+  OPENROUTER_API_KEY: optional(z.string().min(1)),
+  OPENROUTER_MODEL: optional(z.string().min(1)),
 });
 
 export interface ApiConfig {

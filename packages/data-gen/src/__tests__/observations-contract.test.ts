@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DataQualitySchema, ObservationSchema, TargetSchema } from "@orbit/contracts";
-import { deriveFinancialObservations } from "../observations.ts";
+import { DataQualitySchema, ExceptionSchema, ObservationSchema, TargetSchema } from "@orbit/contracts";
+import { deriveFinancialObservations, deriveSeededExceptions, SEEDED_SCENARIO_LABEL } from "../observations.ts";
 
 /*
  * The seed (scripts/generate-observations.ts) stores these rows and the API
@@ -44,5 +44,33 @@ describe("seeded observations match the shared contract", () => {
       return !ObservationSchema.safeParse(observation).success;
     });
     expect(failures).toEqual([]);
+  });
+
+  it("every seeded exception parses as ExceptionSchema, labelled as a seeded scenario", () => {
+    const rows = deriveFinancialObservations();
+    const exceptions = deriveSeededExceptions(rows);
+    expect(exceptions.length).toBeGreaterThan(0);
+    const keys = new Set(rows.map((row) => row.observationKey));
+    for (const exception of exceptions) {
+      expect(exception.evidenceKeys.every((key) => keys.has(key))).toBe(true);
+      const parsed = ExceptionSchema.safeParse({
+        exceptionId: exception.exceptionKey,
+        assignmentId: exception.assignmentId,
+        entity: { grain: exception.entity.grain, entityId: PLACEHOLDER_ID },
+        period: { cadence: "month", ...monthBounds(exception.month) },
+        priority: exception.priority,
+        category: "performance",
+        comparisonBasis: "budget",
+        detection: { kind: "seeded_scenario", scenarioLabel: SEEDED_SCENARIO_LABEL },
+        whatChanged: exception.whatChanged,
+        whyItMatters: exception.whyItMatters,
+        owner: { role: exception.ownerRole },
+        actionState: "none",
+        evidence: { observationIds: exception.evidenceKeys, definitionVersion: "v1", datasetChecksum: "checksum" },
+        provenance: "illustrative",
+        dataQuality,
+      });
+      expect(parsed.success).toBe(true);
+    }
   });
 });

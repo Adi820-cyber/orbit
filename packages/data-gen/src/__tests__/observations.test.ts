@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateAllFinancialFacts } from "../facts/financial.ts";
 import { COMPANY_MANIFEST } from "../manifest.ts";
-import { deriveFinancialObservations, FINANCIAL_ASSIGNMENTS, percentOfBudget } from "../observations.ts";
+import { deriveFinancialObservations, deriveSeededExceptions, FINANCIAL_ASSIGNMENTS, percentOfBudget } from "../observations.ts";
 
 const facts = generateAllFinancialFacts();
 const rows = deriveFinancialObservations(facts);
@@ -41,5 +41,22 @@ describe("derived financial observations", () => {
 
   it("never derives a target: the budget is the denominator, not a target", () => {
     expect(JSON.stringify(rows)).not.toContain('"target"');
+  });
+
+  it("raises seeded exceptions only below budget, at base grain, one act-now per KPI at most", () => {
+    const exceptions = deriveSeededExceptions(rows);
+    const byKey = new Map(rows.map((row) => [row.observationKey, row]));
+    for (const exception of exceptions) {
+      const shown = byKey.get(exception.evidenceKeys[0] ?? "");
+      expect(shown?.value.status === "available" && shown.value.value < 100).toBe(true);
+      expect(exception.whatChanged).not.toMatch(/because|due to|caused/i);
+    }
+    const actNowPerKpi = new Map<string, number>();
+    for (const exception of exceptions.filter((item) => item.priority === "act_now")) {
+      actNowPerKpi.set(exception.assignmentId, (actNowPerKpi.get(exception.assignmentId) ?? 0) + 1);
+    }
+    expect([...actNowPerKpi.values()].every((count) => count === 1)).toBe(true);
+    // A Regional COO's exceptions are at region grain, never a hospital's.
+    expect(exceptions.filter((item) => item.ownerRole === "regional-coo").every((item) => item.entity.grain === "region")).toBe(true);
   });
 });

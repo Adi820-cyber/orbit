@@ -1,0 +1,14 @@
+# Minimal Supabase CLI configuration for the linked Orbit project.
+#
+# Only what `supabase db push --include-seed` needs. Seeds run as the database
+# owner and must be idempotent; the CLI records each file's hash and re-runs a
+# file only when it changes.
+#
+# seed/0001 is omitted: it was applied before this file existed.
+# seed/local/ holds environment-specific seeds (demo memberships) and is
+# gitignored, so nothing account-specific is ever committed.
+project_id = "orbit"
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed/0002_financial_observations.sql", "./seed/0003_seeded_exceptions.sql", "./seed/local/*.sql"]

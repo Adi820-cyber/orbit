@@ -102,10 +102,25 @@ const EXCEPTION_COLUMNS = `
   x.provenance as "provenance",
   x.data_quality as "dataQuality"`;
 
+/**
+ * RLS limits exceptions to the caller's organization and scope, but not to the
+ * caller's KPIs: a Regional COO can see a hospital in its region, yet the
+ * hospital director's KPIs are not its own. So only exceptions on an
+ * assignment the caller's role is entitled to, at a granted grain, are read.
+ * (orbit.entitlements is itself limited to the caller's role by RLS.) The
+ * API's per-row scope check stays as the second barrier.
+ */
 const CURRENT_EXCEPTIONS = `
 from orbit.exceptions x
 join orbit.datasets d on d.id = x.dataset_id and d.is_current
-where x.organization_id = orbit.current_org()`;
+join orbit.framework_versions v on v.is_current
+where x.organization_id = orbit.current_org()
+  and exists (
+    select 1 from orbit.entitlements e
+    where e.framework_version_id = v.id
+      and e.assignment_id = x.assignment_id
+      and x.entity_grain = any (e.grains)
+  )`;
 
 export const BRIEF_EXCEPTIONS_SQL = `
 select ${EXCEPTION_COLUMNS}

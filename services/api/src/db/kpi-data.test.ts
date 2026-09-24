@@ -98,6 +98,13 @@ describe('ExceptionSource', () => {
     expect(calls[1]?.params).toEqual(['2026-08-01', '2026-08-31']);
   });
 
+  it("reads only exceptions on the caller's entitled KPIs at a granted grain", () => {
+    for (const sql of [BRIEF_EXCEPTIONS_SQL, INBOX_SQL]) {
+      expect(sql).toContain('from orbit.entitlements e');
+      expect(sql).toContain('x.entity_grain = any (e.grains)');
+    }
+  });
+
   it('pages the inbox with an opaque offset cursor and states its ordering', async () => {
     const rows = [{ exceptionId: '1' }, { exceptionId: '2' }, { exceptionId: '3' }];
     const { db, calls } = scriptedDb(() => rows);

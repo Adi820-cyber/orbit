@@ -183,3 +183,86 @@ export function deriveFinancialObservations(
   }
   return rows;
 }
+
+/** A labelled seeded scenario (PRD FR-03), in the shape the seed stores. */
+export interface SeededException {
+  exceptionKey: string;
+  assignmentId: string;
+  ownerRole: string;
+  entity: EntityRef;
+  month: string;
+  priority: "act_now" | "monitor";
+  whatChanged: string;
+  whyItMatters: string;
+  /** Observation keys backing it: the month shown and the month before, when present. */
+  evidenceKeys: string[];
+}
+
+export const SEEDED_SCENARIO_LABEL =
+  "Demo scenario: below approved budget in the latest month (seeded from the illustrative dataset, not a reviewed rule)";
+
+function monthLabel(month: string): string {
+  const [year, mon] = month.split("-").map(Number);
+  return new Date(Date.UTC(year ?? 0, (mon ?? 1) - 1, 1)).toLocaleString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+/**
+ * Seeded scenarios for the brief and inbox, built only from derived rows.
+ *
+ * PRD FR-03 allows "a deliberately seeded scenario labelled as such" where no
+ * reviewed detection rule exists, and bans arbitrary thresholds. So there is
+ * no threshold here: an item is raised when the latest month's actual is below
+ * the approved budget (a comparison the KPI itself defines), at the
+ * assignment's own base grain. Priority is a ranking, not a cut-off: the item
+ * furthest below budget for each KPI is "act now", the rest "monitor". Text
+ * states observed figures and the workbook weight only; no causes.
+ *
+ * Needs Maruti's plausibility review before an external demo (PRD §8.2).
+ */
+export function deriveSeededExceptions(rows: readonly DerivedObservation[]): SeededException[] {
+  const entitlements = deriveEntitlements();
+  const months = [...new Set(rows.map((row) => row.month))].sort();
+  const latest = months.at(-1);
+  const prior = months.at(-2);
+  if (!latest) return [];
+  const byKey = new Map(rows.map((row) => [row.observationKey, row]));
+  const exceptions: SeededException[] = [];
+
+  for (const assignmentId of Object.keys(FINANCIAL_ASSIGNMENTS)) {
+    const assignment = getAssignment(assignmentId);
+    const baseGrains = entitlements.find((row) => row.assignmentId === assignmentId)?.grains ?? [];
+    if (!assignment) continue;
+
+    const below = rows.filter(
+      (row) =>
+        row.assignmentId === assignmentId &&
+        row.month === latest &&
+        (baseGrains as readonly string[]).includes(row.entity.grain) &&
+        row.value.status === "available" &&
+        row.value.value < 100,
+    );
+    const worst = Math.min(...below.map((row) => (row.value.status === "available" ? row.value.value : Infinity)));
+
+    for (const row of below) {
+      if (row.value.status !== "available") continue;
+      const priorKey = prior ? `obs:${assignmentId}:${row.entity.grain}:${row.entity.slug}:${prior}` : undefined;
+      const priorRow = priorKey ? byKey.get(priorKey) : undefined;
+      const priorText =
+        priorRow && prior && priorRow.value.status === "available"
+          ? `, against ${priorRow.value.value}% in ${monthLabel(prior)}`
+          : "";
+      exceptions.push({
+        exceptionKey: `exc:${assignmentId}:${row.entity.grain}:${row.entity.slug}:${latest}`,
+        assignmentId,
+        ownerRole: assignment.roleId,
+        entity: row.entity,
+        month: latest,
+        priority: row.value.value === worst ? "act_now" : "monitor",
+        whatChanged: `${assignment.kpi} was ${row.value.value}% of approved budget in ${monthLabel(latest)}${priorText}.`,
+        whyItMatters: `This KPI carries ${Math.round(assignment.weight * 100)}% of the ${assignment.role} scorecard weight in the KPI framework.`,
+        evidenceKeys: priorRow ? [row.observationKey, priorRow.observationKey] : [row.observationKey],
+      });
+    }
+  }
+  return exceptions;
+}

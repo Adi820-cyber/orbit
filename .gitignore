@@ -57,3 +57,6 @@ Thumbs.db
 # control. Named files that belong in the repo are added explicitly.
 /*.txt
 !/LICENSE.txt
+
+# Environment-specific seeds and demo credentials (never committed)
+supabase/seed/local/
