@@ -63,15 +63,34 @@ describe("workspace shell", () => {
     expect(markup).toContain("Developer preview");
   });
 
-  it("fails closed when a verified membership has no built role view", async () => {
+  /**
+   * This test previously asserted the opposite: `coe-lead` had no view config,
+   * so the shell refused to open. That was correct behaviour for a gap that
+   * should not have existed — seven of the fourteen roles could authenticate,
+   * hold correct entitlements, and still not reach the product.
+   *
+   * `roleViewConfigFor` now derives from the framework, so every workbook role
+   * has a view. The assertion is inverted to match, and `coe-lead` is kept as
+   * the subject precisely because it was one of the locked-out seven.
+   *
+   * The fail-closed path is not gone, it moved: `RoleViewUnavailableError` still
+   * fires for a role the framework does not define. That case is no longer
+   * reachable through this route, because `MeResponse` constrains `role` to the
+   * fourteen `RoleId` values, so a role reaching here is a role the framework
+   * knows. It is now reachable only if `@orbit/contracts` and
+   * `@orbit/kpi-framework` drift apart — worth keeping for that reason, and
+   * covered directly in `src/roles/config.test.ts`.
+   */
+  it("opens the workspace for a role whose view is derived from the framework", async () => {
     const fixture = createFixtureApi();
     const transport: ApiTransport = async (request) =>
       request.path === "/api/me"
         ? { status: 200, body: { role: "coe-lead", organizationId: "30000000-0000-4000-8000-000000000001", scopes: [{ grain: "facility", entityId: "fixture-facility-a1" }] } }
         : fixture.handle(request);
     const markup = textOf(render(await open("/", transport)));
-    expect(markup).toContain("Your role's workspace is not available yet.");
-    expect(markup).not.toContain("Act now");
+    expect(markup).not.toContain("Your role's workspace is not available yet.");
+    // The workbook name for coe-lead, surfaced because COPY has no entry for it.
+    expect(markup).toContain("COE Lead");
   });
 
   it("shows a trust failure instead of fabricated content when a payload breaks the contract", async () => {
