@@ -48,14 +48,13 @@ describe("role view coverage", () => {
     expect(new Set(titles).size, `duplicate titles: ${titles.join(", ")}`).toBe(ROLE_IDS.length);
   });
 
-  it("falls back to the workbook name and level when there is no hand-written copy", () => {
-    // group-cfo has no entry in COPY, so it must come straight from the
-    // framework. This is what makes adding a role a one-place change.
+  it("keeps the Group CFO identity aligned with the workbook", () => {
+    // The role copy improves the user-facing emphasis while preserving the
+    // workbook's role identity and an authorized-scope disclosure.
     const definition = getRole("group-cfo");
     const config = roleViewConfigFor("group-cfo");
     expect(config?.title).toBe(definition?.name);
-    expect(config?.eyebrow).toBe(definition?.level);
-    expect(config?.description).toContain("authorized scope");
+    expect(config?.description).toContain("authorized");
   });
 
   it("prefers hand-written copy over the workbook default", () => {

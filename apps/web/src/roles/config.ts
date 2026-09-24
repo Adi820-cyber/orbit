@@ -54,6 +54,12 @@ type RoleCopy = Omit<RoleViewConfig, "roleId">;
  * Medical Director".
  */
 const COPY: Partial<Record<RoleId, RoleCopy>> = {
+  "analytics-head": {
+    description:
+      "Review dashboard reliability, data quality, reporting cadence, adoption, forecasting support, insight actions, and digital benefits within your authorized group scope.",
+    eyebrow: "Group analytics leadership",
+    title: "Head of Analytics & Digital Transformation",
+  },
   "bd-lead": {
     description:
       "Review demand generation, pipeline health, referral channels, handovers, and acquisition economics for your authorized facility.",
@@ -77,6 +83,42 @@ const COPY: Partial<Record<RoleId, RoleCopy>> = {
       "Review clinical governance, safety, standardised practice, and capability signals across your authorized group scope.",
     eyebrow: "Group clinical leadership",
     title: "Clinical Director",
+  },
+  "coe-lead": {
+    description:
+      "Review COE financial contribution, capacity, referrals, outcomes, milestones, and capability within your authorized centre-of-excellence scope.",
+    eyebrow: "Clinical growth",
+    title: "COE Lead",
+  },
+  "corporate-revenue-lead": {
+    description:
+      "Review corporate and insurer revenue, account activation, renewals, commercial terms, payer issues, and forecast quality across your authorized group scope.",
+    eyebrow: "Commercial growth",
+    title: "Corporate Revenue & Insurance Lead",
+  },
+  "group-cfo": {
+    description:
+      "Review group profitability, liquidity, cash conversion, planning quality, cost improvement, controls, and finance compliance within your authorized group scope.",
+    eyebrow: "Group finance leadership",
+    title: "Group CFO",
+  },
+  "hr-head": {
+    description:
+      "Review group workforce cost, critical staffing, retention, engagement, capability, talent reviews, and employment compliance within your authorized group scope.",
+    eyebrow: "Group people leadership",
+    title: "HR Head",
+  },
+  "legal-head": {
+    description:
+      "Review contract service levels, regulatory compliance, litigation milestones, commercial disputes, policy governance, and legal action closure within your authorized group scope.",
+    eyebrow: "Group legal leadership",
+    title: "Legal Head",
+  },
+  "procurement-head": {
+    description:
+      "Review procurement savings, buying compliance, inventory continuity, supplier performance, purchasing responsiveness, and supply risk across your authorized group scope.",
+    eyebrow: "Group supply leadership",
+    title: "Procurement Head",
   },
   "hospital-dho": {
     description:

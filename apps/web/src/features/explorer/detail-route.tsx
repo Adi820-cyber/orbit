@@ -308,6 +308,7 @@ export function ExplorerDetailPage({ data }: { data: ExplorerDetailData }) {
         eyebrow={assignment.keyDeliverable}
         title={assignment.kpi}
         description={`Scope ${scopeText(detail.scope)}. Every number below is illustrative and carries its own period, unit, and data-quality state.`}
+        back="/explorer"
         aside={
           <dl className="explorer-summary" aria-label="Assignment facts">
             <div>

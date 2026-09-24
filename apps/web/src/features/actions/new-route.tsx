@@ -131,6 +131,7 @@ export function NewActionPage({ data, result }: { data: NewActionData; result: N
         eyebrow="Human decision"
         title="Record an internal action"
         description="You decide; Orbit records. The action cites the evidence below, is assigned only to someone permitted to see it, and is stored in Orbit only — nothing is emailed or sent to an external tool."
+        back="/actions"
       />
 
       <Disclosure text={kpis.disclosure} />

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import type {
   ActionState,
   DataQuality,
@@ -19,7 +19,7 @@ import {
   roleLabel,
   scopeLabel,
 } from "../../lib/format";
-import { useEntityLabel, useWorkspace } from "./environment";
+import { useEntityLabel, useWorkspace, workspacePath } from "./environment";
 import { askHref, explorerHref, newActionHref } from "./links";
 
 export type IconName =
@@ -256,23 +256,50 @@ export function ScrollRegion({ label, className, children }: { label: string; cl
   );
 }
 
+export function PageBackButton({ fallback = "/" }: { fallback?: string }) {
+  const navigate = useNavigate();
+  const { environment } = useWorkspace();
+  const fallbackPath = workspacePath(environment.basePath, fallback);
+
+  function goBack() {
+    const historyIndex = typeof window !== "undefined" ? Number(window.history.state?.idx) : 0;
+    if (Number.isInteger(historyIndex) && historyIndex > 0) {
+      void navigate(-1);
+      return;
+    }
+    void navigate(fallbackPath);
+  }
+
+  return (
+    <button className="workspace-back" type="button" onClick={goBack} aria-label="Go back">
+      <Icon name="arrow" />
+      Back
+    </button>
+  );
+}
+
 export function SurfaceHeading({
   eyebrow,
   title,
   description,
   aside,
+  back,
 }: {
   eyebrow: string;
   title: string;
   description: string;
   aside?: ReactNode;
+  back?: string;
 }) {
   return (
     <header className="workspace-heading">
-      <div>
-        <p className="workspace-eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
-        <p>{description}</p>
+      <div className="workspace-heading__main">
+        {back ? <PageBackButton fallback={back} /> : null}
+        <div>
+          <p className="workspace-eyebrow">{eyebrow}</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
       </div>
       {aside}
     </header>

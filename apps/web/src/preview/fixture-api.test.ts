@@ -21,6 +21,13 @@ import { DHO_ASSIGNMENTS, DHO_FACILITY } from "./dho-dataset";
 import { PEOPLE_ASSIGNMENTS } from "./people-dataset";
 import { BD_ASSIGNMENTS } from "./bd-dataset";
 import { BILLING_ASSIGNMENTS } from "./billing-dataset";
+import { COE_ASSIGNMENTS } from "./coe-dataset";
+import { CORPORATE_ASSIGNMENTS } from "./corporate-revenue-dataset";
+import { GROUP_CFO_ASSIGNMENTS } from "./group-cfo-dataset";
+import { PROCUREMENT_ASSIGNMENTS } from "./procurement-dataset";
+import { HR_ASSIGNMENTS } from "./hr-dataset";
+import { LEGAL_ASSIGNMENTS } from "./legal-dataset";
+import { ANALYTICS_ASSIGNMENTS } from "./analytics-dataset";
 import { ASSIGNMENTS, CHAIRMAN_ASSIGNMENTS, CURRENT_PERIOD, GROUP, OBSERVATIONS, REGION_NORTH, facilitiesIn } from "./dataset";
 import { createFixtureApi, type StateStorage } from "./fixture-api";
 
@@ -245,6 +252,164 @@ describe("preview fixture API", () => {
     const detail = await api.handle(get(`/api/kpi/${BILLING_ASSIGNMENTS.acceptance}`, { grain: "facility", entityId: "fixture-facility-a1" }));
     expect(detail.status).toBe(200);
     expect(KpiDetailResponseSchema.parse(detail.body).series.length).toBeGreaterThan(0);
+  });
+
+  it("serves the COE Lead's eight workbook assignments with one COE scope", async () => {
+    const api = createFixtureApi({ persona: "coe-lead" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership).toMatchObject({ role: "coe-lead", scopes: [{ grain: "coe", entityId: "fixture-coe-clinical" }] });
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(8);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "coe-lead")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.grains.length === 1 && assignment.grains[0] === "coe")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(COE_ASSIGNMENTS.milestones);
+    expect(brief.dataLimitations.some((item) => item.detail.includes("No approved COE roadmap threshold"))).toBe(true);
+    const detail = await api.handle(get(`/api/kpi/${COE_ASSIGNMENTS.revenue}`, { grain: "coe", entityId: "fixture-coe-clinical" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).series.length).toBeGreaterThan(0);
+    const assignees = PermittedAssigneesResponseSchema.parse(
+      (await api.handle(get("/api/actions/assignees", { assignmentId: COE_ASSIGNMENTS.milestones, grain: "coe", entityId: "fixture-coe-clinical" }))).body,
+    );
+    expect(assignees.assignees).toEqual([{ assigneeId: "fixture-assignee-clinical-group", role: "clinical-director", scopes: [GROUP] }]);
+
+    const outside = await api.handle(get(`/api/kpi/${COE_ASSIGNMENTS.revenue}`, { grain: "group", entityId: "fixture-group" }));
+    expect(outside.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(outside.body).error.code).toBe("out_of_scope");
+  });
+
+  it("serves the Corporate Revenue & Insurance Lead's eight workbook assignments with group scope", async () => {
+    const api = createFixtureApi({ persona: "corporate-revenue-lead" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership).toMatchObject({ role: "corporate-revenue-lead", scopes: [GROUP] });
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(8);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "corporate-revenue-lead")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.grains.length === 1 && assignment.grains[0] === "group")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.breakdowns.length === 1 && assignment.breakdowns[0] === "region")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(CORPORATE_ASSIGNMENTS.issues);
+    const detail = await api.handle(get(`/api/kpi/${CORPORATE_ASSIGNMENTS.revenue}`, { grain: "group", entityId: "fixture-group", breakdown: "region" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).breakdown?.observations).toHaveLength(2);
+
+    const outside = await api.handle(get(`/api/kpi/${CORPORATE_ASSIGNMENTS.revenue}`, { grain: "region", entityId: REGION_NORTH.entityId }));
+    expect(outside.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(outside.body).error.code).toBe("out_of_scope");
+  });
+
+  it("serves the Group CFO's seven workbook assignments with group scope", async () => {
+    const api = createFixtureApi({ persona: "group-cfo" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership).toMatchObject({ role: "group-cfo", scopes: [GROUP] });
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(7);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "group-cfo")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.grains.length === 1 && assignment.grains[0] === "group")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.breakdowns.length === 1 && assignment.breakdowns[0] === "region")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(GROUP_CFO_ASSIGNMENTS.controls);
+    const detail = await api.handle(get(`/api/kpi/${GROUP_CFO_ASSIGNMENTS.ebitda}`, { grain: "group", entityId: "fixture-group", breakdown: "region" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).breakdown?.observations).toHaveLength(2);
+
+    const outside = await api.handle(get(`/api/kpi/${GROUP_CFO_ASSIGNMENTS.ebitda}`, { grain: "region", entityId: REGION_NORTH.entityId }));
+    expect(outside.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(outside.body).error.code).toBe("out_of_scope");
+  });
+
+  it("serves the Procurement Head's eight workbook assignments with group scope", async () => {
+    const api = createFixtureApi({ persona: "procurement-head" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership).toMatchObject({ role: "procurement-head", scopes: [GROUP] });
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(8);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "procurement-head")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.grains.length === 1 && assignment.grains[0] === "group")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.breakdowns.length === 1 && assignment.breakdowns[0] === "region")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(PROCUREMENT_ASSIGNMENTS.stockouts);
+    const detail = await api.handle(get(`/api/kpi/${PROCUREMENT_ASSIGNMENTS.savings}`, { grain: "group", entityId: "fixture-group", breakdown: "region" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).breakdown?.observations).toHaveLength(2);
+
+    const outside = await api.handle(get(`/api/kpi/${PROCUREMENT_ASSIGNMENTS.savings}`, { grain: "region", entityId: REGION_NORTH.entityId }));
+    expect(outside.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(outside.body).error.code).toBe("out_of_scope");
+  });
+
+  it("serves the HR Head's seven workbook assignments with group scope", async () => {
+    const api = createFixtureApi({ persona: "hr-head" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership).toMatchObject({ role: "hr-head", scopes: [GROUP] });
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(7);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "hr-head")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.grains.length === 1 && assignment.grains[0] === "group")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.breakdowns.length === 1 && assignment.breakdowns[0] === "region")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(HR_ASSIGNMENTS.staffing);
+    const detail = await api.handle(get(`/api/kpi/${HR_ASSIGNMENTS.workforce}`, { grain: "group", entityId: "fixture-group", breakdown: "region" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).breakdown?.observations).toHaveLength(2);
+
+    const outside = await api.handle(get(`/api/kpi/${HR_ASSIGNMENTS.workforce}`, { grain: "region", entityId: REGION_NORTH.entityId }));
+    expect(outside.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(outside.body).error.code).toBe("out_of_scope");
+  });
+
+  it("serves the Legal Head's seven workbook assignments with group scope", async () => {
+    const api = createFixtureApi({ persona: "legal-head" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership).toMatchObject({ role: "legal-head", scopes: [GROUP] });
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(7);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "legal-head")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.grains.length === 1 && assignment.grains[0] === "group")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.breakdowns.length === 1 && assignment.breakdowns[0] === "region")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(LEGAL_ASSIGNMENTS.regulatory);
+    const detail = await api.handle(get(`/api/kpi/${LEGAL_ASSIGNMENTS.contracts}`, { grain: "group", entityId: "fixture-group", breakdown: "region" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).breakdown?.observations).toHaveLength(2);
+
+    const outside = await api.handle(get(`/api/kpi/${LEGAL_ASSIGNMENTS.contracts}`, { grain: "region", entityId: REGION_NORTH.entityId }));
+    expect(outside.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(outside.body).error.code).toBe("out_of_scope");
+  });
+
+  it("serves the Analytics Head's seven workbook assignments with group scope", async () => {
+    const api = createFixtureApi({ persona: "analytics-head" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership).toMatchObject({ role: "analytics-head", scopes: [GROUP] });
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(7);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "analytics-head")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.grains.length === 1 && assignment.grains[0] === "group")).toBe(true);
+    expect(kpis.assignments.every((assignment) => assignment.breakdowns.length === 1 && assignment.breakdowns[0] === "region")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(ANALYTICS_ASSIGNMENTS.quality);
+    const detail = await api.handle(get(`/api/kpi/${ANALYTICS_ASSIGNMENTS.availability}`, { grain: "group", entityId: "fixture-group", breakdown: "region" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).breakdown?.observations).toHaveLength(2);
+
+    const outside = await api.handle(get(`/api/kpi/${ANALYTICS_ASSIGNMENTS.availability}`, { grain: "region", entityId: REGION_NORTH.entityId }));
+    expect(outside.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(outside.body).error.code).toBe("out_of_scope");
   });
 
   it("refuses other regions, ungranted grains, and ungranted breakdowns with an explicit out_of_scope", async () => {

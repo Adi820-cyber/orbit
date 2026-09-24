@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import {
   Form,
+  Link,
   NavLink,
   Outlet,
   useLoaderData,
@@ -30,7 +31,6 @@ const SURFACES: readonly { path: string; label: string; short: string; icon: Ico
   { path: "/", label: "Morning brief", short: "Brief", icon: "brief" },
   { path: "/inbox", label: "Priority inbox", short: "Inbox", icon: "inbox" },
   { path: "/explorer", label: "KPI explorer", short: "Explorer", icon: "explorer" },
-  { path: "/ask", label: "Guided Ask", short: "Ask", icon: "ask" },
   { path: "/actions", label: "Actions", short: "Actions", icon: "actions" },
   { path: "/audit", label: "Audit", short: "Audit", icon: "audit" },
 ];
@@ -60,6 +60,15 @@ function Navigation({ environment, compact }: { environment: WorkspaceEnvironmen
         </NavLink>
       ))}
     </nav>
+  );
+}
+
+function AskLauncher({ environment }: { environment: WorkspaceEnvironment }) {
+  return (
+    <Link className="workspace-ask-launcher" to={workspacePath(environment.basePath, "/ask")} aria-label="Open Guided Ask">
+      <Icon name="ask" />
+      <span>Ask Orbit</span>
+    </Link>
   );
 }
 
@@ -184,8 +193,11 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
             <Navigation environment={environment} compact />
           </div>
           <div className="workspace-progress" data-active={navigation.state !== "idle"} aria-hidden="true" />
+          <p className="orbit-visually-hidden" aria-live="polite">
+            {navigation.state !== "idle" ? "Loading workspace surface." : ""}
+          </p>
           {import.meta.env.DEV && environment.kind === "preview" ? <PreviewBanner environment={environment} /> : null}
-          <main id="workspace-content" tabIndex={-1} className="workspace-content">
+          <main id="workspace-content" tabIndex={-1} className="workspace-content" aria-busy={navigation.state !== "idle"}>
             <Outlet />
           </main>
           <footer className="workspace-footer">
@@ -193,6 +205,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
             <span>Role and scope are derived from the verified membership boundary; filters only narrow what you are authorized to see.</span>
           </footer>
         </div>
+        <AskLauncher environment={environment} />
       </div>
     </WorkspaceContext.Provider>
   );
