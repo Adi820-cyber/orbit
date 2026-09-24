@@ -278,13 +278,14 @@ function BreakdownSection({ detail, highlight }: { detail: KpiDetailResponse; hi
   );
 }
 
-function scopeText(scope: ScopeEntity) {
-  return `${humanize(scope.grain)} · ${scope.entityId}`;
+function scopeText(scope: ScopeEntity, label: (entity: ScopeEntity) => string) {
+  return `${humanize(scope.grain)} · ${label(scope)}`;
 }
 
 export function ExplorerDetailPage({ data }: { data: ExplorerDetailData }) {
   const { detail, highlight } = data;
   const { environment, membership } = useWorkspace();
+  const entityLabel = useEntityLabel();
   const [search] = useSearchParams();
   const groups = groupByFamily(detail.series);
   const latestPeriod = detail.series.at(-1)?.period;
@@ -307,7 +308,7 @@ export function ExplorerDetailPage({ data }: { data: ExplorerDetailData }) {
       <SurfaceHeading
         eyebrow={assignment.keyDeliverable}
         title={assignment.kpi}
-        description={`Scope ${scopeText(detail.scope)}. Every number below is illustrative and carries its own period, unit, and data-quality state.`}
+        description={`Scope ${scopeText(detail.scope, entityLabel)}. Every number below is illustrative and carries its own period, unit, and data-quality state.`}
         back="/explorer"
         aside={
           <dl className="explorer-summary" aria-label="Assignment facts">

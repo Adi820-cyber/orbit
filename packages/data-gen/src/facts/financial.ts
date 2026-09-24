@@ -140,8 +140,14 @@ const MODEL = {
   consumableCostRate: 0.203,
   otherOperatingCostRate: 0.111,
 
-  /** Receivables behaviour. */
-  collectionRate: 0.93,
+  /**
+   * Receivables behaviour. The share of (opening book + month's net revenue)
+   * collected in the month. The steady-state book is (1 − rate) / rate months
+   * of revenue, so 0.4 holds it near 1.5 months (DSO about 45 days), in line
+   * with the opening book below and the aging split. The earlier 0.93 drained
+   * the book to about two days of revenue within a few months.
+   */
+  collectionRate: 0.4,
   writeOffRate: 0.006,
   /** Opening receivables on the first period, as a multiple of monthly net revenue. */
   openingReceivableMonths: 1.7,
