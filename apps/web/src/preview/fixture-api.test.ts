@@ -1,4 +1,5 @@
 import {
+  EntityDirectoryResponseSchema,
   ActionResponseSchema,
   AskPromptsResponseSchema,
   AskResponseSchema,
@@ -391,5 +392,32 @@ describe("preview fixture API", () => {
     const api = createFixtureApi({ storage });
     const action = ActionResponseSchema.parse((await api.handle(get("/api/actions/act-seed-1"))).body).action;
     expect(action.state).toBe("open");
+  });
+});
+
+async function labels(persona?: "chairman" | "hospital-dho") {
+  const api = createFixtureApi(persona ? { persona } : {});
+  const reply = await api.handle(get("/api/entities"));
+  expect(reply.status).toBe(200);
+  return EntityDirectoryResponseSchema.parse(reply.body).entities;
+}
+
+describe("preview entity directory (mirrors GET /api/entities)", () => {
+  it("gives the Regional COO its own region and hospitals only", async () => {
+    const entities = await labels();
+    expect(entities.map((entity) => entity.entityId).sort()).toEqual(
+      [REGION_NORTH.entityId, ...facilitiesIn(REGION_NORTH).map((facility) => facility.entityId)].sort(),
+    );
+    expect(entities.every((entity) => entity.entityId !== "fixture-region-b")).toBe(true);
+  });
+
+  it("gives a group-scoped role the whole organization, as RLS does", async () => {
+    const entities = await labels("chairman");
+    expect(entities.some((entity) => entity.entityId === GROUP.entityId && entity.parent === null)).toBe(true);
+    expect(entities.filter((entity) => entity.grain === "facility")).toHaveLength(6);
+  });
+
+  it("gives a Hospital DHO its one hospital", async () => {
+    expect((await labels("hospital-dho")).map((entity) => entity.entityId)).toEqual([DHO_FACILITY.entityId]);
   });
 });

@@ -14,7 +14,13 @@ import {
 } from "../../lib/format";
 import { sorted } from "../../lib/sorted";
 import { Disclosure, Icon, MeasureValue, QualityChips, ScrollRegion, SurfaceHeading } from "../workspace/components";
-import { useWorkspace, withClient, workspacePath, type WorkspaceEnvironment } from "../workspace/environment";
+import {
+  useEntityLabel,
+  useWorkspace,
+  withClient,
+  type WorkspaceEnvironment,
+  workspacePath,
+} from "../workspace/environment";
 import { askHref, explorerHref, parseEntity, parseGrain } from "../workspace/links";
 import { defaultScope } from "./index-route";
 import "./explorer.css";
@@ -210,6 +216,7 @@ function FamilySection({ family, rows }: { family: string; rows: Observation[] }
 }
 
 function BreakdownSection({ detail, highlight }: { detail: KpiDetailResponse; highlight: string | null }) {
+  const entityLabel = useEntityLabel();
   const { environment } = useWorkspace();
   const breakdown = detail.breakdown;
   if (!breakdown) return null;
@@ -249,10 +256,10 @@ function BreakdownSection({ detail, highlight }: { detail: KpiDetailResponse; hi
                     <th scope="row">
                       {canOpen ? (
                         <Link className="workspace-reference" to={explorerHref(environment.basePath, detail.assignment.assignmentId, row.entity)}>
-                          {row.entity.entityId}
+                          {entityLabel(row.entity)}
                         </Link>
                       ) : (
-                        <span className="workspace-reference">{row.entity.entityId}</span>
+                        <span>{entityLabel(row.entity)}</span>
                       )}
                     </th>
                     <td data-numeric="true"><MeasureValue value={row.value} unit={row.unit} /></td>

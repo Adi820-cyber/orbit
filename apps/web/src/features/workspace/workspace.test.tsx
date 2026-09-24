@@ -205,7 +205,8 @@ describe("KPI explorer", () => {
   it("renders the permitted facility split and keeps a late value unreported, never zero", async () => {
     const markup = textOf(render(await open(`/explorer/${encodeURIComponent(ASSIGNMENTS.revenue)}?grain=region&entityId=fixture-region-a`)));
     expect(markup).toContain("Facility split");
-    for (const facility of ["fixture-facility-a1", "fixture-facility-a2", "fixture-facility-a3"]) expect(markup).toContain(facility);
+    // Facilities are shown by name from GET /api/entities, not by raw id.
+    for (const facility of ["Preview facility A1", "Preview facility A2", "Preview facility A3"]) expect(markup).toContain(facility);
     expect(markup).toContain("Not reported");
     expect(markup).toContain("The management-accounts close for August 2026 is late and unreconciled");
   });
