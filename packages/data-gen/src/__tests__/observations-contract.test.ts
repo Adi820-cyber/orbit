@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DataQualitySchema, ExceptionSchema, ObservationSchema, TargetSchema } from "@orbit/contracts";
-import { deriveFinancialObservations, deriveSeededExceptions, SEEDED_SCENARIO_LABEL } from "../observations.ts";
+import { DataQualitySchema, ExceptionSchema, ObservationSchema, OnTrackItemSchema, TargetSchema } from "@orbit/contracts";
+import { deriveFinancialObservations, deriveOnTrack, deriveSeededExceptions, SEEDED_SCENARIO_LABEL } from "../observations.ts";
 
 /*
  * The seed (scripts/generate-observations.ts) stores these rows and the API
@@ -72,5 +72,21 @@ describe("seeded observations match the shared contract", () => {
       });
       expect(parsed.success).toBe(true);
     }
+  });
+
+  it("every on-track item parses as OnTrackItemSchema", () => {
+    const failures = deriveOnTrack(deriveFinancialObservations()).filter(
+      (item) =>
+        !OnTrackItemSchema.safeParse({
+          assignmentId: item.assignmentId,
+          entity: { grain: item.entity.grain, entityId: PLACEHOLDER_ID },
+          period: { cadence: "month", ...monthBounds(item.month) },
+          summary: item.summary,
+          evidence: { observationIds: item.evidenceKeys, definitionVersion: "v1", datasetChecksum: "checksum" },
+          provenance: "illustrative",
+          dataQuality,
+        }).success,
+    );
+    expect(failures).toEqual([]);
   });
 });

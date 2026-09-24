@@ -11,7 +11,6 @@
   "scripts": {
     "generate": "node scripts/generate-seed.ts",
     "generate:observations": "node scripts/generate-observations.ts",
-    "provision:demo": "node scripts/provision-demo-accounts.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "oxlint --type-aware"

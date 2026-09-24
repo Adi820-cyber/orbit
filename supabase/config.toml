@@ -5,10 +5,10 @@
 # file only when it changes.
 #
 # seed/0001 is omitted: it was applied before this file existed.
-# seed/local/ holds environment-specific seeds (demo memberships) and is
-# gitignored, so nothing account-specific is ever committed.
+# Demo accounts and memberships are provisioned out of band (ADR 0013 §2),
+# not by a seed file.
 project_id = "orbit"
 
 [db.seed]
 enabled = true
-sql_paths = ["./seed/0002_financial_observations.sql", "./seed/0003_seeded_exceptions.sql", "./seed/local/*.sql"]
+sql_paths = ["./seed/0002_financial_observations.sql", "./seed/0003_seeded_exceptions.sql", "./seed/0004_brief_on_track.sql"]

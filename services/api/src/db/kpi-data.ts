@@ -128,6 +128,33 @@ ${CURRENT_EXCEPTIONS}
   and x.period_start = $1::date and x.period_end = $2::date
 order by (x.priority = 'act_now') desc, x.exception_key`;
 
+/**
+ * "On track" brief items chosen by the generator (migration 000900), with the
+ * same entitlement filter as exceptions: the caller's own KPIs at a granted
+ * grain, from the current dataset.
+ */
+export const BRIEF_ON_TRACK_SQL = `
+select
+  t.assignment_id as "assignmentId",
+  jsonb_build_object('grain', t.entity_grain, 'entityId', t.entity_id::text) as "entity",
+  ${PERIOD_OF('t')} as "period",
+  t.summary as "summary",
+  t.evidence as "evidence",
+  t.provenance as "provenance",
+  t.data_quality as "dataQuality"
+from orbit.brief_on_track t
+join orbit.datasets d on d.id = t.dataset_id and d.is_current
+join orbit.framework_versions v on v.is_current
+where t.organization_id = orbit.current_org()
+  and t.period_start = $1::date and t.period_end = $2::date
+  and exists (
+    select 1 from orbit.entitlements e
+    where e.framework_version_id = v.id
+      and e.assignment_id = t.assignment_id
+      and t.entity_grain = any (e.grains)
+  )
+order by t.item_key`;
+
 export const DATA_LIMITATIONS_SQL = `
 select l.assignment_id as "assignmentId", l.issue as "issue", l.detail as "detail"
 from orbit.data_limitations l
@@ -211,8 +238,7 @@ export function createDbExceptionSource(db: Database): ExceptionSource {
     brief: (membership: MembershipClaims, period: Period) =>
       withMembershipTx(db, membership, async (tx) => ({
         exceptions: await tx.query(BRIEF_EXCEPTIONS_SQL, [period.start, period.end]),
-        // No on-track rows are generated yet; an empty section, not an invented one.
-        onTrack: [],
+        onTrack: await tx.query(BRIEF_ON_TRACK_SQL, [period.start, period.end]),
         dataLimitations: await tx.query(DATA_LIMITATIONS_SQL),
       })),
 

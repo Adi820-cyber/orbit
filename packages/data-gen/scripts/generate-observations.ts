@@ -15,11 +15,12 @@ import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { COMPANY_MANIFEST } from "../src/manifest.ts";
-import { deriveFinancialObservations, deriveSeededExceptions, SEEDED_SCENARIO_LABEL } from "../src/observations.ts";
+import { deriveFinancialObservations, deriveOnTrack, deriveSeededExceptions, SEEDED_SCENARIO_LABEL } from "../src/observations.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const seedPath = resolve(here, "../../../supabase/seed/0002_financial_observations.sql");
 const exceptionsPath = resolve(here, "../../../supabase/seed/0003_seeded_exceptions.sql");
+const onTrackPath = resolve(here, "../../../supabase/seed/0004_brief_on_track.sql");
 
 function q(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
@@ -34,6 +35,7 @@ function monthBounds(month: string): { start: string; end: string } {
 
 const rows = deriveFinancialObservations();
 const exceptions = deriveSeededExceptions(rows);
+const onTrack = deriveOnTrack(rows);
 const demo = COMPANY_MANIFEST.organizations.find((org) => org.kind === "demo");
 if (!demo) throw new Error("company manifest has no demo organization");
 
@@ -190,4 +192,53 @@ w("commit;");
 w();
 
 writeFileSync(exceptionsPath, lines.join("\n"));
-console.log(`Wrote ${rows.length} observations and ${exceptions.length} seeded exceptions (dataset ${checksum.slice(0, 12)}…)`);
+
+// "On track" brief items (migration 20260924000900), in their own file for the
+// same reason as the exceptions.
+lines.length = 0;
+w("-- =========================================================================");
+w("-- 0004_brief_on_track.sql");
+w("--");
+w("-- GENERATED FILE — DO NOT EDIT BY HAND.");
+w("-- Produced by packages/data-gen/scripts/generate-observations.ts");
+w(`-- Dataset checksum: ${checksum}`);
+w(`-- On-track items  : ${onTrack.length} (at or above approved budget, latest month)`);
+w("--");
+w("-- Illustrative synthetic data (PRD §8.4). Idempotent. Requires seed 0002.");
+w("-- =========================================================================");
+w();
+w("begin;");
+w();
+w("create temp table _entities (grain text, slug text, id uuid) on commit drop;");
+w(`insert into _entities select 'group', o.slug, o.id from orbit.organizations o where o.slug = ${q(demo.slug)};`);
+w(`insert into _entities select 'region', r.slug, r.id from orbit.regions r join orbit.organizations o on o.id = r.organization_id where o.slug = ${q(demo.slug)};`);
+w(`insert into _entities select 'facility', f.slug, f.id from orbit.facilities f join orbit.organizations o on o.id = f.organization_id where o.slug = ${q(demo.slug)};`);
+w();
+if (onTrack.length > 0) {
+  w("insert into orbit.brief_on_track (item_key, organization_id, dataset_id, assignment_id, entity_grain, entity_id, period_cadence, period_start, period_end, summary, evidence, data_quality)");
+  w("select v.item_key, d.organization_id, d.id, v.assignment_id, v.grain, e.id, 'month', v.period_start::date, v.period_end::date, v.summary, v.evidence::jsonb, v.data_quality::jsonb");
+  w("from (values");
+  onTrack.forEach((item, index) => {
+    const bounds = monthBounds(item.month);
+    const evidence = JSON.stringify({
+      observationIds: item.evidenceKeys,
+      definitionVersion: rows[0]?.definitionVersion ?? "v1",
+      datasetChecksum: checksum,
+    });
+    const sep = index === onTrack.length - 1 ? "" : ",";
+    w(`  (${[item.itemKey, item.assignmentId, item.entity.grain, item.entity.slug, bounds.start, bounds.end, item.summary, evidence, dataQuality].map(q).join(", ")})${sep}`);
+  });
+  w(") as v(item_key, assignment_id, grain, slug, period_start, period_end, summary, evidence, data_quality)");
+  w("join _entities e on e.grain = v.grain and e.slug = v.slug");
+  w(`join orbit.datasets d on d.checksum = ${q(checksum)}`);
+  w(`join orbit.organizations o on o.id = d.organization_id and o.slug = ${q(demo.slug)}`);
+  w("on conflict (dataset_id, item_key) do nothing;");
+  w();
+}
+w("commit;");
+w();
+writeFileSync(onTrackPath, lines.join("\n"));
+
+console.log(
+  `Wrote ${rows.length} observations, ${exceptions.length} seeded exceptions, ${onTrack.length} on-track items (dataset ${checksum.slice(0, 12)}…)`,
+);

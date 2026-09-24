@@ -266,3 +266,52 @@ export function deriveSeededExceptions(rows: readonly DerivedObservation[]): See
   }
   return exceptions;
 }
+
+/** An "on track" brief item (PRD FR-02), in the shape the seed stores. */
+export interface OnTrackItem {
+  itemKey: string;
+  assignmentId: string;
+  entity: EntityRef;
+  month: string;
+  summary: string;
+  evidenceKeys: string[];
+}
+
+/**
+ * Reassurance for the brief: KPIs at or above their approved budget in the
+ * latest month, at the assignment's own base grain. The mirror of
+ * `deriveSeededExceptions`, so every base-grain item in the latest month is
+ * either an exception or on track, never both and never neither (when a value
+ * is available). States the observed figure only.
+ */
+export function deriveOnTrack(rows: readonly DerivedObservation[]): OnTrackItem[] {
+  const entitlements = deriveEntitlements();
+  const latest = [...new Set(rows.map((row) => row.month))].sort().at(-1);
+  if (!latest) return [];
+  const items: OnTrackItem[] = [];
+  for (const assignmentId of Object.keys(FINANCIAL_ASSIGNMENTS)) {
+    const assignment = getAssignment(assignmentId);
+    const baseGrains = entitlements.find((row) => row.assignmentId === assignmentId)?.grains ?? [];
+    if (!assignment) continue;
+    for (const row of rows) {
+      if (
+        row.assignmentId !== assignmentId ||
+        row.month !== latest ||
+        !(baseGrains as readonly string[]).includes(row.entity.grain) ||
+        row.value.status !== "available" ||
+        row.value.value < 100
+      ) {
+        continue;
+      }
+      items.push({
+        itemKey: `ok:${assignmentId}:${row.entity.grain}:${row.entity.slug}:${latest}`,
+        assignmentId,
+        entity: row.entity,
+        month: latest,
+        summary: `${assignment.kpi} was ${row.value.value}% of approved budget in ${monthLabel(latest)}.`,
+        evidenceKeys: [row.observationKey],
+      });
+    }
+  }
+  return items;
+}

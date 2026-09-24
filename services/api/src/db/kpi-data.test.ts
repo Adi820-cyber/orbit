@@ -4,6 +4,7 @@ import type { Database, SqlParam } from './client.ts';
 import {
   BREAKDOWN_SQL,
   BRIEF_EXCEPTIONS_SQL,
+  BRIEF_ON_TRACK_SQL,
   createDbDatasetSource,
   createDbExceptionSource,
   createDbObservationSource,
@@ -90,12 +91,13 @@ describe('ObservationSource', () => {
 });
 
 describe('ExceptionSource', () => {
-  it('builds the brief from the current period, with no invented on-track items', async () => {
+  it('builds the brief from the current period: exceptions, on-track items, limitations', async () => {
     const { db, calls } = scriptedDb(() => []);
     const brief = await createDbExceptionSource(db).brief(claims, AUG);
     expect(brief).toEqual({ exceptions: [], onTrack: [], dataLimitations: [] });
-    expect(calls.map((call) => call.text).slice(1)).toEqual([BRIEF_EXCEPTIONS_SQL, DATA_LIMITATIONS_SQL]);
+    expect(calls.map((call) => call.text).slice(1)).toEqual([BRIEF_EXCEPTIONS_SQL, BRIEF_ON_TRACK_SQL, DATA_LIMITATIONS_SQL]);
     expect(calls[1]?.params).toEqual(['2026-08-01', '2026-08-31']);
+    expect(calls[2]?.params).toEqual(['2026-08-01', '2026-08-31']);
   });
 
   it("reads only exceptions on the caller's entitled KPIs at a granted grain", () => {
@@ -103,6 +105,7 @@ describe('ExceptionSource', () => {
       expect(sql).toContain('from orbit.entitlements e');
       expect(sql).toContain('x.entity_grain = any (e.grains)');
     }
+    expect(BRIEF_ON_TRACK_SQL).toContain('t.entity_grain = any (e.grains)');
   });
 
   it('pages the inbox with an opaque offset cursor and states its ordering', async () => {

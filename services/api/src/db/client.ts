@@ -16,13 +16,16 @@ export interface DatabaseOptions {
   url: string;
   /** TLS is required for hosted Supabase; only a local test database may disable it. */
   ssl?: boolean;
+  /** Connections kept open by one client. Tests use 1; the API uses a small pool. */
+  max?: number;
 }
 
 /** Connection settings required by the transaction-mode pooler (no prepared statements). */
 export function connect(options: DatabaseOptions): Sql {
   return postgres(options.url, {
     prepare: false,
-    max: 1,
+    max: options.max ?? 1,
+    // Close idle connections quickly, so an idle serverless instance holds none.
     idle_timeout: 5,
     connect_timeout: 10,
     ssl: options.ssl === false ? false : 'require',
@@ -50,19 +53,26 @@ export function databaseFromSql(sql: Sql): Database {
   };
 }
 
+/** Small enough for a serverless instance, large enough for one request's parallel reads. */
+export const API_POOL_SIZE = 4;
+
 /**
- * Opens one connection per transaction and always closes it, because Vercel
- * instances are ephemeral and must not hold pooled state between requests.
+ * One lazily created, small connection pool for the process.
+ *
+ * Opening a connection per transaction cost a full TLS + pooler handshake
+ * each time (measured 3.7s cold to ap-south-1), and one request runs several
+ * transactions. Reuse is safe here because nothing protected lives on the
+ * connection: claims are set with transaction-local `set_config(..., true)`
+ * (see rls.ts) and vanish at commit or rollback, which the RLS leak tests
+ * assert against the real pooler. No query results are cached (ARCH §6.3).
+ * Idle connections close after a few seconds, so an idle instance holds none.
  */
 export function createDatabase(options: DatabaseOptions): Database {
+  let sql: Sql | undefined;
   return {
-    async transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
-      const sql = connect(options);
-      try {
-        return await databaseFromSql(sql).transaction(fn);
-      } finally {
-        await sql.end({ timeout: 5 });
-      }
+    transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+      sql ??= connect({ max: API_POOL_SIZE, ...options });
+      return databaseFromSql(sql).transaction(fn);
     },
   };
 }

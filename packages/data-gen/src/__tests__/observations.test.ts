@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateAllFinancialFacts } from "../facts/financial.ts";
 import { COMPANY_MANIFEST } from "../manifest.ts";
-import { deriveFinancialObservations, deriveSeededExceptions, FINANCIAL_ASSIGNMENTS, percentOfBudget } from "../observations.ts";
+import { deriveFinancialObservations, deriveOnTrack, deriveSeededExceptions, FINANCIAL_ASSIGNMENTS, percentOfBudget } from "../observations.ts";
 
 const facts = generateAllFinancialFacts();
 const rows = deriveFinancialObservations(facts);
@@ -58,5 +58,12 @@ describe("derived financial observations", () => {
     expect([...actNowPerKpi.values()].every((count) => count === 1)).toBe(true);
     // A Regional COO's exceptions are at region grain, never a hospital's.
     expect(exceptions.filter((item) => item.ownerRole === "regional-coo").every((item) => item.entity.grain === "region")).toBe(true);
+  });
+
+  it("puts every latest base-grain KPI in exactly one brief section: exception or on track", () => {
+    const exceptions = deriveSeededExceptions(rows).map((item) => item.evidenceKeys[0]);
+    const onTrack = deriveOnTrack(rows).map((item) => item.evidenceKeys[0]);
+    expect(exceptions.filter((key) => onTrack.includes(key))).toEqual([]);
+    expect(exceptions.length + onTrack.length).toBe(19);
   });
 });
