@@ -1,4 +1,7 @@
 import type { ApiConfig } from './config.ts';
+import { createDbActionStore } from './db/actions.ts';
+import { createDbAssigneeDirectory } from './db/assignees.ts';
+import { createDbAuditStore } from './db/audit.ts';
 import { createDatabase, type Database } from './db/client.ts';
 import { createDbMembershipSource } from './db/memberships.ts';
 import { createDbEntitlementSource, createDbEntityDirectory, createDbScopeResolver, membershipQuery } from './db/sources.ts';
@@ -52,6 +55,15 @@ export function wireSources(
   }
   if (live.has('entities')) {
     modules.entities = createDbEntityDirectory(database());
+  }
+  if (live.has('actions')) {
+    modules.actions = createDbActionStore(database());
+  }
+  if (live.has('audit')) {
+    modules.audit = createDbAuditStore(database());
+  }
+  if (live.has('assignees')) {
+    modules.assignees = createDbAssigneeDirectory(database());
   }
   if (live.has('transitions')) {
     modules.transitions = createMatrixTransitionPolicy(PROPOSED_TRANSITIONS);

@@ -47,12 +47,30 @@ export interface ApiConfig {
  * prerequisite lands. Everything not listed stays fail-closed (`unavailable`).
  * - `memberships`, `entitlements`, `scope`, `entities`: Maruti's schema (migrations 000400–000500)
  * - `transitions`: Aditya's sign-off of services/api/TRANSITIONS.md
+ * - `actions`, `audit`, `assignees`: migration 20260924000700
  */
-export const LIVE_SOURCES = ['memberships', 'entitlements', 'scope', 'entities', 'transitions'] as const;
+export const LIVE_SOURCES = [
+  'memberships',
+  'entitlements',
+  'scope',
+  'entities',
+  'transitions',
+  'actions',
+  'audit',
+  'assignees',
+] as const;
 export type LiveSource = (typeof LIVE_SOURCES)[number];
 
 /** Sources that read Postgres and therefore need `DATABASE_URL`. */
-export const DATABASE_SOURCES: readonly LiveSource[] = ['memberships', 'entitlements', 'scope', 'entities'];
+export const DATABASE_SOURCES: readonly LiveSource[] = [
+  'memberships',
+  'entitlements',
+  'scope',
+  'entities',
+  'actions',
+  'audit',
+  'assignees',
+];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   const parsed = EnvSchema.safeParse(env);

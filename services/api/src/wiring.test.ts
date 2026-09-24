@@ -48,6 +48,15 @@ describe('wireSources', () => {
     expect(await sources.modules.transitions.decide({ role: 'regional-coo', relation: 'assignee', from: 'open', to: 'acknowledged' })).toBe('allowed');
   });
 
+  it('switches on the Postgres action, audit and assignee stores by name', async () => {
+    const { sources, opened } = wire(['actions', 'audit', 'assignees']);
+    expect(opened).toEqual(['postgresql://fixture']);
+    await expect(sources.modules.actions.list(claims, { limit: 25 })).resolves.toEqual({ items: [], nextCursor: null });
+    await expect(sources.modules.audit.list(claims, { limit: 25 })).resolves.toEqual({ items: [], nextCursor: null });
+    await expect(sources.modules.assignees.permitted(claims, { assignmentId: 'a', entity: REGION })).resolves.toEqual([]);
+    await expect(sources.modules.observations.byIds(claims, ['x'])).rejects.toMatchObject({ code: 'unavailable' });
+  });
+
   it('passes configured Ask providers to the Ask module, and none by default', () => {
     const providers = [groqProvider('test-key')];
     expect(wireSources({ liveSources: new Set(), databaseUrl: undefined, askProviders: providers }).modules.askNarration.providers).toEqual(providers);
