@@ -1,6 +1,12 @@
 import { createContext, useContext } from "react";
 import { redirect } from "react-router";
-import type { KpiAssignmentSummary, KpiListResponse, MeResponse } from "@orbit/contracts";
+import type {
+  EntityDirectoryEntry,
+  KpiAssignmentSummary,
+  KpiListResponse,
+  MeResponse,
+  ScopeEntity,
+} from "@orbit/contracts";
 import {
   ApiRequestError,
   createApiClient,
@@ -97,11 +103,48 @@ export async function mutate<T>(
 export interface WorkspaceData {
   membership: MeResponse;
   kpis: KpiListResponse;
+  /** Display names from `GET /api/entities`; empty when the directory is unavailable. */
+  entities: EntityDirectoryEntry[];
 }
 
 export interface WorkspaceContextValue extends WorkspaceData {
   environment: Pick<WorkspaceEnvironment, "kind" | "basePath">;
   assignments: ReadonlyMap<string, KpiAssignmentSummary>;
+  entityLabels: ReadonlyMap<string, string>;
+}
+
+export function entityKey(entity: ScopeEntity) {
+  return `${entity.grain}:${entity.entityId}`;
+}
+
+export function entityLabelMap(entities: readonly EntityDirectoryEntry[]): ReadonlyMap<string, string> {
+  return new Map(entities.map((entry) => [entityKey(entry), entry.label]));
+}
+
+/**
+ * Loads display names for the entities the caller can see. Names are
+ * display-only, so an unavailable or not-yet-deployed directory degrades to
+ * showing ids rather than failing the workspace. Every other failure,
+ * including an expired session, still propagates.
+ */
+export async function loadEntities(client: ApiClient): Promise<EntityDirectoryEntry[]> {
+  try {
+    return (await client.entities()).entities;
+  } catch (error: unknown) {
+    if (error instanceof ApiRequestError && (error.code === "unavailable" || error.code === "not_found")) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+/**
+ * The entity's display name, or its id when the directory has no name for it.
+ * Outside a workspace (a component rendered on its own) it falls back to ids.
+ */
+export function useEntityLabel() {
+  const entityLabels = useContext(WorkspaceContext)?.entityLabels;
+  return (entity: ScopeEntity) => entityLabels?.get(entityKey(entity)) ?? entity.entityId;
 }
 
 export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);

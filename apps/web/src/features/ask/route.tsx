@@ -21,9 +21,10 @@ import { formText } from "../../lib/form";
 import { Disclosure, MeasureValue, ScrollRegion, SurfaceHeading } from "../workspace/components";
 import {
   mutate,
+  type MutationFailure,
+  useEntityLabel,
   useWorkspace,
   withClient,
-  type MutationFailure,
   type WorkspaceEnvironment,
 } from "../workspace/environment";
 import { monthPeriod, newActionHref, parseEntity, parseGrain } from "../workspace/links";
@@ -143,6 +144,7 @@ const INTENTS: readonly { value: AskRequest["intent"]; label: string }[] = [
 ];
 
 export function EvidenceCard({ response }: { response: AskResponse }) {
+  const entityLabel = useEntityLabel();
   const { assignments, environment } = useWorkspace();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const card = response.card;
@@ -191,7 +193,7 @@ export function EvidenceCard({ response }: { response: AskResponse }) {
                 {observations.map((observation) => (
                   <tr key={observation.observationId}>
                     <th scope="row">
-                      {humanize(observation.entity.grain)} · <span className="workspace-reference">{observation.entity.entityId}</span>
+                      {humanize(observation.entity.grain)} · {entityLabel(observation.entity)}
                     </th>
                     <td>{periodLabel(observation.period)}</td>
                     <td>{observation.definitionFamily}</td>
@@ -210,7 +212,7 @@ export function EvidenceCard({ response }: { response: AskResponse }) {
                   {exception.priority === "act_now" ? "Act now" : "Monitor"}
                 </span>
                 <span>{assignmentLabel(exception.assignmentId, assignments)}</span>
-                <span className="workspace-reference">{exception.entity.entityId}</span>
+                <span>{entityLabel(exception.entity)}</span>
               </li>
             ))}
           </ul>
@@ -277,7 +279,7 @@ export function EvidenceCard({ response }: { response: AskResponse }) {
             <dd>
               {card.scope.entities.map((entity) => (
                 <span key={`${entity.grain}:${entity.entityId}`} className="workspace-reference">
-                  {humanize(entity.grain)} · {entity.entityId}
+                  {humanize(entity.grain)} · {entityLabel(entity)}
                 </span>
               ))}
             </dd>
@@ -315,6 +317,7 @@ function previousMonth(month: string) {
 }
 
 export function AskPage({ data, result }: { data: AskLoaderData; result: AskActionData | undefined }) {
+  const entityLabel = useEntityLabel();
   const { kpis, membership } = useWorkspace();
   const navigation = useNavigation();
   const pending = navigation.state === "submitting" && navigation.formMethod === "POST";
@@ -390,7 +393,7 @@ export function AskPage({ data, result }: { data: AskLoaderData; result: AskActi
                 >
                   {scopeOptions.map((scope) => (
                     <option key={`${scope.grain}|${scope.entityId}`} value={`${scope.grain}|${scope.entityId}`}>
-                      {humanize(scope.grain)} · {scope.entityId}
+                      {humanize(scope.grain)} · {entityLabel(scope)}
                     </option>
                   ))}
                 </select>

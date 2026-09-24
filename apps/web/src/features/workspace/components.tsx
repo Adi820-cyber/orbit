@@ -19,7 +19,7 @@ import {
   roleLabel,
   scopeLabel,
 } from "../../lib/format";
-import { useWorkspace } from "./environment";
+import { useEntityLabel, useWorkspace } from "./environment";
 import { askHref, explorerHref, newActionHref } from "./links";
 
 export type IconName =
@@ -100,13 +100,16 @@ export function MeasureValue({ value, unit }: { value: MeasureValueContract; uni
 }
 
 export function EvidenceSummary({ entity, evidence }: { entity: ScopeEntity; evidence: EvidenceRef }) {
+  const entityLabel = useEntityLabel();
   return (
     <details className="workspace-evidence">
       <summary>Evidence and scope</summary>
       <dl className="workspace-evidence__grid">
         <div>
           <dt>Scope</dt>
-          <dd>{scopeLabel(entity)}</dd>
+          <dd>
+            {entityLabel(entity)} · {scopeLabel(entity)}
+          </dd>
         </div>
         <div>
           <dt>Scope reference</dt>

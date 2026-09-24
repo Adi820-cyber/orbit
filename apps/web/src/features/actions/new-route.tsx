@@ -16,11 +16,12 @@ import { assignmentLabel, humanize, roleLabel } from "../../lib/format";
 import { Disclosure, SurfaceHeading, SurfaceState } from "../workspace/components";
 import {
   mutate,
+  type MutationFailure,
+  useEntityLabel,
   useWorkspace,
   withClient,
-  workspacePath,
-  type MutationFailure,
   type WorkspaceEnvironment,
+  workspacePath,
 } from "../workspace/environment";
 import { explorerHref, parseActionDraft, type ActionDraftSource } from "../workspace/links";
 import "./actions.css";
@@ -112,6 +113,7 @@ export function newActionAction(environment: WorkspaceEnvironment) {
 }
 
 export function NewActionPage({ data, result }: { data: NewActionData; result: NewActionResult | undefined }) {
+  const entityLabel = useEntityLabel();
   const { assignments, environment, kpis } = useWorkspace();
   const navigation = useNavigation();
   const pending = navigation.state === "submitting";
@@ -144,7 +146,7 @@ export function NewActionPage({ data, result }: { data: NewActionData; result: N
             <div>
               <dt>Scope</dt>
               <dd>
-                {humanize(draft.entity.grain)} · <span className="workspace-reference">{draft.entity.entityId}</span>
+                {humanize(draft.entity.grain)} · {entityLabel(draft.entity)}
               </dd>
             </div>
             <div>
@@ -217,7 +219,7 @@ export function NewActionPage({ data, result }: { data: NewActionData; result: N
                     <input defaultChecked={index === 0 && assignees.length === 1} name="assigneeId" type="radio" value={assignee.assigneeId} />
                     <strong>{roleLabel(assignee.role)}</strong>
                     <span className="workspace-reference">
-                      {assignee.scopes.map((scope) => `${humanize(scope.grain)} · ${scope.entityId}`).join(", ")}
+                      {assignee.scopes.map((scope) => `${humanize(scope.grain)} · ${entityLabel(scope)}`).join(", ")}
                     </span>
                   </label>
                 ))}

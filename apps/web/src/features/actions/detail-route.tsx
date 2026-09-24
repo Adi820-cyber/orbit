@@ -15,10 +15,11 @@ import { assignmentLabel, formatDateTime, formatDay, humanize, roleLabel } from 
 import { ActionStateChip, Disclosure, EvidenceSummary, SurfaceHeading } from "../workspace/components";
 import {
   mutate,
+  type MutationFailure,
+  useEntityLabel,
   useWorkspace,
   useWorkspacePath,
   withClient,
-  type MutationFailure,
   type WorkspaceEnvironment,
 } from "../workspace/environment";
 import { explorerHref } from "../workspace/links";
@@ -73,6 +74,7 @@ function Lifecycle({ state }: { state: ActionState }) {
 }
 
 export function ActionDetailPage({ action, result }: { action: Action; result: TransitionResult | undefined }) {
+  const entityLabel = useEntityLabel();
   const { assignments, environment, kpis } = useWorkspace();
   const path = useWorkspacePath();
   const navigation = useNavigation();
@@ -94,7 +96,7 @@ export function ActionDetailPage({ action, result }: { action: Action; result: T
       <SurfaceHeading
         eyebrow="Internal action"
         title={action.title}
-        description={`${kpi} · ${humanize(action.entity.grain)} ${action.entity.entityId}. Stored in Orbit only; nothing was sent outside Orbit.`}
+        description={`${kpi} · ${humanize(action.entity.grain)} ${entityLabel(action.entity)}. Stored in Orbit only; nothing was sent outside Orbit.`}
         aside={<ActionStateChip state={action.state} />}
       />
 

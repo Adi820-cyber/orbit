@@ -17,6 +17,7 @@ import {
   type Exception,
   type GuidedPrompt,
   type KpiAssignmentSummary,
+  type EntityDirectoryEntry,
   type MeResponse,
   type MeasureValue,
   type Observation,
@@ -87,6 +88,7 @@ import {
   OBSERVATIONS,
   ORGANIZATION_ID,
   PREVIEW_DISCLOSURE,
+  FACILITIES,
   REGION_NORTH,
   REGION_SOUTH,
   briefFor,
@@ -554,6 +556,27 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     if (role === "billing-lead") return sameEntity(target, DHO_FACILITY);
     if (scope.grain === "group") return sameEntity(target, scope);
     return regionOf(target) === scope.entityId;
+  }
+
+  /**
+   * Mirrors `GET /api/entities`: every entity the caller can see, with a name.
+   * Group scope sees the whole organization, as the real RLS policies do.
+   * Labels are preview placeholders, not Maruti's fictional company names.
+   */
+  function visibleEntities(): EntityDirectoryEntry[] {
+    const all: EntityDirectoryEntry[] = [
+      { ...GROUP, label: "Preview group", parent: null },
+      { ...REGION_NORTH, label: "Preview North region", parent: GROUP },
+      { ...REGION_SOUTH, label: "Preview South region", parent: GROUP },
+      ...FACILITIES.map((facility) => ({
+        ...facility.entity,
+        label: `Preview facility ${facility.entity.entityId.replace("fixture-facility-", "").toUpperCase()}`,
+        parent: { grain: "region" as const, entityId: facility.region },
+      })),
+      { ...CLINICAL_COE, label: "Preview clinical COE", parent: GROUP },
+    ];
+    const groupScoped = membership.scopes.some((entry) => entry.grain === "group");
+    return all.filter((entry) => groupScoped || contains({ grain: entry.grain, entityId: entry.entityId }));
   }
 
   function decide(assignmentId: string, target: ScopeEntity, breakdown?: ScopeEntity["grain"]) {
@@ -1039,6 +1062,8 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
       record("ask_answered", { type: "ask", id: parsed.success ? parsed.data.intent : "unrecognized" }, response.outcome, requestId);
       return { status: 200, body: response };
     }
+
+    if (method === "GET" && resource === "entities" && !id) return { status: 200, body: { entities: visibleEntities() } };
 
     if (resource === "actions") {
       if (method === "GET" && !id) {

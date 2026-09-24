@@ -16,6 +16,8 @@ import { roleViewConfigFor } from "../../roles/config";
 import { Icon, type IconName } from "./components";
 import {
   WorkspaceContext,
+  entityLabelMap,
+  loadEntities,
   withClient,
   workspacePath,
   type WorkspaceData,
@@ -43,7 +45,8 @@ export function workspaceLoader(environment: WorkspaceEnvironment) {
         throw new RoleViewUnavailableError(membership.role);
       }
 
-      return { membership, kpis: await client.kpiList() };
+      const [kpis, entities] = await Promise.all([client.kpiList(), loadEntities(client)]);
+      return { membership, kpis, entities };
     });
 }
 
@@ -115,6 +118,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
       ...data,
       environment: { kind: environment.kind, basePath: environment.basePath },
       assignments: assignmentMap(data.kpis.assignments),
+      entityLabels: entityLabelMap(data.entities),
     }),
     [data, environment.kind, environment.basePath],
   );

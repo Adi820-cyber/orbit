@@ -2,7 +2,13 @@ import type { Action, ActionListResponse } from "@orbit/contracts";
 import { Link, useLoaderData, useSearchParams, type LoaderFunctionArgs } from "react-router";
 import { assignmentLabel, formatDay, humanize, roleLabel } from "../../lib/format";
 import { ActionStateChip, Disclosure, SurfaceHeading } from "../workspace/components";
-import { useWorkspace, useWorkspacePath, withClient, type WorkspaceEnvironment } from "../workspace/environment";
+import {
+  useEntityLabel,
+  useWorkspace,
+  useWorkspacePath,
+  withClient,
+  type WorkspaceEnvironment,
+} from "../workspace/environment";
 import "./actions.css";
 
 export function actionsLoader(environment: WorkspaceEnvironment) {
@@ -15,6 +21,7 @@ export function actionsLoader(environment: WorkspaceEnvironment) {
 const OPEN_STATES = new Set<Action["state"]>(["open", "acknowledged", "in_progress"]);
 
 function ActionRow({ action }: { action: Action }) {
+  const entityLabel = useEntityLabel();
   const { assignments } = useWorkspace();
   const path = useWorkspacePath();
 
@@ -26,7 +33,7 @@ function ActionRow({ action }: { action: Action }) {
         </Link>
         <p>
           {assignmentLabel(action.assignmentId, assignments)} · {humanize(action.entity.grain)}{" "}
-          <span className="workspace-reference">{action.entity.entityId}</span>
+          <span>{entityLabel(action.entity)}</span>
         </p>
       </div>
       <dl className="action-row__facts">

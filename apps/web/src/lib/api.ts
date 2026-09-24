@@ -7,6 +7,7 @@ import {
   AuditListResponseSchema,
   BriefResponseSchema,
   CreateActionRequestSchema,
+  EntityDirectoryResponseSchema,
   ErrorEnvelopeSchema,
   InboxResponseSchema,
   KpiDetailQuerySchema,
@@ -202,6 +203,7 @@ export function createApiClient(transport: ApiTransport) {
         KpiDetailResponseSchema,
       );
     },
+    entities: () => call({ method: "GET", path: "/api/entities" }, EntityDirectoryResponseSchema),
     askPrompts: () => call({ method: "GET", path: "/api/ask/prompts" }, AskPromptsResponseSchema),
     ask: async (request: AskRequest) =>
       call(
