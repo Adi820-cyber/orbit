@@ -1,0 +1,13 @@
+# Keep local secrets and non-build material out of CLI uploads. Values reach
+# Vercel only as project environment variables (ARCHITECTURE.md §11.2).
+.env
+.env.*
+**/.env
+**/.env.*
+supabase/.env.provisioning
+supabase/seed/local/
+node_modules
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report

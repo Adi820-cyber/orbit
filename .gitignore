@@ -60,3 +60,9 @@ Thumbs.db
 
 # Environment-specific seeds and demo credentials (never committed)
 supabase/seed/local/
+
+# Vercel CLI link state (per machine)
+.vercel/
+
+.vercel
+.env*

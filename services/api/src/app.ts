@@ -1,9 +1,11 @@
+import type { FastifyInstance } from 'fastify';
 import { createRemoteJWKSet } from 'jose';
 import { buildApp } from './build.ts';
 import { loadConfig } from './config.ts';
 import { wireSources } from './wiring.ts';
 
-// Vercel entrypoint (src/app.ts). The app is built in ./build.ts.
+// Vercel entrypoint (src/app.ts). The app is built in ./build.ts. Vercel's
+// Fastify detection needs this file itself to import fastify.
 const config = loadConfig();
 
 /**
@@ -13,7 +15,7 @@ const config = loadConfig();
  */
 const sources = wireSources(config);
 
-const app = await buildApp({
+const app: FastifyInstance = await buildApp({
   logger: true,
   allowedOrigins: config.allowedOrigins,
   modules: sources.modules,
