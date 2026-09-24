@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { MembershipClaims } from '@orbit/contracts';
 import type { LiveSource } from './config.ts';
 import type { Database } from './db/client.ts';
+import { groqProvider } from './modules/ask/narrator.ts';
 import { wireSources } from './wiring.ts';
 
 const REGION = { grain: 'region', entityId: '00000000-0000-4000-8000-0000000000b1' } as const;
@@ -45,6 +46,12 @@ describe('wireSources', () => {
     const { sources, opened } = wire(['transitions'], null);
     expect(opened).toEqual([]);
     expect(await sources.modules.transitions.decide({ role: 'regional-coo', relation: 'assignee', from: 'open', to: 'acknowledged' })).toBe('allowed');
+  });
+
+  it('passes configured Ask providers to the Ask module, and none by default', () => {
+    const providers = [groqProvider('test-key')];
+    expect(wireSources({ liveSources: new Set(), databaseUrl: undefined, askProviders: providers }).modules.askNarration.providers).toEqual(providers);
+    expect(wire([]).sources.modules.askNarration.providers).toEqual([]);
   });
 
   it('refuses a database source without DATABASE_URL even if called directly', () => {

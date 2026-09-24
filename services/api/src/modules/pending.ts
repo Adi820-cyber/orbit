@@ -3,6 +3,9 @@ import { ApiError } from '../plugins/errors.ts';
 import { ILLUSTRATIVE_DISCLOSURE } from './index.ts';
 import type { ModuleDeps } from './ports.ts';
 
+/** ADR 0014: Ask must stay responsive, so each provider gets at most this long. */
+export const ASK_NARRATION_TIMEOUT_MS = 8000;
+
 /**
  * Fail-closed module dependencies for deployment until the real sources exist.
  *
@@ -19,6 +22,8 @@ export function pendingModuleDeps(): ModuleDeps {
   };
   return {
     disclosure: ILLUSTRATIVE_DISCLOSURE,
+    // No providers: Ask answers stay deterministic until keys are configured.
+    askNarration: { providers: [], timeoutMs: ASK_NARRATION_TIMEOUT_MS },
     scope: {
       frameworkVersion: FRAMEWORK_MANIFEST.definitionVersion,
       entitlements: { forMembership: async () => pending('entitlement_store') },

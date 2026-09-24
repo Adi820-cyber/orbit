@@ -17,6 +17,7 @@ import {
 import { ApiError } from '../../plugins/errors.ts';
 import { decideScope, entitlementsFor } from '../../plugins/scope.ts';
 import { loadSeries } from '../kpi/routes.ts';
+import { narrate, type NarrationOutcome } from './narrator.ts';
 import type { ModuleDeps } from '../ports.ts';
 import { assertRowsInScope, frameworkAssignment, loadDataset, parseRows } from '../shared.ts';
 
@@ -366,4 +367,61 @@ async function summarizeExceptions(
     limitations: ['Exceptions come from reviewed rules or labelled seeded scenarios in illustrative data.'],
     exceptions,
   });
+}
+
+/**
+ * The text whose numbers a narration may reuse: the answer plus every figure
+ * the card renders. Anything numeric outside it makes the narrator discard the
+ * rewording (ADR 0014 §1).
+ */
+export function narrationSource(response: AskResponse): string {
+  const { card } = response;
+  const parts = [card.answer, ...card.reasoning, ...card.limitations];
+  if (card.period) parts.push(card.period.start, card.period.end);
+  for (const observation of card.relevantRecords.observations) {
+    parts.push(observation.period.start, observation.period.end);
+    if (observation.value.status === 'available') parts.push(String(observation.value.value));
+    for (const component of observation.components) {
+      if (component.value.status === 'available') parts.push(String(component.value.value));
+    }
+    const { target } = observation;
+    if (target.state === 'configured') parts.push(String(target.value));
+    if (target.state === 'configured_range') parts.push(String(target.low), String(target.high));
+  }
+  // A visible separator, not whitespace: the narrator's number matcher treats
+  // whitespace as part of a number, so joining with newlines could fuse two
+  // figures into one token (e.g. `5` and `3` into `53`).
+  return parts.join(' | ');
+}
+
+/**
+ * Rewords an answered card's prose with the configured model, or leaves it
+ * untouched. Only `answered` outcomes are eligible: refusals and no-data
+ * replies are fixed templates and stay deterministic by contract. Numbers,
+ * records, citations, scope and disclosure are never passed back from the
+ * model, so only `card.answer` can change, and the mode says so.
+ */
+export async function narrateAnswer(
+  deps: ModuleDeps,
+  response: AskResponse,
+): Promise<{ response: AskResponse; narration: NarrationOutcome | null }> {
+  if (response.outcome !== 'answered' || deps.askNarration.providers.length === 0) {
+    return { response, narration: null };
+  }
+  const narration = await narrate(
+    response.card.answer,
+    {
+      providers: deps.askNarration.providers,
+      timeoutMs: deps.askNarration.timeoutMs,
+      ...(deps.askNarration.fetchImpl ? { fetchImpl: deps.askNarration.fetchImpl } : {}),
+    },
+    narrationSource(response),
+  );
+  if (narration.status !== 'narrated') {
+    return { response, narration };
+  }
+  return {
+    response: AskResponseSchema.parse({ ...response, mode: 'assisted', card: { ...response.card, answer: narration.answer } }),
+    narration,
+  };
 }

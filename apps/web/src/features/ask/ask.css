@@ -116,6 +116,17 @@
   line-height: var(--orbit-line-height-heading);
 }
 
+/* Informational, not a warning: tells the reader which words a model wrote (ADR 0014 §5). */
+.evidence-card__assisted {
+  margin: var(--orbit-space-2) 0 0;
+  padding: var(--orbit-space-2) var(--orbit-space-3);
+  border-left: 3px solid var(--orbit-color-primary);
+  border-radius: var(--orbit-radius-compact);
+  background: var(--orbit-color-primary-soft);
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-300);
+}
+
 .evidence-card__none {
   margin: 0;
   color: var(--orbit-color-text-muted);

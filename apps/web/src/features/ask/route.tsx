@@ -171,6 +171,12 @@ export function EvidenceCard({ response }: { response: AskResponse }) {
       <section className="evidence-card__section" aria-labelledby="card-answer">
         <h3 id="card-answer">Answer</h3>
         <p className="evidence-card__answer">{card.answer}</p>
+        {response.mode === "assisted" ? (
+          <p className="evidence-card__assisted">
+            This answer&apos;s wording was written by an AI model. Every figure, record, citation and limitation on this
+            card comes from Orbit&apos;s data, and wording that added a number would have been rejected.
+          </p>
+        ) : null}
       </section>
 
       <section className="evidence-card__section" aria-labelledby="card-records">

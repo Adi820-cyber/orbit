@@ -11,6 +11,7 @@ import {
   type ScopeEntity,
 } from '@orbit/contracts';
 import type { ScopeDeps } from '../plugins/scope.ts';
+import type { ModelProvider } from './ask/narrator.ts';
 
 /*
  * Ports between the API modules and the data they read or write.
@@ -156,6 +157,19 @@ export interface EntityDirectory {
   visible(membership: MembershipClaims): Promise<readonly unknown[]>;
 }
 
+/**
+ * Model narration for Ask answers (ADR 0014). No providers means every answer
+ * stays deterministic, which is the default.
+ */
+export interface AskNarration {
+  /** Tried in order: Groq, then OpenRouter. */
+  providers: readonly ModelProvider[];
+  /** Per-provider budget; a slow model is a declined one. */
+  timeoutMs: number;
+  /** Injected so tests never touch the network. */
+  fetchImpl?: typeof fetch;
+}
+
 export interface ModuleDeps {
   scope: ScopeDeps;
   dataset: DatasetSource;
@@ -166,6 +180,7 @@ export interface ModuleDeps {
   transitions: TransitionPolicy;
   audit: AuditStore;
   entities: EntityDirectory;
+  askNarration: AskNarration;
   /** The disclosure rendered on every number surface (PRD §8.4). */
   disclosure: string;
 }

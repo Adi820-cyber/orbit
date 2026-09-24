@@ -26,8 +26,18 @@ export const AskRequestSchema = z.discriminatedUnion('intent', [
 export type AskRequest = z.infer<typeof AskRequestSchema>;
 export type AskIntent = AskRequest['intent'];
 
-/** v1 only ships deterministic mode; the UI must disclose it (PRD FR-05). */
-export const AskModeSchema = z.literal('deterministic');
+/**
+ * How an answer's wording was produced (PRD FR-05, ADR 0014 §5).
+ * - `deterministic`: every word comes from the typed catalogue templates.
+ * - `assisted`: every number, record, citation and disclosure is still
+ *   deterministic; only the answer's prose was reworded by a model, and the
+ *   rewording was rejected if it introduced any number. The UI must show it.
+ */
+export const AskModeSchema = z.enum(['deterministic', 'assisted']);
+export type AskMode = z.infer<typeof AskModeSchema>;
+
+/** Non-answers are fixed templates and are never narrated. */
+const DeterministicModeSchema = z.literal('deterministic');
 
 /** A guided prompt: a label derived from framework data plus the exact request it sends. */
 export const GuidedPromptSchema = z.strictObject({
@@ -107,10 +117,10 @@ const EmptyCardSchema = z.strictObject({
  */
 export const AskResponseSchema = z.discriminatedUnion('outcome', [
   z.strictObject({ outcome: z.literal('answered'), mode: AskModeSchema, card: AnsweredCardSchema, disclosure: DisclosureSchema }),
-  z.strictObject({ outcome: z.literal('clarification_needed'), mode: AskModeSchema, card: EmptyCardSchema, disclosure: DisclosureSchema }),
-  z.strictObject({ outcome: z.literal('no_data'), mode: AskModeSchema, card: EmptyCardSchema, disclosure: DisclosureSchema }),
-  z.strictObject({ outcome: z.literal('out_of_scope'), mode: AskModeSchema, card: EmptyCardSchema, disclosure: DisclosureSchema }),
-  z.strictObject({ outcome: z.literal('unavailable'), mode: AskModeSchema, card: EmptyCardSchema, disclosure: DisclosureSchema }),
+  z.strictObject({ outcome: z.literal('clarification_needed'), mode: DeterministicModeSchema, card: EmptyCardSchema, disclosure: DisclosureSchema }),
+  z.strictObject({ outcome: z.literal('no_data'), mode: DeterministicModeSchema, card: EmptyCardSchema, disclosure: DisclosureSchema }),
+  z.strictObject({ outcome: z.literal('out_of_scope'), mode: DeterministicModeSchema, card: EmptyCardSchema, disclosure: DisclosureSchema }),
+  z.strictObject({ outcome: z.literal('unavailable'), mode: DeterministicModeSchema, card: EmptyCardSchema, disclosure: DisclosureSchema }),
 ]);
 export type AskResponse = z.infer<typeof AskResponseSchema>;
 export type AskOutcome = AskResponse['outcome'];

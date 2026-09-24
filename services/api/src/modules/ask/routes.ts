@@ -4,7 +4,7 @@ import { membershipOf } from '../../plugins/auth.ts';
 import { entitlementsFor } from '../../plugins/scope.ts';
 import type { ModuleDeps } from '../ports.ts';
 import { auditRead, loadDataset } from '../shared.ts';
-import { answer, emptyAnswer } from './catalogue.ts';
+import { answer, emptyAnswer, narrateAnswer } from './catalogue.ts';
 import { guidedPrompts } from './prompts.ts';
 
 /**
@@ -30,13 +30,25 @@ export function registerAskRoutes(api: FastifyInstance, deps: ModuleDeps): void 
     const membership = membershipOf(request);
     const parsed = AskRequestSchema.safeParse(request.body);
 
-    const response = parsed.success
+    const deterministic = parsed.success
       ? await answer(deps, membership, parsed.data)
       : emptyAnswer(
           'clarification_needed',
           'Choose one of the guided questions, or supply every detail the question needs.',
           { membership, period: null, disclosure: deps.disclosure },
         );
+
+    // Narration never fails the request: a declined rewording serves the
+    // deterministic answer. Only the outcome is logged, never the text.
+    const { response, narration } = await narrateAnswer(deps, deterministic);
+    if (narration) {
+      request.log.info(
+        narration.status === 'narrated'
+          ? { narration: 'narrated', provider: narration.provider }
+          : { narration: 'declined', reason: narration.reason, detail: narration.detail },
+        'ask narration',
+      );
+    }
 
     await auditRead(deps, request, membership, {
       kind: 'ask_answered',

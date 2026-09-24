@@ -175,6 +175,7 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
 
   const deps: ModuleDeps = {
     disclosure: ILLUSTRATIVE_DISCLOSURE,
+    askNarration: { providers: [], timeoutMs: 1000 },
     scope: {
       frameworkVersion: 'v1',
       entitlements: { forMembership: async ({ role }) => MODULE_ENTITLEMENTS.filter((row) => row.role === role) },

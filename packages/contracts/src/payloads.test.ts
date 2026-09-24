@@ -156,6 +156,13 @@ describe('ask', () => {
     expect(AskResponseSchema.safeParse({ ...answered, outcome: 'out_of_scope', card }).success).toBe(true);
   });
 
+  it('allows assisted wording only on an answered outcome (ADR 0014 §5)', () => {
+    const answered = { outcome: 'answered', mode: 'assisted', card, disclosure: 'd' };
+    expect(AskResponseSchema.safeParse(answered).success).toBe(true);
+    expect(AskResponseSchema.safeParse({ ...answered, outcome: 'out_of_scope' }).success).toBe(false);
+    expect(AskResponseSchema.safeParse({ ...answered, mode: 'autonomous' }).success).toBe(false);
+  });
+
   it('never carries a confidence score', () => {
     const answered = { outcome: 'answered', mode: 'deterministic', card: { ...card, confidence: 100 }, disclosure: 'd' };
     expect(AskResponseSchema.safeParse(answered).success).toBe(false);

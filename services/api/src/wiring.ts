@@ -27,11 +27,13 @@ export const pendingMembershipSource: MembershipSource = {
  * `ORBIT_LIVE_SOURCES` keeps answering `unavailable`.
  */
 export function wireSources(
-  config: Pick<ApiConfig, 'liveSources' | 'databaseUrl'>,
+  config: Pick<ApiConfig, 'liveSources' | 'databaseUrl'> & Partial<Pick<ApiConfig, 'askProviders'>>,
   openDatabase: (url: string) => Database = (url) => createDatabase({ url }),
 ): Sources {
   const live = config.liveSources;
   const modules = pendingModuleDeps();
+  // Narration is not a data source: it is on whenever a provider key is configured.
+  modules.askNarration = { ...modules.askNarration, providers: config.askProviders ?? [] };
   let db: Database | undefined;
   const database = (): Database => {
     if (!config.databaseUrl) {
