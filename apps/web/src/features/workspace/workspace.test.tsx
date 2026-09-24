@@ -54,11 +54,13 @@ function textOf(markup: string) {
 }
 
 describe("workspace shell", () => {
-  it("renders all six surfaces in the navigation with the verified scope", async () => {
+  it("renders primary surfaces and the floating Ask launcher with the verified scope", async () => {
     const markup = render(await open("/"));
-    for (const label of ["Morning brief", "Priority inbox", "KPI explorer", "Guided Ask", "Actions", "Audit"]) {
+    for (const label of ["Morning brief", "Priority inbox", "KPI explorer", "Actions", "Audit"]) {
       expect(markup).toContain(label);
     }
+    expect(markup).toContain('class="workspace-ask-launcher"');
+    expect(markup).toContain("Open Guided Ask");
     expect(markup).toContain("fixture-region-a");
     expect(markup).toContain("Developer preview");
   });
@@ -154,6 +156,63 @@ describe("workspace shell", () => {
     expect(markup).toContain("Claim first-pass acceptance rate");
     expect(markup).toContain("The approved DSO day convention and ageing threshold are not configured in this preview");
   });
+
+  it("renders the COE Lead role view from workbook assignments and COE fixtures", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "coe-lead" }).transport)));
+    expect(markup).toContain("COE Lead");
+    expect(markup).toContain("Clinical growth");
+    expect(markup).toContain("COE programme milestone movement");
+    expect(markup).toContain("COE net revenue vs plan");
+    expect(markup).toContain("No approved COE roadmap threshold is configured in this preview");
+  });
+
+  it("renders the Corporate Revenue & Insurance Lead role view", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "corporate-revenue-lead" }).transport)));
+    expect(markup).toContain("Corporate Revenue & Insurance Lead");
+    expect(markup).toContain("Commercial growth");
+    expect(markup).toContain("Payer issue closure movement");
+    expect(markup).toContain("Corporate and insurer net revenue and margin vs plan");
+  });
+
+  it("renders the Group CFO role view", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "group-cfo" }).transport)));
+    expect(markup).toContain("Group CFO");
+    expect(markup).toContain("Group finance leadership");
+    expect(markup).toContain("Financial control and leakage action closure movement");
+    expect(markup).toContain("Group EBITDA vs approved budget");
+  });
+
+  it("renders the Procurement Head role view", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "procurement-head" }).transport)));
+    expect(markup).toContain("Procurement Head");
+    expect(markup).toContain("Group supply leadership");
+    expect(markup).toContain("Critical supply-continuity controls moved");
+    expect(markup).toContain("Finance-validated procurement savings vs plan");
+  });
+
+  it("renders the HR Head role view", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "hr-head" }).transport)));
+    expect(markup).toContain("HR Head");
+    expect(markup).toContain("Group people leadership");
+    expect(markup).toContain("Critical-role staffing moved");
+    expect(markup).toContain("Group workforce cost and productivity vs plan");
+  });
+
+  it("renders the Legal Head role view", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "legal-head" }).transport)));
+    expect(markup).toContain("Legal Head");
+    expect(markup).toContain("Group legal leadership");
+    expect(markup).toContain("License, filing and regulatory-calendar compliance moved");
+    expect(markup).toContain("Contract turnaround time");
+  });
+
+  it("renders the Analytics Head role view", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "analytics-head" }).transport)));
+    expect(markup).toContain("Head of Analytics & Digital Transformation");
+    expect(markup).toContain("Group analytics leadership");
+    expect(markup).toContain("Critical KPI data-quality checks moved");
+    expect(markup).toContain("KPI dashboard availability and refresh on time");
+  });
 });
 
 describe("morning brief", () => {
@@ -200,6 +259,7 @@ describe("KPI explorer", () => {
     expect(markup).toContain("Target not configured");
     expect(markup).toContain("Numerator/denominator control");
     expect(markup).toContain("Open the facility split");
+    expect(markup).toContain("Back");
   });
 
   it("renders the permitted facility split and keeps a late value unreported, never zero", async () => {
@@ -292,6 +352,7 @@ describe("actions and audit", () => {
   it("requires evidence before an action can be recorded", async () => {
     const markup = textOf(render(await open("/actions/new")));
     expect(markup).toContain("An action must cite evidence.");
+    expect(markup).toContain("Back");
   });
 
   it("records an action from the brief evidence and shows it in actions and audit", async () => {

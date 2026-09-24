@@ -96,6 +96,7 @@ export function ActionDetailPage({ action, result }: { action: Action; result: T
       <SurfaceHeading
         eyebrow="Internal action"
         title={action.title}
+        back="/actions"
         description={`${kpi} · ${humanize(action.entity.grain)} ${entityLabel(action.entity)}. Stored in Orbit only; nothing was sent outside Orbit.`}
         aside={<ActionStateChip state={action.state} />}
       />

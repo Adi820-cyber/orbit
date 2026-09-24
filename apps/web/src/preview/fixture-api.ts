@@ -78,6 +78,62 @@ import {
   billingSeriesFor,
 } from "./billing-dataset";
 import {
+  COE_ASSIGNMENTS,
+  coeBrief,
+  coeBreakdownRows,
+  coeFindObservation,
+  coeObservationFor,
+  coeSeriesFor,
+} from "./coe-dataset";
+import {
+  CORPORATE_ASSIGNMENTS,
+  corporateBrief,
+  corporateBreakdownRows,
+  corporateFindObservation,
+  corporateObservationFor,
+  corporateSeriesFor,
+} from "./corporate-revenue-dataset";
+import {
+  GROUP_CFO_ASSIGNMENTS,
+  groupCfoBrief,
+  groupCfoBreakdownRows,
+  groupCfoFindObservation,
+  groupCfoObservationFor,
+  groupCfoSeriesFor,
+} from "./group-cfo-dataset";
+import {
+  PROCUREMENT_ASSIGNMENTS,
+  procurementBrief,
+  procurementBreakdownRows,
+  procurementFindObservation,
+  procurementObservationFor,
+  procurementSeriesFor,
+} from "./procurement-dataset";
+import {
+  HR_ASSIGNMENTS,
+  hrBrief,
+  hrBreakdownRows,
+  hrFindObservation,
+  hrObservationFor,
+  hrSeriesFor,
+} from "./hr-dataset";
+import {
+  LEGAL_ASSIGNMENTS,
+  legalBrief,
+  legalBreakdownRows,
+  legalFindObservation,
+  legalObservationFor,
+  legalSeriesFor,
+} from "./legal-dataset";
+import {
+  ANALYTICS_ASSIGNMENTS,
+  analyticsBrief,
+  analyticsBreakdownRows,
+  analyticsFindObservation,
+  analyticsObservationFor,
+  analyticsSeriesFor,
+} from "./analytics-dataset";
+import {
   AS_OF,
   ASSIGNMENTS,
   CHAIRMAN_ASSIGNMENTS,
@@ -118,7 +174,7 @@ import {
  * backend's own module fixture grants for capacity, which PRD §5.3 needs.
  */
 
-export type PreviewPersona = "north" | "south" | "chairman" | "clinical-director" | "hospital-dho" | "people-executive" | "bd-lead" | "billing-lead";
+export type PreviewPersona = "north" | "south" | "chairman" | "clinical-director" | "hospital-dho" | "people-executive" | "bd-lead" | "billing-lead" | "coe-lead" | "corporate-revenue-lead" | "group-cfo" | "procurement-head" | "hr-head" | "legal-head" | "analytics-head";
 
 export interface StateStorage {
   getItem(key: string): string | null;
@@ -209,6 +265,20 @@ function entitlementsFor(role: RoleId): readonly PreviewEntitlement[] {
               ? ["facility"]
             : role === "billing-lead"
               ? ["facility"]
+            : role === "coe-lead"
+              ? ["coe"]
+            : role === "corporate-revenue-lead"
+              ? ["group"]
+            : role === "group-cfo"
+              ? ["group"]
+            : role === "procurement-head"
+              ? ["group"]
+            : role === "hr-head"
+              ? ["group"]
+            : role === "legal-head"
+              ? ["group"]
+            : role === "analytics-head"
+              ? ["group"]
           : ["group"],
     breakdowns:
       role === "chairman"
@@ -223,6 +293,20 @@ function entitlementsFor(role: RoleId): readonly PreviewEntitlement[] {
           ? []
         : role === "billing-lead"
           ? []
+        : role === "coe-lead"
+          ? []
+        : role === "corporate-revenue-lead"
+          ? ["region"]
+        : role === "group-cfo"
+          ? ["region"]
+        : role === "procurement-head"
+          ? ["region"]
+        : role === "hr-head"
+          ? ["region"]
+        : role === "legal-head"
+          ? ["region"]
+        : role === "analytics-head"
+          ? ["region"]
           : ["facility"],
   }));
 }
@@ -345,6 +429,9 @@ function permittedAssignees(entitlements: readonly PreviewEntitlement[], assignm
       { assigneeId: `fixture-assignee-dho-${entity.entityId}`, role: "hospital-dho", scopes: [entity] },
     ];
   }
+  if (callerRole === "coe-lead" && entity.grain === "coe") {
+    return [{ assigneeId: "fixture-assignee-clinical-group", role: "clinical-director", scopes: [GROUP] }];
+  }
   const facilities = entity.grain === "facility" ? [entity] : entity.grain === "region" ? facilitiesIn(entity) : [];
   return facilities.map((facility) => ({
     assigneeId: `fixture-assignee-dho-${facility.entityId}`,
@@ -366,6 +453,20 @@ function seedState(role: RoleId, scope: ScopeEntity): PreviewState {
           ? BD_ASSIGNMENTS.crm
         : role === "billing-lead"
           ? BILLING_ASSIGNMENTS.denied
+        : role === "coe-lead"
+          ? COE_ASSIGNMENTS.milestones
+        : role === "corporate-revenue-lead"
+          ? CORPORATE_ASSIGNMENTS.issues
+        : role === "group-cfo"
+          ? GROUP_CFO_ASSIGNMENTS.controls
+        : role === "procurement-head"
+          ? PROCUREMENT_ASSIGNMENTS.stockouts
+        : role === "hr-head"
+          ? HR_ASSIGNMENTS.staffing
+        : role === "legal-head"
+          ? LEGAL_ASSIGNMENTS.regulatory
+        : role === "analytics-head"
+          ? ANALYTICS_ASSIGNMENTS.quality
         : ASSIGNMENTS.revenue;
   const revenue = role === "clinical-director"
     ? clinicalFindObservation(`obs:serious-adverse-events:${scope.entityId}:${CURRENT_PERIOD.start.slice(0, 7)}`)
@@ -377,6 +478,20 @@ function seedState(role: RoleId, scope: ScopeEntity): PreviewState {
         ? bdObservationFor(BD_ASSIGNMENTS.crm)
       : role === "billing-lead"
         ? billingObservationFor(BILLING_ASSIGNMENTS.denied)
+      : role === "coe-lead"
+        ? coeObservationFor(COE_ASSIGNMENTS.milestones)
+      : role === "corporate-revenue-lead"
+        ? corporateObservationFor(CORPORATE_ASSIGNMENTS.issues)
+      : role === "group-cfo"
+        ? groupCfoObservationFor(GROUP_CFO_ASSIGNMENTS.controls)
+      : role === "procurement-head"
+        ? procurementObservationFor(PROCUREMENT_ASSIGNMENTS.stockouts)
+      : role === "hr-head"
+        ? hrObservationFor(HR_ASSIGNMENTS.staffing)
+      : role === "legal-head"
+        ? legalObservationFor(LEGAL_ASSIGNMENTS.regulatory)
+      : role === "analytics-head"
+        ? analyticsObservationFor(ANALYTICS_ASSIGNMENTS.quality)
     : OBSERVATIONS.find(
         (row) =>
           row.assignmentId === assignmentId &&
@@ -402,6 +517,20 @@ function seedState(role: RoleId, scope: ScopeEntity): PreviewState {
             ? "Review the CRM completeness and forecast accuracy movement with accountable owners"
           : role === "billing-lead"
             ? "Review the rejected or denied claim value movement with accountable owners"
+          : role === "coe-lead"
+            ? "Review the COE programme milestone movement with accountable collaborators"
+          : role === "corporate-revenue-lead"
+            ? "Review the payer issue closure movement with accountable collaborators"
+          : role === "group-cfo"
+            ? "Review the financial control and leakage action closure movement with accountable collaborators"
+          : role === "procurement-head"
+            ? "Review the critical supply-continuity movement with accountable collaborators"
+          : role === "hr-head"
+            ? "Review the critical-role staffing movement with accountable collaborators"
+          : role === "legal-head"
+            ? "Review the regulatory-calendar compliance movement with accountable collaborators"
+          : role === "analytics-head"
+            ? "Review the KPI data-quality movement with accountable collaborators"
           : "Confirm when the August 2026 management-accounts close will be reconciled",
     assignmentId,
     entity: scope,
@@ -424,6 +553,20 @@ function seedState(role: RoleId, scope: ScopeEntity): PreviewState {
             ? { assigneeId: `fixture-assignee-dho-${scope.entityId}`, role: "hospital-dho" }
           : role === "billing-lead"
             ? { assigneeId: `fixture-assignee-dho-${scope.entityId}`, role: "hospital-dho" }
+          : role === "coe-lead"
+            ? { assigneeId: "fixture-assignee-clinical-group", role: "clinical-director" }
+          : role === "corporate-revenue-lead"
+            ? { assigneeId: "fixture-assignee-cfo-group", role: "group-cfo" }
+          : role === "group-cfo"
+            ? { assigneeId: "fixture-assignee-chairman-group", role: "chairman" }
+          : role === "procurement-head"
+            ? { assigneeId: "fixture-assignee-cfo-group", role: "group-cfo" }
+          : role === "hr-head"
+            ? { assigneeId: "fixture-assignee-cfo-group", role: "group-cfo" }
+          : role === "legal-head"
+            ? { assigneeId: "fixture-assignee-cfo-group", role: "group-cfo" }
+          : role === "analytics-head"
+            ? { assigneeId: "fixture-assignee-cfo-group", role: "group-cfo" }
           : { assigneeId: `fixture-assignee-coo-${scope.entityId}`, role: "regional-coo" },
     dueDate: "2026-09-15",
     createdAt: "2026-09-02T08:00:00Z",
@@ -512,8 +655,22 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
           ? "bd-lead"
         : persona === "billing-lead"
           ? "billing-lead"
+        : persona === "coe-lead"
+          ? "coe-lead"
+        : persona === "corporate-revenue-lead"
+          ? "corporate-revenue-lead"
+        : persona === "group-cfo"
+          ? "group-cfo"
+        : persona === "procurement-head"
+          ? "procurement-head"
+        : persona === "hr-head"
+          ? "hr-head"
+        : persona === "legal-head"
+          ? "legal-head"
+        : persona === "analytics-head"
+          ? "analytics-head"
         : "regional-coo";
-  const scope = persona === "chairman" || persona === "clinical-director" ? GROUP : persona === "hospital-dho" || persona === "people-executive" || persona === "bd-lead" || persona === "billing-lead" ? DHO_FACILITY : persona === "north" ? REGION_NORTH : REGION_SOUTH;
+  const scope = persona === "chairman" || persona === "clinical-director" || persona === "corporate-revenue-lead" || persona === "group-cfo" || persona === "procurement-head" || persona === "hr-head" || persona === "legal-head" || persona === "analytics-head" ? GROUP : persona === "coe-lead" ? CLINICAL_COE : persona === "hospital-dho" || persona === "people-executive" || persona === "bd-lead" || persona === "billing-lead" ? DHO_FACILITY : persona === "north" ? REGION_NORTH : REGION_SOUTH;
   const storage = options.storage ?? null;
   const now = options.now ?? (() => new Date());
   const storageKey = `orbit-preview-state:${persona}:v1`;
@@ -554,6 +711,13 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     if (role === "people-executive") return sameEntity(target, DHO_FACILITY);
     if (role === "bd-lead") return sameEntity(target, DHO_FACILITY);
     if (role === "billing-lead") return sameEntity(target, DHO_FACILITY);
+    if (role === "coe-lead") return sameEntity(target, CLINICAL_COE);
+    if (role === "corporate-revenue-lead") return sameEntity(target, GROUP);
+    if (role === "group-cfo") return sameEntity(target, GROUP);
+    if (role === "procurement-head") return sameEntity(target, GROUP);
+    if (role === "hr-head") return sameEntity(target, GROUP);
+    if (role === "legal-head") return sameEntity(target, GROUP);
+    if (role === "analytics-head") return sameEntity(target, GROUP);
     if (scope.grain === "group") return sameEntity(target, scope);
     return regionOf(target) === scope.entityId;
   }
@@ -632,7 +796,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
 
   function exceptions() {
     return sorted(
-      (role === "chairman" ? chairmanBrief() : role === "clinical-director" ? clinicalBrief() : role === "hospital-dho" ? dhoBrief() : role === "people-executive" ? peopleBrief() : role === "bd-lead" ? bdBrief() : role === "billing-lead" ? billingBrief() : briefFor(scope)).exceptions.map((exception) => ({ ...exception, actionState: actionStateFor(exception) })),
+      (role === "chairman" ? chairmanBrief() : role === "clinical-director" ? clinicalBrief() : role === "hospital-dho" ? dhoBrief() : role === "people-executive" ? peopleBrief() : role === "bd-lead" ? bdBrief() : role === "billing-lead" ? billingBrief() : role === "coe-lead" ? coeBrief() : role === "corporate-revenue-lead" ? corporateBrief() : role === "group-cfo" ? groupCfoBrief() : role === "procurement-head" ? procurementBrief() : role === "hr-head" ? hrBrief() : role === "legal-head" ? legalBrief() : role === "analytics-head" ? analyticsBrief() : briefFor(scope)).exceptions.map((exception) => ({ ...exception, actionState: actionStateFor(exception) })),
       (a, b) =>
         (a.priority === b.priority ? 0 : a.priority === "act_now" ? -1 : 1) ||
         SEVERITY[a.category] - SEVERITY[b.category] ||
@@ -642,7 +806,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
 
   function series(assignmentId: string, entity: ScopeEntity, from?: string, to?: string) {
     return sorted(
-      (role === "clinical-director" ? clinicalSeriesFor(assignmentId, entity) : role === "hospital-dho" ? dhoSeriesFor(assignmentId, entity) : role === "people-executive" ? peopleSeriesFor(assignmentId, entity) : role === "bd-lead" ? bdSeriesFor(assignmentId, entity) : role === "billing-lead" ? billingSeriesFor(assignmentId, entity) : seriesFor(assignmentId, entity)).filter(
+      (role === "clinical-director" ? clinicalSeriesFor(assignmentId, entity) : role === "hospital-dho" ? dhoSeriesFor(assignmentId, entity) : role === "people-executive" ? peopleSeriesFor(assignmentId, entity) : role === "bd-lead" ? bdSeriesFor(assignmentId, entity) : role === "billing-lead" ? billingSeriesFor(assignmentId, entity) : role === "coe-lead" ? coeSeriesFor(assignmentId, entity) : role === "corporate-revenue-lead" ? corporateSeriesFor(assignmentId, entity) : role === "group-cfo" ? groupCfoSeriesFor(assignmentId, entity) : role === "procurement-head" ? procurementSeriesFor(assignmentId, entity) : role === "hr-head" ? hrSeriesFor(assignmentId, entity) : role === "legal-head" ? legalSeriesFor(assignmentId, entity) : role === "analytics-head" ? analyticsSeriesFor(assignmentId, entity) : seriesFor(assignmentId, entity)).filter(
         (row) => (!from || row.period.start >= from) && (!to || row.period.end <= to),
       ),
       (a, b) => a.period.start.localeCompare(b.period.start) || a.definitionFamily.localeCompare(b.definitionFamily),
@@ -814,6 +978,20 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
             ? bdBreakdownRows()
           : role === "billing-lead"
             ? billingBreakdownRows()
+          : role === "coe-lead"
+            ? coeBreakdownRows()
+          : role === "corporate-revenue-lead"
+            ? corporateBreakdownRows(request.assignmentId, request.period)
+          : role === "group-cfo"
+            ? groupCfoBreakdownRows(request.assignmentId, request.period)
+          : role === "procurement-head"
+            ? procurementBreakdownRows(request.assignmentId, request.period)
+          : role === "hr-head"
+            ? hrBreakdownRows(request.assignmentId, request.period)
+          : role === "legal-head"
+            ? legalBreakdownRows(request.assignmentId, request.period)
+          : role === "analytics-head"
+            ? analyticsBreakdownRows(request.assignmentId, request.period)
           : breakdownRows(request.assignmentId, request.target, request.breakdown, request.period);
         if (children.length === 0) {
           return emptyAnswer(
@@ -903,7 +1081,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     }
     const ids = [...new Set(input.evidence.observationIds)];
     for (const id of ids) {
-      const observation = role === "clinical-director" ? clinicalFindObservation(id) : role === "hospital-dho" ? dhoFindObservation(id) : role === "people-executive" ? peopleFindObservation(id) : role === "bd-lead" ? bdFindObservation(id) : role === "billing-lead" ? billingFindObservation(id) : findObservation(id);
+      const observation = role === "clinical-director" ? clinicalFindObservation(id) : role === "hospital-dho" ? dhoFindObservation(id) : role === "people-executive" ? peopleFindObservation(id) : role === "bd-lead" ? bdFindObservation(id) : role === "billing-lead" ? billingFindObservation(id) : role === "coe-lead" ? coeFindObservation(id) : role === "corporate-revenue-lead" ? corporateFindObservation(id) : role === "group-cfo" ? groupCfoFindObservation(id) : role === "procurement-head" ? procurementFindObservation(id) : role === "hr-head" ? hrFindObservation(id) : role === "legal-head" ? legalFindObservation(id) : role === "analytics-head" ? analyticsFindObservation(id) : findObservation(id);
       if (!observation) throw new FixtureError("invalid_request", "The request is invalid.");
       if (observation.assignmentId !== input.assignmentId || observation.definitionVersion !== input.evidence.definitionVersion) {
         throw new FixtureError("invalid_request", "The request is invalid.");
@@ -980,7 +1158,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     if (method === "GET" && resource === "me" && !id) return { status: 200, body: membership };
 
     if (method === "GET" && resource === "brief" && !id) {
-      const brief = role === "chairman" ? chairmanBrief() : role === "clinical-director" ? clinicalBrief() : role === "hospital-dho" ? dhoBrief() : role === "people-executive" ? peopleBrief() : role === "bd-lead" ? bdBrief() : role === "billing-lead" ? billingBrief() : briefFor(scope);
+      const brief = role === "chairman" ? chairmanBrief() : role === "clinical-director" ? clinicalBrief() : role === "hospital-dho" ? dhoBrief() : role === "people-executive" ? peopleBrief() : role === "bd-lead" ? bdBrief() : role === "billing-lead" ? billingBrief() : role === "coe-lead" ? coeBrief() : role === "corporate-revenue-lead" ? corporateBrief() : role === "group-cfo" ? groupCfoBrief() : role === "procurement-head" ? procurementBrief() : role === "hr-head" ? hrBrief() : role === "legal-head" ? legalBrief() : role === "analytics-head" ? analyticsBrief() : briefFor(scope);
       const items = exceptions();
       return {
         status: 200,
@@ -1027,8 +1205,22 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
                       ? peopleBreakdownRows()
                     : role === "bd-lead"
                       ? bdBreakdownRows()
-                    : role === "billing-lead"
+                : role === "billing-lead"
                       ? billingBreakdownRows()
+                    : role === "coe-lead"
+                      ? coeBreakdownRows()
+                    : role === "corporate-revenue-lead"
+                      ? corporateBreakdownRows(id, latest.period)
+                    : role === "group-cfo"
+                      ? groupCfoBreakdownRows(id, latest.period)
+                    : role === "procurement-head"
+                      ? procurementBreakdownRows(id, latest.period)
+                    : role === "hr-head"
+                      ? hrBreakdownRows(id, latest.period)
+                    : role === "legal-head"
+                      ? legalBreakdownRows(id, latest.period)
+                    : role === "analytics-head"
+                      ? analyticsBreakdownRows(id, latest.period)
                     : breakdownRows(id, target, query.data.breakdown, latest.period),
             }
           : null;
@@ -1081,7 +1273,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
         }
         const entity = { grain: grain.data, entityId: query.entityId };
         assertInScope(query.assignmentId, entity);
-        return { status: 200, body: { assignees: permittedAssignees(entitlements, query.assignmentId, entity) } };
+        return { status: 200, body: { assignees: permittedAssignees(entitlements, query.assignmentId, entity, membership.role) } };
       }
       if (method === "GET" && id && !sub) return { status: 200, body: { action: stored(id).action, replayed: false } };
       if (method === "POST" && !id) return createAction(request.body, requestId);
