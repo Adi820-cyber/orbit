@@ -5,7 +5,10 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
-    "types": ["node"]
+    "types": ["node"],
+    // Explicit so builds that compile from another working directory
+    // (Vercel) still find the workspace-nested @types/node.
+    "typeRoots": ["./node_modules/@types", "../../node_modules/@types"]
   },
   "include": ["src", "test"]
 }
