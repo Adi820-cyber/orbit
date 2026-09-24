@@ -53,3 +53,67 @@ describe('loadConfig', () => {
     expect([...loadConfig({ ...base, ORBIT_LIVE_SOURCES: 'transitions' }).liveSources]).toEqual(['transitions']);
   });
 });
+
+/**
+ * Ask narration providers (ADR 0014). The important cases are the negative ones:
+ * a missing or half-configured provider must degrade to "no narration", never
+ * boot into a half-wired state, and never appear in an error message.
+ */
+describe('ask narration providers', () => {
+  it('configures none by default, leaving Ask fully deterministic', () => {
+    expect(loadConfig(base).askProviders).toEqual([]);
+  });
+
+  it('configures Groq alone, with the generally available default model', () => {
+    const providers = loadConfig({ ...base, GROQ_API_KEY: 'test-key' }).askProviders;
+    expect(providers).toHaveLength(1);
+    expect(providers[0]).toMatchObject({
+      name: 'groq',
+      // Not llama-3.3-70b-versatile: that is Enterprise-only and would 4xx.
+      model: 'openai/gpt-oss-20b',
+      strict: true,
+    });
+  });
+
+  it('honours an explicit Groq model', () => {
+    const providers = loadConfig({ ...base, GROQ_API_KEY: 'k', GROQ_MODEL: 'openai/gpt-oss-120b' }).askProviders;
+    expect(providers[0]?.model).toBe('openai/gpt-oss-120b');
+  });
+
+  /**
+   * OpenRouter has no default model on purpose: structured-output support is per
+   * endpoint, so guessing one would be guessing about a specific endpoint's
+   * capability. A key with no model is not configured, rather than silently
+   * routed somewhere arbitrary.
+   */
+  it('ignores an OpenRouter key with no model rather than guessing one', () => {
+    expect(loadConfig({ ...base, OPENROUTER_API_KEY: 'k' }).askProviders).toEqual([]);
+  });
+
+  it('ignores an OpenRouter model with no key', () => {
+    expect(loadConfig({ ...base, OPENROUTER_MODEL: 'openai/gpt-4.1-nano' }).askProviders).toEqual([]);
+  });
+
+  it('orders Groq before OpenRouter when both are configured', () => {
+    const providers = loadConfig({
+      ...base,
+      GROQ_API_KEY: 'k1',
+      OPENROUTER_API_KEY: 'k2',
+      OPENROUTER_MODEL: 'openai/gpt-4.1-nano',
+    }).askProviders;
+    expect(providers.map((provider) => provider.name)).toEqual(['groq', 'openrouter']);
+    expect(providers[1]).toMatchObject({ requireParameters: true });
+  });
+
+  it('never puts a key value in the error message for an unrelated failure', () => {
+    // Config errors name variables only. A key must not be echoed while
+    // reporting something else that is wrong.
+    try {
+      loadConfig({ SUPABASE_URL: 'not a url', GROQ_API_KEY: 'super-secret-value' });
+      expect.unreachable('expected loadConfig to throw');
+    } catch (error: unknown) {
+      expect(String(error)).not.toContain('super-secret-value');
+      expect(String(error)).toContain('SUPABASE_URL');
+    }
+  });
+});
