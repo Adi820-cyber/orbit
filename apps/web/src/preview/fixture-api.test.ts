@@ -15,6 +15,11 @@ import {
 } from "@orbit/contracts";
 import { describe, expect, it } from "vitest";
 import type { ApiRequest } from "../lib/api";
+import { CLINICAL_ASSIGNMENTS } from "./clinical-dataset";
+import { DHO_ASSIGNMENTS, DHO_FACILITY } from "./dho-dataset";
+import { PEOPLE_ASSIGNMENTS } from "./people-dataset";
+import { BD_ASSIGNMENTS } from "./bd-dataset";
+import { BILLING_ASSIGNMENTS } from "./billing-dataset";
 import { ASSIGNMENTS, CHAIRMAN_ASSIGNMENTS, CURRENT_PERIOD, GROUP, OBSERVATIONS, REGION_NORTH, facilitiesIn } from "./dataset";
 import { createFixtureApi, type StateStorage } from "./fixture-api";
 
@@ -108,6 +113,28 @@ describe("preview dataset", () => {
 });
 
 describe("preview fixture API", () => {
+  it("serves the Clinical Director's eight workbook assignments with group and COE scope", async () => {
+    const api = createFixtureApi({ persona: "clinical-director" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership.role).toBe("clinical-director");
+    expect(membership.scopes.map((scope) => scope.grain)).toEqual(["group", "coe"]);
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(8);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "clinical-director")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.owner.role).toBe("clinical-director");
+    expect(brief.disclosure).toContain("not validated clinical or financial guidance");
+
+    InboxResponseSchema.parse((await api.handle(get("/api/inbox"))).body);
+    AskPromptsResponseSchema.parse((await api.handle(get("/api/ask/prompts"))).body);
+    AuditListResponseSchema.parse((await api.handle(get("/api/audit"))).body);
+    const detail = await api.handle(get(`/api/kpi/${CLINICAL_ASSIGNMENTS.quality}`, { grain: "group", entityId: "fixture-group", breakdown: "coe" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).breakdown?.grain).toBe("coe");
+  });
+
   it("serves every read surface as contract-valid payloads", async () => {
     const api = createFixtureApi();
     MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
@@ -146,6 +173,77 @@ describe("preview fixture API", () => {
     const directRegion = await api.handle(get(`/api/kpi/${CHAIRMAN_ASSIGNMENTS.revenue}`, { grain: "region", entityId: REGION_NORTH.entityId }));
     expect(directRegion.status).toBe(403);
     expect(ErrorEnvelopeSchema.parse(directRegion.body).error.code).toBe("out_of_scope");
+  });
+
+  it("serves the Hospital DHO's nine workbook assignments with one facility scope", async () => {
+    const api = createFixtureApi({ persona: "hospital-dho" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership).toMatchObject({ role: "hospital-dho", scopes: [DHO_FACILITY] });
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(9);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "hospital-dho")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(DHO_ASSIGNMENTS.readiness);
+    const detail = await api.handle(get(`/api/kpi/${DHO_ASSIGNMENTS.revenue}`, { grain: DHO_FACILITY.grain, entityId: DHO_FACILITY.entityId }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).series.length).toBeGreaterThan(0);
+
+    const outside = await api.handle(get(`/api/kpi/${DHO_ASSIGNMENTS.revenue}`, { grain: "facility", entityId: "fixture-facility-b1" }));
+    expect(outside.status).toBe(403);
+    expect(ErrorEnvelopeSchema.parse(outside.body).error.code).toBe("out_of_scope");
+  });
+
+  it("serves the People Executive's eight workbook assignments with one facility scope", async () => {
+    const api = createFixtureApi({ persona: "people-executive" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership.role).toBe("people-executive");
+    expect(membership.scopes[0]?.grain).toBe("facility");
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(8);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "people-executive")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(PEOPLE_ASSIGNMENTS.training);
+    const detail = await api.handle(get(`/api/kpi/${PEOPLE_ASSIGNMENTS.fillRate}`, { grain: "facility", entityId: "fixture-facility-a1" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).series.length).toBeGreaterThan(0);
+  });
+
+  it("serves the Business Development Lead's eight workbook assignments with one facility scope", async () => {
+    const api = createFixtureApi({ persona: "bd-lead" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership.role).toBe("bd-lead");
+    expect(membership.scopes[0]?.grain).toBe("facility");
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(8);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "bd-lead")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(BD_ASSIGNMENTS.crm);
+    const detail = await api.handle(get(`/api/kpi/${BD_ASSIGNMENTS.revenue}`, { grain: "facility", entityId: "fixture-facility-a1" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).series.length).toBeGreaterThan(0);
+  });
+
+  it("serves the Billing & Revenue Lead's eight workbook assignments with one facility scope", async () => {
+    const api = createFixtureApi({ persona: "billing-lead" });
+    const membership = MeResponseSchema.parse((await api.handle(get("/api/me"))).body);
+    expect(membership.role).toBe("billing-lead");
+    expect(membership.scopes[0]?.grain).toBe("facility");
+
+    const kpis = KpiListResponseSchema.parse((await api.handle(get("/api/kpi"))).body);
+    expect(kpis.assignments).toHaveLength(8);
+    expect(kpis.assignments.every((assignment) => assignment.roleId === "billing-lead")).toBe(true);
+
+    const brief = BriefResponseSchema.parse((await api.handle(get("/api/brief"))).body);
+    expect(brief.actNow[0]?.assignmentId).toBe(BILLING_ASSIGNMENTS.denied);
+    const detail = await api.handle(get(`/api/kpi/${BILLING_ASSIGNMENTS.acceptance}`, { grain: "facility", entityId: "fixture-facility-a1" }));
+    expect(detail.status).toBe(200);
+    expect(KpiDetailResponseSchema.parse(detail.body).series.length).toBeGreaterThan(0);
   });
 
   it("refuses other regions, ungranted grains, and ungranted breakdowns with an explicit out_of_scope", async () => {

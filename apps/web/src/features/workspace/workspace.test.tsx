@@ -67,7 +67,7 @@ describe("workspace shell", () => {
     const fixture = createFixtureApi();
     const transport: ApiTransport = async (request) =>
       request.path === "/api/me"
-        ? { status: 200, body: { role: "clinical-director", organizationId: "30000000-0000-4000-8000-000000000001", scopes: [{ grain: "group", entityId: "fixture-group" }] } }
+        ? { status: 200, body: { role: "coe-lead", organizationId: "30000000-0000-4000-8000-000000000001", scopes: [{ grain: "facility", entityId: "fixture-facility-a1" }] } }
         : fixture.handle(request);
     const markup = textOf(render(await open("/", transport)));
     expect(markup).toContain("Your role's workspace is not available yet.");
@@ -89,6 +89,51 @@ describe("workspace shell", () => {
     expect(markup).toContain("Group governance");
     expect(markup).toContain("fixture-group");
     expect(markup).toContain("Critical governance, legal and audit actions closed");
+  });
+
+  it("renders the Clinical Director role view from workbook assignments and group fixtures", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "clinical-director" }).transport)));
+    expect(markup).toContain("Clinical Director");
+    expect(markup).toContain("Group clinical leadership");
+    expect(markup).toContain("Clinical governance review closure movement");
+    expect(markup).toContain("Clinical quality scorecard");
+    expect(markup).toContain("No approved clinical threshold is configured in this preview");
+  });
+
+  it("renders the Hospital DHO role view from workbook assignments and facility fixtures", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "hospital-dho" }).transport)));
+    expect(markup).toContain("Hospital DHO");
+    expect(markup).toContain("Hospital leadership");
+    expect(markup).toContain("Facility readiness closure movement");
+    expect(markup).toContain("Hospital net revenue vs approved budget");
+    expect(markup).toContain("No approved facility readiness threshold is configured in this preview");
+  });
+
+  it("renders the People Executive role view from workbook assignments and facility fixtures", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "people-executive" }).transport)));
+    expect(markup).toContain("People Executive");
+    expect(markup).toContain("Hospital functional leadership");
+    expect(markup).toContain("Mandatory training completion movement");
+    expect(markup).toContain("Approved position fill rate and time to fill");
+    expect(markup).toContain("No approved workforce capability threshold is configured in this preview");
+  });
+
+  it("renders the Business Development Lead role view from workbook assignments and facility fixtures", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "bd-lead" }).transport)));
+    expect(markup).toContain("Business Development Lead");
+    expect(markup).toContain("Hospital functional leadership");
+    expect(markup).toContain("CRM completeness and forecast accuracy movement");
+    expect(markup).toContain("New business revenue vs plan");
+    expect(markup).toContain("No approved CRM data-quality threshold is configured in this preview");
+  });
+
+  it("renders the Billing & Revenue Lead role view from workbook assignments and facility fixtures", async () => {
+    const markup = textOf(render(await open("/", createFixtureApi({ persona: "billing-lead" }).transport)));
+    expect(markup).toContain("Billing & Revenue Lead");
+    expect(markup).toContain("Hospital functional leadership");
+    expect(markup).toContain("Rejected or denied claim value movement");
+    expect(markup).toContain("Claim first-pass acceptance rate");
+    expect(markup).toContain("The approved DSO day convention and ageing threshold are not configured in this preview");
   });
 });
 
