@@ -15,7 +15,9 @@ const config = loadConfig();
  */
 const sources = wireSources(config);
 
-const app: FastifyInstance = await buildApp({
+// No top-level await: Vercel's runtime may load this module with require(),
+// which Node rejects for ES modules that use top-level await.
+buildApp({
   logger: true,
   allowedOrigins: config.allowedOrigins,
   modules: sources.modules,
@@ -25,6 +27,9 @@ const app: FastifyInstance = await buildApp({
     audience: config.audience,
     memberships: sources.memberships,
   },
-});
-
-await app.listen({ port: config.port });
+})
+  .then((app: FastifyInstance) => app.listen({ port: config.port }))
+  .catch((error: unknown) => {
+    console.error('Orbit API failed to start', error);
+    process.exit(1);
+  });
