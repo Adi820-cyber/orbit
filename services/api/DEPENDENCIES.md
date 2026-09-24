@@ -17,7 +17,7 @@ All runtime choices below are already named in [ARCHITECTURE §3 and §6](../../
 
 No `fastify-plugin`: auth is applied through Fastify's own encapsulated scopes instead.
 
-**Workspace:** `@orbit/kpi-framework` (`*`, this repo) supplies assignment titles, definitions, and the served `definitionVersion`. The API imports only its `src/index.ts`; that package's `exceljs` and `pure-rand` dependencies are used by its import script, not by the API. Whether Vercel's file tracing leaves them out of the function bundle is **unverified** until a deploy.
+**Workspace:** `@orbit/kpi-framework` (`*`, this repo) supplies assignment titles, definitions, and the served `definitionVersion`. The API imports only its `src/index.ts`; that package's `exceljs` and `pure-rand` dependencies are used by its import script, not by the API. On Vercel the workspace packages are bundled into the function (see `rolldown` below); npm dependencies stay external and are traced.
 
 ## Development only
 
@@ -26,6 +26,7 @@ No `fastify-plugin`: auth is applied through Fastify's own encapsulated scopes i
 | `typescript` | ^7.0.2 | Strict typecheck (`tsc --noEmit`). Current `latest` tag. |
 | `vitest` | ^5.0.1 | Pinned unit/contract test runner (ARCH §3). Requires Node ^22.12. |
 | `@types/node` | ^22 | Matches the pinned Node 22 runtime. |
+| `rolldown` | 1.2.9 | Vercel build only (`scripts/bundle-vercel.mjs`): bundles `src/app.ts` with the workspace packages, which ship TypeScript source Vercel does not transpile under `node_modules`. Same version Vite already brings in, so the lockfile gains no new package. Alternatives: publishing compiled `dist/` from each workspace package (larger change touching web and tests), `esbuild` (a new package). |
 
 **Scope:** these dev tools (and `zod` above) are also what `packages/contracts` uses (#5); this record covers both workspaces.
 

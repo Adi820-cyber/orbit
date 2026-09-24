@@ -1,4 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "cd ../.. && npm ci --include=dev --ignore-scripts"
+  "installCommand": "cd ../.. && npm ci --include=dev --ignore-scripts",
+  "buildCommand": "node scripts/bundle-vercel.mjs && rm src/app.ts"
 }
