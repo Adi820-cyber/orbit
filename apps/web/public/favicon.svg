@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- The OrbitBrand mark (packages/ui-kit). Colours are the --orbit-brand-* token values;
+       a favicon cannot read CSS variables, so keep these in step with the tokens. -->
+  <defs>
+    <linearGradient id="g" x1="7" x2="41" y1="7" y2="41" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#16c7e8"/>
+      <stop offset="0.58" stop-color="#0b78f6"/>
+      <stop offset="1" stop-color="#081f5c"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="15.5" fill="none" stroke="url(#g)" stroke-linecap="round" stroke-width="7"/>
+  <circle cx="38.4" cy="12.4" r="3.6" fill="#22d3c5"/>
+  <circle cx="9.8" cy="31.8" r="2.8" fill="#0b78f6"/>
+</svg>

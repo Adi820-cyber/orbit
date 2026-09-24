@@ -191,3 +191,12 @@ describe('AssigneeDirectory', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe('JSON parameters', () => {
+  it('cast every jsonb parameter from text, so postgres.js does not JSON-encode it a second time', async () => {
+    const modules = [await import('./actions.ts'), await import('./audit.ts'), await import('./assignees.ts'), await import('./kpi-data.ts'), await import('./sources.ts')];
+    const statements = modules.flatMap((module) => Object.values(module).filter((value): value is string => typeof value === 'string'));
+    const offenders = statements.filter((sql) => /\$\d+::jsonb/.test(sql));
+    expect(offenders).toEqual([]);
+  });
+});

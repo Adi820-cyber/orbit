@@ -78,7 +78,7 @@ order by o.entity_grain, o.entity_id`;
 export const OBSERVATIONS_BY_KEY_SQL = `
 select ${OBSERVATION_COLUMNS}
 ${CURRENT_OBSERVATIONS}
-  and o.observation_key in (select jsonb_array_elements_text($1::jsonb))`;
+  and o.observation_key in (select jsonb_array_elements_text($1::text::jsonb))`;
 
 /** Columns aliased to ExceptionSchema; actionState is the latest action the caller can see on it. */
 const EXCEPTION_COLUMNS = `

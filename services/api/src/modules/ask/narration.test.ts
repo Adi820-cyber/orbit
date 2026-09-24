@@ -90,4 +90,14 @@ describe('Ask narration (ADR 0014)', () => {
     const body = AskResponseSchema.parse((await built.call(SUBJECT.cooRegionA, 'POST', '/api/ask', performance)).json());
     expect(body.mode).toBe('deterministic');
   });
+
+  it('reports assisted mode on the prompts endpoint only when a provider is configured', async () => {
+    const withProvider = await buildModuleApp({ askNarration: { providers: [groqProvider('test-key')], timeoutMs: 1000 } });
+    const prompts = await withProvider.call(SUBJECT.cooRegionA, 'GET', '/api/ask/prompts');
+    expect(prompts.json()).toMatchObject({ mode: 'assisted' });
+    await withProvider.app.close();
+    const without = await buildModuleApp();
+    close = () => without.app.close();
+    expect((await without.call(SUBJECT.cooRegionA, 'GET', '/api/ask/prompts')).json()).toMatchObject({ mode: 'deterministic' });
+  });
 });

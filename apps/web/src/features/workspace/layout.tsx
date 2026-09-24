@@ -17,6 +17,7 @@ import { roleViewConfigFor } from "../../roles/config";
 import { Icon, type IconName } from "./components";
 import {
   WorkspaceContext,
+  entityKey,
   entityLabelMap,
   loadEntities,
   withClient,
@@ -157,7 +158,10 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
     };
   }, [environment.kind, navigate]);
 
-  const scopes = data.membership.scopes.map((scope) => `${humanize(scope.grain)} · ${scope.entityId}`);
+  // Names from GET /api/entities; the id only when the directory has no name for it.
+  const scopes = data.membership.scopes.map(
+    (scope) => `${humanize(scope.grain)} · ${value.entityLabels.get(entityKey(scope)) ?? scope.entityId}`,
+  );
 
   return (
     <WorkspaceContext.Provider value={value}>

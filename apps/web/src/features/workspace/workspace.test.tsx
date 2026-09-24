@@ -61,7 +61,8 @@ describe("workspace shell", () => {
     }
     expect(markup).toContain('class="workspace-ask-launcher"');
     expect(markup).toContain("Open Guided Ask");
-    expect(markup).toContain("fixture-region-a");
+    // The verified scope is shown by name from GET /api/entities, not by raw id.
+    expect(markup).toContain("Region · Preview North region");
     expect(markup).toContain("Developer preview");
   });
 

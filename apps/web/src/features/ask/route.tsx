@@ -348,10 +348,18 @@ export function AskPage({ data, result }: { data: AskLoaderData; result: AskActi
 
       <div className="ask-mode" role="note">
         <strong>{humanize(prompts.mode)} mode</strong>
-        <span>
-          Answers come from a reviewed catalogue of question types over evidence you are authorized to see. No free-text
-          AI model is used, and Orbit never invents numbers, policy citations, or confidence scores.
-        </span>
+        {prompts.mode === "assisted" ? (
+          <span>
+            Answers come from a reviewed catalogue of question types over evidence you are authorized to see. An AI model
+            may reword an answer&apos;s sentence; every figure, record, citation and limitation stays Orbit&apos;s own, and
+            wording that adds a number is discarded. Orbit never invents numbers, policy citations, or confidence scores.
+          </span>
+        ) : (
+          <span>
+            Answers come from a reviewed catalogue of question types over evidence you are authorized to see. No free-text
+            AI model is used, and Orbit never invents numbers, policy citations, or confidence scores.
+          </span>
+        )}
       </div>
 
       <div className="ask-layout">

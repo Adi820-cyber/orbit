@@ -51,7 +51,7 @@ insert into orbit.actions (
 )
 select orbit.current_org(), orbit.current_membership_id(), orbit.current_role_id(),
        pa.membership_id, pa.assignee_handle, pa.role_id,
-       $1::uuid, $2, $3, $4, $5::uuid, $6::jsonb, $7::date
+       $1::uuid, $2, $3, $4, $5::uuid, $6::text::jsonb, $7::date
 from orbit.permitted_assignees($3, $4, $5::uuid) pa
 where pa.assignee_handle = $8::uuid
 on conflict (creator_membership_id, idempotency_key) do nothing

@@ -20,7 +20,9 @@ export function registerAskRoutes(api: FastifyInstance, deps: ModuleDeps): void 
       entitlementsFor(membership, deps.scope),
     ]);
     return AskPromptsResponseSchema.parse({
-      mode: 'deterministic',
+      // Assisted whenever a narration provider is configured (ADR 0014 §5), so the UI never
+      // tells users no model is involved when one may reword answers.
+      mode: deps.askNarration.providers.length > 0 ? 'assisted' : 'deterministic',
       prompts: guidedPrompts(membership, entitlements, dataset.currentPeriod),
       disclosure: deps.disclosure,
     });
