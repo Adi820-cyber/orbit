@@ -26,7 +26,7 @@ export function describeError(error: unknown): DescribedError {
     return {
       kind: "unavailable",
       title: "Your role's workspace is not available yet.",
-      message: `Orbit verified a ${roleLabel(error.role)} membership, but only the Regional COO view has been built. No data was loaded for another role's view.`,
+      message: `Orbit verified a ${roleLabel(error.role)} membership, but that role's view has not been built yet. No data was loaded for another role's view.`,
     };
   }
 

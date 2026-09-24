@@ -35,6 +35,48 @@ if (import.meta.env.DEV) {
   routes.push(
     workspaceRoutes({
       kind: "preview",
+      basePath: "/preview/chairman",
+      routeId: "preview-chairman-workspace",
+      client: async () => (await loadPreview()).previewClient("chairman"),
+      reset: async () => (await loadPreview()).resetPreview("chairman"),
+    }),
+    workspaceRoutes({
+      kind: "preview",
+      basePath: "/preview/clinical-director",
+      routeId: "preview-clinical-director-workspace",
+      client: async () => (await loadPreview()).previewClient("clinical-director"),
+      reset: async () => (await loadPreview()).resetPreview("clinical-director"),
+    }),
+    workspaceRoutes({
+      kind: "preview",
+      basePath: "/preview/hospital-dho",
+      routeId: "preview-hospital-dho-workspace",
+      client: async () => (await loadPreview()).previewClient("hospital-dho"),
+      reset: async () => (await loadPreview()).resetPreview("hospital-dho"),
+    }),
+    workspaceRoutes({
+      kind: "preview",
+      basePath: "/preview/people-executive",
+      routeId: "preview-people-executive-workspace",
+      client: async () => (await loadPreview()).previewClient("people-executive"),
+      reset: async () => (await loadPreview()).resetPreview("people-executive"),
+    }),
+    workspaceRoutes({
+      kind: "preview",
+      basePath: "/preview/bd-lead",
+      routeId: "preview-bd-lead-workspace",
+      client: async () => (await loadPreview()).previewClient("bd-lead"),
+      reset: async () => (await loadPreview()).resetPreview("bd-lead"),
+    }),
+    workspaceRoutes({
+      kind: "preview",
+      basePath: "/preview/billing-lead",
+      routeId: "preview-billing-lead-workspace",
+      client: async () => (await loadPreview()).previewClient("billing-lead"),
+      reset: async () => (await loadPreview()).resetPreview("billing-lead"),
+    }),
+    workspaceRoutes({
+      kind: "preview",
       basePath: "/preview/regional-coo",
       routeId: "preview-workspace",
       client: async () => (await loadPreview()).previewClient(),

@@ -36,6 +36,7 @@ export const DEFINITION_VERSION = FRAMEWORK_MANIFEST.definitionVersion;
 export const DATASET_CHECKSUM = "fixture-preview-regional-coo-v1";
 export const AS_OF = "2026-09-02T06:00:00Z";
 
+export const GROUP: ScopeEntity = { grain: "group", entityId: "fixture-group" };
 export const REGION_NORTH: ScopeEntity = { grain: "region", entityId: "fixture-region-a" };
 export const REGION_SOUTH: ScopeEntity = { grain: "region", entityId: "fixture-region-b" };
 
@@ -92,6 +93,16 @@ export const ASSIGNMENTS = {
   growth: "regional-coo:new-service-coe-and-corporate-revenue-vs-plan",
 } as const;
 
+export const CHAIRMAN_ASSIGNMENTS = {
+  revenue: "chairman:group-net-revenue-vs-approved-budget",
+  ebitda: "chairman:group-ebitda-vs-approved-budget",
+  cash: "chairman:operating-cash-flow-and-working-capital-vs-plan",
+  quality: "chairman:group-clinical-quality-and-safety-index",
+  experience: "chairman:group-patient-experience-index",
+  growth: "chairman:coe-corporate-and-expansion-milestones",
+  governance: "chairman:critical-governance-legal-and-audit-actions-closed",
+} as const;
+
 /** Exact integer hash in [-1, 1): reproducible on every engine, unlike Math.sin. */
 function jitter(seed: number, month: number) {
   return (((seed * 9301 + month * 49297 + 12345) % 233280) / 233280) * 2 - 1;
@@ -113,7 +124,7 @@ interface Facts {
   reported: Record<string, number | null>;
 }
 
-interface FamilySpec {
+interface ObservationSpec {
   assignmentId: string;
   family: string;
   unit: string;
@@ -121,11 +132,14 @@ interface FamilySpec {
   denominator: ComponentSpec;
   reported: readonly (ComponentSpec & { additive: boolean })[];
   target: "not_configured" | "budget";
+  limitations: readonly string[];
+}
+
+interface FamilySpec extends ObservationSpec {
   /** Sourced from the management-accounts close, so it inherits that source's late state. */
   fromManagementAccounts: boolean;
   appliesTo(facility: FacilityProfile): boolean;
   facts(facility: FacilityProfile, index: number, month: number): Facts;
-  limitations: readonly string[];
 }
 
 const LATE_CLOSE =
@@ -380,6 +394,150 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
   },
 ];
 
+interface GroupFamilySpec extends ObservationSpec {
+  facts(month: number): Facts;
+}
+
+function groupPlan(month: number) {
+  return Math.round(6_600 * (1 + 0.006 * month));
+}
+
+const GROUP_FAMILY_SPECS: readonly GroupFamilySpec[] = [
+  {
+    assignmentId: CHAIRMAN_ASSIGNMENTS.revenue,
+    family: "Net revenue",
+    unit: "% of approved budget",
+    numerator: { componentId: "group_net_revenue", label: "Group net revenue", unit: "USD thousands" },
+    denominator: { componentId: "group_approved_budget", label: "Group approved budget", unit: "USD thousands" },
+    reported: [],
+    target: "budget",
+    limitations: [],
+    facts(month) {
+      const budget = groupPlan(month);
+      return {
+        numerator: Math.round(budget * (1.01 + 0.018 * jitter(71, month))),
+        denominator: budget,
+        reported: {},
+      };
+    },
+  },
+  {
+    assignmentId: CHAIRMAN_ASSIGNMENTS.ebitda,
+    family: "EBITDA",
+    unit: "% of approved budget",
+    numerator: { componentId: "group_ebitda", label: "Group EBITDA", unit: "USD thousands" },
+    denominator: { componentId: "group_ebitda_budget", label: "Group EBITDA budget", unit: "USD thousands" },
+    reported: [],
+    target: "budget",
+    limitations: [],
+    facts(month) {
+      const budget = Math.round(groupPlan(month) * 0.175);
+      return {
+        numerator: Math.round(budget * (0.985 + 0.02 * jitter(73, month))),
+        denominator: budget,
+        reported: {},
+      };
+    },
+  },
+  {
+    assignmentId: CHAIRMAN_ASSIGNMENTS.cash,
+    family: "Operating cash flow",
+    unit: "% of cash plan",
+    numerator: { componentId: "operating_cash_flow", label: "Operating cash flow", unit: "USD thousands" },
+    denominator: { componentId: "cash_flow_plan", label: "Cash-flow plan", unit: "USD thousands" },
+    reported: [
+      { componentId: "working_capital_days", label: "Working-capital days", unit: "days", additive: false },
+    ],
+    target: "budget",
+    limitations: ["Working-capital days are shown as context only; they are not added into the cash-flow ratio."],
+    facts(month) {
+      const plan = Math.round(groupPlan(month) * 0.12);
+      const pressure = month >= 9 ? 0.045 : 0;
+      return {
+        numerator: Math.round(plan * (0.99 - pressure + 0.015 * jitter(79, month))),
+        denominator: plan,
+        reported: { working_capital_days: Math.round(46 + 3 * jitter(83, month) + (month >= 9 ? 6 : 0)) },
+      };
+    },
+  },
+  {
+    assignmentId: CHAIRMAN_ASSIGNMENTS.quality,
+    family: "Clinical quality scorecard",
+    unit: "% of approved quality points",
+    numerator: { componentId: "quality_points_met", label: "Quality points met", unit: "points" },
+    denominator: { componentId: "quality_points_available", label: "Quality points available", unit: "points" },
+    reported: [],
+    target: "not_configured",
+    limitations: ["Composite points are illustrative and do not replace clinical governance review."],
+    facts(month) {
+      const available = 100;
+      return {
+        numerator: Math.round(available * (0.91 + 0.015 * jitter(89, month))),
+        denominator: available,
+        reported: {},
+      };
+    },
+  },
+  {
+    assignmentId: CHAIRMAN_ASSIGNMENTS.experience,
+    family: "Patient experience",
+    unit: "% of response-adjusted plan",
+    numerator: { componentId: "experience_points_met", label: "Patient-experience points met", unit: "points" },
+    denominator: { componentId: "experience_points_available", label: "Patient-experience points available", unit: "points" },
+    reported: [
+      { componentId: "survey_response_rate", label: "Survey response rate", unit: "%", additive: false },
+    ],
+    target: "not_configured",
+    limitations: ["Survey response-rate context is reported separately from the composite score."],
+    facts(month) {
+      return {
+        numerator: Math.round(88 + 2 * jitter(97, month)),
+        denominator: 100,
+        reported: { survey_response_rate: Math.round(37 + 4 * jitter(101, month)) },
+      };
+    },
+  },
+  {
+    assignmentId: CHAIRMAN_ASSIGNMENTS.growth,
+    family: "COE contribution",
+    unit: "% of milestone plan",
+    numerator: { componentId: "growth_milestones_on_track", label: "Growth milestones on track", unit: "milestones" },
+    denominator: { componentId: "growth_milestones_due", label: "Growth milestones due", unit: "milestones" },
+    reported: [
+      { componentId: "contract_utilisation", label: "Contract utilisation", unit: "%", additive: false },
+    ],
+    target: "budget",
+    limitations: ["Milestone completion and contract utilisation are related but not interchangeable."],
+    facts(month) {
+      const due = 12;
+      return {
+        numerator: Math.round(10 + (month >= 8 ? 1 : 0) + jitter(103, month)),
+        denominator: due,
+        reported: { contract_utilisation: Math.round(68 + 6 * jitter(107, month)) },
+      };
+    },
+  },
+  {
+    assignmentId: CHAIRMAN_ASSIGNMENTS.governance,
+    family: "Legal and compliance closure",
+    unit: "% of critical actions due",
+    numerator: { componentId: "critical_actions_closed", label: "Critical governance, legal and audit actions closed", unit: "actions" },
+    denominator: { componentId: "critical_actions_due", label: "Critical actions due", unit: "actions" },
+    reported: [],
+    target: "not_configured",
+    limitations: ["Critical actions are governance workflow items in this fixture, not legal advice."],
+    facts(month) {
+      const due = 14;
+      const drag = month >= 10 ? 3 : 0;
+      return {
+        numerator: due - drag,
+        denominator: due,
+        reported: {},
+      };
+    },
+  },
+];
+
 function ratio(numerator: number | null, denominator: number | null): MeasureValue {
   if (denominator === null) {
     return { status: "missing", reason: numerator === null ? "not_reported" : "missing_denominator" };
@@ -394,7 +552,7 @@ function amount(value: number | null): MeasureValue {
   return value === null ? { status: "missing", reason: "not_reported" } : { status: "available", value };
 }
 
-function targetFor(spec: FamilySpec): Target {
+function targetFor(spec: Pick<ObservationSpec, "assignmentId" | "target">): Target {
   if (spec.target === "not_configured") return { state: "not_configured" };
   const assignment = getAssignment(spec.assignmentId);
   return {
@@ -406,7 +564,7 @@ function targetFor(spec: FamilySpec): Target {
   };
 }
 
-function qualityFor(spec: FamilySpec, lateClose: boolean): DataQuality {
+function qualityFor(spec: Pick<ObservationSpec, "limitations">, lateClose: boolean): DataQuality {
   return {
     state: "illustrative",
     reconciliation: lateClose ? "unreconciled" : "reconciled",
@@ -420,11 +578,11 @@ function slug(value: string) {
   return value.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "");
 }
 
-function observationId(spec: FamilySpec, entity: ScopeEntity, period: Period) {
+function observationId(spec: ObservationSpec, entity: ScopeEntity, period: Period) {
   return `obs:${slug(spec.family)}:${entity.entityId}:${period.start.slice(0, 7)}`;
 }
 
-function buildObservation(spec: FamilySpec, entity: ScopeEntity, period: Period, facts: Facts, lateClose: boolean): Observation {
+function buildObservation(spec: ObservationSpec, entity: ScopeEntity, period: Period, facts: Facts, lateClose: boolean): Observation {
   const components: ComponentMeasure[] = [
     { ...spec.numerator, role: "numerator", value: amount(facts.numerator) },
     { ...spec.denominator, role: "denominator", value: amount(facts.denominator) },
@@ -489,6 +647,12 @@ function buildObservations(): Observation[] {
         const lateClose = spec.fromManagementAccounts && region.entityId === REGION_NORTH.entityId && month === LATEST;
         rows.push(buildObservation(spec, region, period, rolledUp, lateClose));
       }
+    });
+  }
+
+  for (const spec of GROUP_FAMILY_SPECS) {
+    PERIODS.forEach((period, month) => {
+      rows.push(buildObservation(spec, GROUP, period, spec.facts(month), false));
     });
   }
 
@@ -644,6 +808,74 @@ function onTrack(region: ScopeEntity, assignmentId: string, family: string, summ
   };
 }
 
+function chairmanOnTrack(assignmentId: string, family: string, summary: string): OnTrackItem {
+  const observation = requireObservation(latestFor(assignmentId, family, GROUP), family);
+  return {
+    assignmentId,
+    entity: GROUP,
+    period: CURRENT_PERIOD,
+    summary,
+    evidence: evidenceOf([observation]),
+    provenance: "illustrative",
+    dataQuality: observation.dataQuality,
+  };
+}
+
+function buildChairmanExceptions(): Exception[] {
+  const cash = requireObservation(latestFor(CHAIRMAN_ASSIGNMENTS.cash, "Operating cash flow", GROUP), "operating cash flow");
+  const governance = requireObservation(
+    latestFor(CHAIRMAN_ASSIGNMENTS.governance, "Legal and compliance closure", GROUP),
+    "legal and compliance closure",
+  );
+  const exceptions: Exception[] = [];
+  const cashValue = valueOf(cash);
+  const governanceValue = valueOf(governance);
+
+  if (governanceValue !== null && governanceValue < 85) {
+    exceptions.push({
+      exceptionId: "exc:chairman:governance-closure",
+      assignmentId: CHAIRMAN_ASSIGNMENTS.governance,
+      entity: GROUP,
+      period: CURRENT_PERIOD,
+      priority: "act_now",
+      category: "compliance",
+      comparisonBasis: "target",
+      detection: { kind: "seeded_scenario", scenarioLabel: "Critical governance closure below plan (preview fixture)" },
+      whatChanged: `Critical governance, legal and audit action closure is ${governanceValue}% for the group in the current period.`,
+      whyItMatters:
+        "This is a Board-level governance signal. Review the evidence before deciding whether a cross-functional action needs an accountable owner.",
+      owner: { role: "legal-head" },
+      actionState: "none",
+      evidence: evidenceOf([governance]),
+      provenance: "illustrative",
+      dataQuality: governance.dataQuality,
+    });
+  }
+
+  if (cashValue !== null && cashValue < 96) {
+    exceptions.push({
+      exceptionId: "exc:chairman:cash-flow",
+      assignmentId: CHAIRMAN_ASSIGNMENTS.cash,
+      entity: GROUP,
+      period: CURRENT_PERIOD,
+      priority: "monitor",
+      category: "performance",
+      comparisonBasis: "budget",
+      detection: { kind: "seeded_scenario", scenarioLabel: "Working-capital pressure (preview fixture)" },
+      whatChanged: `Operating cash flow is ${cashValue}% of the illustrative cash plan while working-capital days are elevated.`,
+      whyItMatters:
+        "This should stay visible for the Chairman because it links profitable growth to cash discipline, but it does not require inventing facility-level detail.",
+      owner: { role: "group-cfo" },
+      actionState: "none",
+      evidence: evidenceOf([cash]),
+      provenance: "illustrative",
+      dataQuality: cash.dataQuality,
+    });
+  }
+
+  return exceptions;
+}
+
 export interface RegionBrief {
   exceptions: Exception[];
   onTrack: OnTrackItem[];
@@ -667,6 +899,31 @@ export function briefFor(region: ScopeEntity): RegionBrief {
             { assignmentId: ASSIGNMENTS.experience, issue: "unavailable", detail: "The patient-experience score is not reported: no approved survey instrument is configured." },
           ]
         : [],
+  };
+}
+
+export function chairmanBrief(): RegionBrief {
+  return {
+    exceptions: buildChairmanExceptions(),
+    onTrack: [
+      chairmanOnTrack(CHAIRMAN_ASSIGNMENTS.revenue, "Net revenue", "Group revenue is reported against the illustrative Board-approved plan."),
+      chairmanOnTrack(CHAIRMAN_ASSIGNMENTS.ebitda, "EBITDA", "Group EBITDA is visible against the same definition version as revenue."),
+      chairmanOnTrack(CHAIRMAN_ASSIGNMENTS.quality, "Clinical quality scorecard", "Clinical quality remains visible as a composite with limitations disclosed."),
+      chairmanOnTrack(CHAIRMAN_ASSIGNMENTS.experience, "Patient experience", "Patient-experience context is available without patient-level data."),
+      chairmanOnTrack(CHAIRMAN_ASSIGNMENTS.growth, "COE contribution", "Strategic growth milestones are tracked as Board-level commitments."),
+    ],
+    dataLimitations: [
+      {
+        assignmentId: CHAIRMAN_ASSIGNMENTS.cash,
+        issue: "unavailable",
+        detail: "Working-capital days are context only in this fixture and are not added into the cash-flow ratio.",
+      },
+      {
+        assignmentId: CHAIRMAN_ASSIGNMENTS.quality,
+        issue: "unavailable",
+        detail: "The clinical-quality composite is illustrative and does not replace clinical governance review.",
+      },
+    ],
   };
 }
 

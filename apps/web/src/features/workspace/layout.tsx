@@ -12,7 +12,7 @@ import {
 import { OrbitBrand } from "@orbit/ui-kit";
 import { onSessionEnded } from "../../lib/auth";
 import { assignmentMap, humanize } from "../../lib/format";
-import { regionalCooViewConfig } from "../../roles/regional-coo/config";
+import { roleViewConfigFor } from "../../roles/config";
 import { Icon, type IconName } from "./components";
 import {
   WorkspaceContext,
@@ -39,7 +39,7 @@ export function workspaceLoader(environment: WorkspaceEnvironment) {
       const membership = await client.me();
 
       // Role selects the view configuration, never the data scope (ARCH §5).
-      if (membership.role !== regionalCooViewConfig.roleId) {
+      if (!roleViewConfigFor(membership.role)) {
         throw new RoleViewUnavailableError(membership.role);
       }
 
@@ -118,6 +118,10 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
     }),
     [data, environment.kind, environment.basePath],
   );
+  const roleConfig = roleViewConfigFor(data.membership.role);
+  if (!roleConfig) {
+    throw new RoleViewUnavailableError(data.membership.role);
+  }
 
   useEffect(() => {
     if (environment.kind !== "live") return undefined;
@@ -153,7 +157,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
           <Navigation environment={environment} compact={false} />
           <div className="workspace-sidebar__scope">
             <span className="orbit-meta">Verified membership</span>
-            <strong>{regionalCooViewConfig.title}</strong>
+            <strong>{roleConfig.title}</strong>
             {scopes.map((scope) => (
               <span key={scope} className="workspace-reference">
                 {scope}
@@ -167,7 +171,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
           <header className="workspace-mobile-header">
             <OrbitBrand compact />
             <div className="workspace-mobile-header__scope">
-              <strong>{regionalCooViewConfig.title}</strong>
+              <strong>{roleConfig.title}</strong>
               <span className="workspace-reference">{scopes.join(", ")}</span>
             </div>
             <ExitControl environment={environment} />
