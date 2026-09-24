@@ -233,3 +233,17 @@
     flex: 1 1 100%;
   }
 }
+
+.ask-question {
+  min-height: calc(var(--orbit-space-6) * 2);
+  resize: vertical;
+}
+
+/* How a plain-language question was mapped, so a misreading is visible (ARCH §9). */
+.ask-understood {
+  margin: 0 0 var(--orbit-space-3);
+  padding: var(--orbit-space-2) var(--orbit-space-3);
+  border-radius: var(--orbit-radius-compact);
+  background: var(--orbit-color-surface-subtle);
+  color: var(--orbit-color-text-muted);
+}

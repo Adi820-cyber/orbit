@@ -2,6 +2,8 @@ import {
   ActionListResponseSchema,
   ActionResponseSchema,
   AskPromptsResponseSchema,
+  AskQuestionRequestSchema,
+  AskQuestionResponseSchema,
   AskRequestSchema,
   AskResponseSchema,
   AuditListResponseSchema,
@@ -205,6 +207,11 @@ export function createApiClient(transport: ApiTransport) {
     },
     entities: () => call({ method: "GET", path: "/api/entities" }, EntityDirectoryResponseSchema),
     askPrompts: () => call({ method: "GET", path: "/api/ask/prompts" }, AskPromptsResponseSchema),
+    askQuestion: async (question: string) =>
+      call(
+        { method: "POST", path: "/api/ask/question", body: outgoing(AskQuestionRequestSchema, { question }) },
+        AskQuestionResponseSchema,
+      ),
     ask: async (request: AskRequest) =>
       call(
         { method: "POST", path: "/api/ask", body: outgoing(AskRequestSchema, request) },

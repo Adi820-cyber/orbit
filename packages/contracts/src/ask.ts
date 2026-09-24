@@ -124,3 +124,28 @@ export const AskResponseSchema = z.discriminatedUnion('outcome', [
 ]);
 export type AskResponse = z.infer<typeof AskResponseSchema>;
 export type AskOutcome = AskResponse['outcome'];
+
+/**
+ * `POST /api/ask/question` — a question in the user's own words (ARCH §9's
+ * model adapter). The server asks the configured model to map the question to
+ * one of the typed intents above, choosing only among the caller's own
+ * authorized KPIs, entities and periods; it then re-authorizes and answers
+ * through the same deterministic pipeline. No model ever sees a figure or
+ * produces SQL. `/api/ask` stays strictly typed.
+ */
+export const AskQuestionRequestSchema = z.strictObject({
+  question: z.string().trim().min(3).max(500),
+});
+export type AskQuestionRequest = z.infer<typeof AskQuestionRequestSchema>;
+
+export const AskQuestionResponseSchema = z.strictObject({
+  /** How Orbit understood the question, shown to the user; null when it could not be mapped. */
+  interpretedAs: z
+    .strictObject({
+      request: AskRequestSchema,
+      label: z.string().min(1),
+    })
+    .nullable(),
+  response: AskResponseSchema,
+});
+export type AskQuestionResponse = z.infer<typeof AskQuestionResponseSchema>;

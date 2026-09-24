@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ActionSchema,
+  AskQuestionRequestSchema,
+  AskQuestionResponseSchema,
   AskRequestSchema,
   AskResponseSchema,
   AuditEventSchema,
@@ -161,6 +163,20 @@ describe('ask', () => {
     expect(AskResponseSchema.safeParse(answered).success).toBe(true);
     expect(AskResponseSchema.safeParse({ ...answered, outcome: 'out_of_scope' }).success).toBe(false);
     expect(AskResponseSchema.safeParse({ ...answered, mode: 'autonomous' }).success).toBe(false);
+  });
+
+  it('bounds a plain-language question and carries no role or scope field', () => {
+    expect(AskQuestionRequestSchema.safeParse({ question: 'How is revenue doing?' }).success).toBe(true);
+    expect(AskQuestionRequestSchema.safeParse({ question: 'x' }).success).toBe(false);
+    expect(AskQuestionRequestSchema.safeParse({ question: 'y'.repeat(501) }).success).toBe(false);
+    expect(AskQuestionRequestSchema.safeParse({ question: 'How is revenue?', role: 'chairman' }).success).toBe(false);
+  });
+
+  it('shows how a plain-language question was understood, or null', () => {
+    const response = { outcome: 'clarification_needed', mode: 'deterministic', card, disclosure: 'd' };
+    expect(AskQuestionResponseSchema.safeParse({ interpretedAs: null, response }).success).toBe(true);
+    const interpretedAs = { request: { intent: 'summarize_exceptions' }, label: 'Summarize my open exceptions' };
+    expect(AskQuestionResponseSchema.safeParse({ interpretedAs, response }).success).toBe(true);
   });
 
   it('never carries a confidence score', () => {

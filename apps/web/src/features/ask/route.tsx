@@ -44,7 +44,7 @@ export interface AskLoaderData {
 }
 
 export type AskActionData =
-  | { ok: true; request: AskRequest; response: AskResponse }
+  | { ok: true; request: AskRequest | null; understoodAs: string | null; response: AskResponse }
   | MutationFailure
   | { ok: false; code: "incomplete"; message: string };
 
@@ -111,12 +111,28 @@ export function requestFromForm(form: FormData): AskRequest | string {
 
 export function askAction(environment: WorkspaceEnvironment) {
   return async ({ request }: ActionFunctionArgs): Promise<AskActionData> => {
-    const built = requestFromForm(await request.formData());
+    const form = await request.formData();
+    const question = form.get("question");
+    if (typeof question === "string") {
+      if (question.trim().length < 3) {
+        return { ok: false, code: "incomplete", message: "Type a question of at least a few words." };
+      }
+      const asked = await mutate(environment, request, (client) => client.askQuestion(question.trim()));
+      return asked.ok
+        ? {
+            ok: true,
+            request: asked.value.interpretedAs?.request ?? null,
+            understoodAs: asked.value.interpretedAs?.label ?? null,
+            response: asked.value.response,
+          }
+        : asked;
+    }
+    const built = requestFromForm(form);
     if (typeof built === "string") {
       return { ok: false, code: "incomplete", message: built };
     }
     const result = await mutate(environment, request, (client) => client.ask(built));
-    return result.ok ? { ok: true, request: built, response: result.value } : result;
+    return result.ok ? { ok: true, request: built, understoodAs: null, response: result.value } : result;
   };
 }
 
@@ -364,6 +380,31 @@ export function AskPage({ data, result }: { data: AskLoaderData; result: AskActi
 
       <div className="ask-layout">
         <div className="ask-controls">
+          {prompts.mode === "assisted" ? (
+            <section className="workspace-panel" aria-labelledby="own-words-title">
+              <h2 id="own-words-title">Ask in your own words</h2>
+              <p className="orbit-field-message">
+                Orbit maps your question to one of your authorized KPIs, then answers from its own data.
+              </p>
+              <Form className="workspace-form" method="post">
+                <label className="orbit-field">
+                  <span className="orbit-field-label">Your question</span>
+                  <textarea
+                    className="orbit-input ask-question"
+                    name="question"
+                    required
+                    minLength={3}
+                    maxLength={500}
+                    rows={3}
+                    placeholder="For example: how did revenue compare with last month?"
+                  />
+                </label>
+                <button className="orbit-button" disabled={pending} type="submit">
+                  {pending ? "Answering…" : "Ask Orbit"}
+                </button>
+              </Form>
+            </section>
+          ) : null}
           <section className="workspace-panel" aria-labelledby="guided-title">
             <h2 id="guided-title">Guided questions</h2>
             <p className="orbit-field-message">Built from your role's authorized KPIs; each one is re-checked when sent.</p>
@@ -447,6 +488,11 @@ export function AskPage({ data, result }: { data: AskLoaderData; result: AskActi
               <strong>{result.code === "incomplete" ? "More detail needed" : "Orbit could not answer"}</strong>
               <span>{result.message}</span>
             </div>
+          ) : null}
+          {!pending && result?.ok && result.understoodAs ? (
+            <p className="ask-understood">
+              Orbit understood your question as: <strong>{result.understoodAs}</strong>
+            </p>
           ) : null}
           {!pending && result?.ok ? <EvidenceCard response={result.response} /> : null}
           {!pending && !result ? (

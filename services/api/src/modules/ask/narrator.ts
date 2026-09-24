@@ -188,33 +188,47 @@ async function generationFailed(response: Response): Promise<boolean> {
   }
 }
 
-interface CompletionAttempt {
-  answer?: string;
+interface CompletionAttempt<T> {
+  value?: T;
   /** Set when the whole chain should stop rather than try the next provider. */
   terminal?: DeclineReason;
   detail?: string;
 }
 
-async function requestNarration(
+/**
+ * One structured-output task for a model: a system prompt, the user content,
+ * the JSON Schema sent to the provider, and the Zod schema the reply must
+ * pass. The reply is parsed at this boundary like any untrusted payload.
+ */
+export interface JsonTask<T> {
+  system: string;
+  user: string;
+  schemaName: string;
+  jsonSchema: Record<string, unknown>;
+  parse: z.ZodType<T>;
+  /** Wording tasks want a little variety; classification tasks want none. */
+  temperature: number;
+}
+
+async function requestJson<T>(
   provider: ModelProvider,
-  source: string,
+  task: JsonTask<T>,
   fetchImpl: typeof fetch,
   timeoutMs: number,
-): Promise<CompletionAttempt> {
+): Promise<CompletionAttempt<T>> {
   const body: Record<string, unknown> = {
     model: provider.model,
-    // Low but not zero: this is a wording task, not a sampling one.
-    temperature: 0.2,
+    temperature: task.temperature,
     // Headroom for reasoning models: their hidden reasoning shares this budget
     // with the answer. 400 was measured to run out before the JSON was written.
     max_tokens: 1024,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: source },
+      { role: 'system', content: task.system },
+      { role: 'user', content: task.user },
     ],
     response_format: {
       type: 'json_schema',
-      json_schema: { name: 'orbit_narration', strict: provider.strict, schema: NARRATION_JSON_SCHEMA },
+      json_schema: { name: task.schemaName, strict: provider.strict, schema: task.jsonSchema },
     },
   };
   if (provider.reasoningEffort) {
@@ -296,12 +310,46 @@ async function requestNarration(
   } catch {
     return { detail: `${provider.name} content_not_json` };
   }
-  const parsed = NarrationSchema.safeParse(parsedJson);
+  const parsed = task.parse.safeParse(parsedJson);
   if (!parsed.success) {
     return { detail: `${provider.name} schema_mismatch` };
   }
 
-  return { answer: parsed.data.answer.trim() };
+  return { value: parsed.data };
+}
+
+export type JsonOutcome<T> =
+  | { status: 'ok'; value: T; provider: ProviderName }
+  | { status: 'declined'; reason: DeclineReason; detail?: string };
+
+/**
+ * Runs a structured-output task through the provider chain with the same
+ * failover rules as narration. For tasks whose output is checked by the
+ * caller rather than by the numeric-token guard (e.g. question
+ * interpretation, where the reply is constrained to enumerated choices).
+ */
+export async function completeJson<T>(
+  task: JsonTask<T>,
+  options: NarrateOptions,
+): Promise<JsonOutcome<T>> {
+  const { providers, fetchImpl = fetch, timeoutMs = 8000 } = options;
+  if (providers.length === 0) {
+    return { status: 'declined', reason: 'not_configured' };
+  }
+  const failures: string[] = [];
+  for (const provider of providers) {
+    // eslint-disable-next-line no-await-in-loop
+    const attempt = await requestJson(provider, task, fetchImpl, timeoutMs);
+    if (attempt.terminal) {
+      return { status: 'declined', reason: attempt.terminal, detail: attempt.detail };
+    }
+    if (attempt.value === undefined) {
+      failures.push(attempt.detail ?? `${provider.name} failed`);
+      continue;
+    }
+    return { status: 'ok', value: attempt.value, provider: provider.name };
+  }
+  return { status: 'declined', reason: 'all_providers_failed', detail: failures.join('; ') };
 }
 
 export interface NarrateOptions {
@@ -336,19 +384,33 @@ export async function narrate(
     // provider in parallel would spend a second provider's quota on every request
     // and bill for a completion we intend to discard.
     // eslint-disable-next-line no-await-in-loop
-    const attempt = await requestNarration(provider, deterministicAnswer, fetchImpl, timeoutMs);
+    const attempt = await requestJson(
+      provider,
+      {
+        system: SYSTEM_PROMPT,
+        user: deterministicAnswer,
+        schemaName: 'orbit_narration',
+        jsonSchema: NARRATION_JSON_SCHEMA,
+        parse: NarrationSchema,
+        // Low but not zero: this is a wording task, not a sampling one.
+        temperature: 0.2,
+      },
+      fetchImpl,
+      timeoutMs,
+    );
 
     if (attempt.terminal) {
       // Stop the chain: retrying this elsewhere is either pointless or wrong.
       return { status: 'declined', reason: attempt.terminal, detail: attempt.detail };
     }
 
-    if (attempt.answer === undefined) {
+    const answer = attempt.value?.answer.trim();
+    if (answer === undefined) {
       failures.push(attempt.detail ?? `${provider.name} failed`);
       continue;
     }
 
-    const introduced = introducedNumbers(attempt.answer, source);
+    const introduced = introducedNumbers(answer, source);
     if (introduced.length > 0) {
       // Not a provider failure, so do not try the next one — a second model is
       // no more entitled to invent a figure than the first.
@@ -359,12 +421,12 @@ export async function narrate(
       };
     }
 
-    if (attempt.answer.length === 0) {
+    if (answer.length === 0) {
       failures.push(`${provider.name} empty_answer`);
       continue;
     }
 
-    return { status: 'narrated', answer: attempt.answer, provider: provider.name };
+    return { status: 'narrated', answer, provider: provider.name };
   }
 
   return { status: 'declined', reason: 'all_providers_failed', detail: failures.join('; ') };

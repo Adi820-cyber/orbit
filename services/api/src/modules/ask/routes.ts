@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { AskPromptsResponseSchema, AskRequestSchema } from '@orbit/contracts';
+import { AskPromptsResponseSchema, AskQuestionRequestSchema, AskQuestionResponseSchema, AskRequestSchema } from '@orbit/contracts';
 import { membershipOf } from '../../plugins/auth.ts';
 import { entitlementsFor } from '../../plugins/scope.ts';
 import type { ModuleDeps } from '../ports.ts';
-import { auditRead, loadDataset } from '../shared.ts';
+import { auditRead, loadDataset, parseInput } from '../shared.ts';
 import { answer, emptyAnswer, narrateAnswer } from './catalogue.ts';
+import { interpret } from './interpreter.ts';
 import { guidedPrompts } from './prompts.ts';
 
 /**
@@ -58,5 +59,54 @@ export function registerAskRoutes(api: FastifyInstance, deps: ModuleDeps): void 
       outcome: response.outcome,
     });
     return response;
+  });
+
+  /**
+   * A question in the user's own words. The model only chooses a typed
+   * request from the caller's own menu (interpreter.ts); the answer comes from
+   * the same catalogue and authorization as a guided prompt. The question text
+   * is never logged or audited.
+   */
+  api.post('/ask/question', async (request) => {
+    const membership = membershipOf(request);
+    const { question } = parseInput(AskQuestionRequestSchema, request.body);
+    const context = { membership, period: null, disclosure: deps.disclosure };
+
+    const interpretation = await interpret(deps, membership, question);
+    request.log.info(
+      interpretation.status === 'interpreted'
+        ? { interpretation: 'interpreted', intent: interpretation.request.intent }
+        : interpretation.status === 'unavailable'
+          ? { interpretation: 'unavailable', reason: interpretation.reason, detail: interpretation.detail }
+          : { interpretation: 'unclear' },
+      'ask question',
+    );
+
+    let response;
+    if (interpretation.status === 'interpreted') {
+      const narrated = await narrateAnswer(deps, await answer(deps, membership, interpretation.request));
+      response = narrated.response;
+    } else if (interpretation.status === 'unavailable') {
+      response = emptyAnswer(
+        'unavailable',
+        interpretation.reason === 'not_configured'
+          ? 'Questions in your own words need the AI assistant, which is not configured. Choose a guided question instead.'
+          : 'The AI assistant could not read that question just now. Try again, or choose a guided question.',
+        context,
+      );
+    } else {
+      response = emptyAnswer('clarification_needed', interpretation.message, context);
+    }
+
+    await auditRead(deps, request, membership, {
+      kind: 'ask_answered',
+      target: { type: 'ask', id: interpretation.status === 'interpreted' ? `question:${interpretation.request.intent}` : 'question:unmapped' },
+      outcome: response.outcome,
+    });
+    return AskQuestionResponseSchema.parse({
+      interpretedAs:
+        interpretation.status === 'interpreted' ? { request: interpretation.request, label: interpretation.label } : null,
+      response,
+    });
   });
 }

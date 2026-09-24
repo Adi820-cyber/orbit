@@ -1255,6 +1255,16 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
       return { status: 200, body: response };
     }
 
+    if (method === "POST" && resource === "ask" && id === "question") {
+      // The preview has no AI assistant, like a deployment without provider keys.
+      const response = emptyAnswer(
+        "unavailable",
+        "Questions in your own words need the AI assistant, which is not configured. Choose a guided question instead.",
+        null,
+      );
+      return { status: 200, body: { interpretedAs: null, response } };
+    }
+
     if (method === "GET" && resource === "entities" && !id) return { status: 200, body: { entities: visibleEntities() } };
 
     if (resource === "actions") {
