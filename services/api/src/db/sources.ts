@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { MembershipClaims, ScopeEntity } from '@orbit/contracts';
+import type { EntityDirectory } from '../modules/ports.ts';
 import type { EntitlementSource, ScopeResolver } from '../plugins/scope.ts';
 import type { Database, Tx } from './client.ts';
 import type { MembershipQuery } from './memberships.ts';
@@ -104,5 +105,56 @@ export function createDbScopeResolver(db: Database): ScopeResolver {
       const sql = CONTAINS_SQL[target.grain];
       return withMembershipTx(db, membership, (tx) => contained(tx, sql, target.entityId, membership.organizationId));
     },
+  };
+}
+
+/**
+ * Names of the organizational entities visible to the caller. Each branch reads
+ * under RLS (the organization-table policies) and is pinned to the caller's
+ * organization; the organization itself appears only with an explicit group
+ * scope, matching the `group` containment rule above.
+ */
+export const ENTITY_DIRECTORY_SQL = `
+select 'group' as "grain", o.id::text as "entityId", o.name as "label",
+       null::text as "parentGrain", null::text as "parentId"
+from orbit.organizations o
+where o.id = $1::uuid and orbit.has_group_scope()
+union all
+select 'region', r.id::text, r.name, 'group', r.organization_id::text
+from orbit.regions r
+where r.organization_id = $1::uuid
+union all
+select 'facility', f.id::text, f.name, 'region', f.region_id::text
+from orbit.facilities f
+where f.organization_id = $1::uuid
+union all
+select 'coe', c.id::text, c.name,
+       case when c.region_id is null then 'group' else 'region' end,
+       coalesce(c.region_id, c.organization_id)::text
+from orbit.coes c
+where c.organization_id = $1::uuid`;
+
+const EntityRowSchema = z.strictObject({
+  grain: z.enum(['group', 'region', 'facility', 'coe']),
+  entityId: z.string(),
+  label: z.string(),
+  parentGrain: z.enum(['group', 'region']).nullable(),
+  parentId: z.string().nullable(),
+});
+
+export function createDbEntityDirectory(db: Database): EntityDirectory {
+  return {
+    visible: (membership) =>
+      withMembershipTx(db, membership, async (tx) => {
+        const rows = await tx.query(ENTITY_DIRECTORY_SQL, [membership.organizationId]);
+        // Rows that do not match are passed through unchanged, so the route's
+        // contract parse fails closed on them instead of this mapping guessing.
+        return rows.map((row) => {
+          const parsed = EntityRowSchema.safeParse(row);
+          if (!parsed.success) return row;
+          const { parentGrain, parentId, ...entity } = parsed.data;
+          return { ...entity, parent: parentGrain && parentId ? { grain: parentGrain, entityId: parentId } : null };
+        });
+      }),
   };
 }

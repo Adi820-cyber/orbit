@@ -8,3 +8,4 @@ export * from './kpi.ts';
 export * from './exceptions.ts';
 export * from './ask.ts';
 export * from './actions.ts';
+export * from './entities.ts';

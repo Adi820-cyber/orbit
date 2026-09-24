@@ -279,6 +279,17 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
         nextCursor: null,
       }),
     },
+    // Placeholder names; not Maruti's company manifest. Region A's view only.
+    entities: {
+      visible: async (membership) =>
+        membership.scopes.some((scope) => scope.entityId === REGION_A.entityId)
+          ? [
+              { ...FACILITY_A2, label: 'Fixture facility A2', parent: REGION_A },
+              { ...REGION_A, label: 'Fixture region A', parent: null },
+              { ...FACILITY_A1, label: 'Fixture facility A1', parent: REGION_A },
+            ]
+          : [],
+    },
     ...overrides,
   };
   return { deps, auditEvents, actions };

@@ -42,6 +42,7 @@ export function pendingModuleDeps(): ModuleDeps {
     },
     assignees: { permitted: async () => pending('assignee_directory') },
     transitions: { decide: async () => pending('transition_matrix') },
+    entities: { visible: async () => pending('entity_directory') },
     audit: {
       record: async () => pending('audit_store'),
       list: async () => pending('audit_store'),
