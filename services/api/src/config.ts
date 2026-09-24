@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { groqProvider, openRouterProvider, type ModelProvider } from './modules/ask/narrator.ts';
 
 /**
  * The only module that reads `process.env` (ARCH §13: keep platform-specific
@@ -11,6 +12,18 @@ const EnvSchema = z.object({
   ALLOWED_ORIGINS: z.string().default(''),
   ORBIT_LIVE_SOURCES: z.string().default(''),
   PORT: z.coerce.number().int().positive().default(3000),
+  /*
+   * Ask narration (ADR 0014). All optional: absent keys mean Ask stays fully
+   * deterministic, which is the current shipped behaviour. A missing key must
+   * degrade, never break.
+   *
+   * SERVER ONLY. Never expose these as VITE_* — Vite inlines VITE_* into the
+   * browser bundle, so a model key in one is a published key.
+   */
+  GROQ_API_KEY: z.string().min(1).optional(),
+  GROQ_MODEL: z.string().min(1).default('openai/gpt-oss-20b'),
+  OPENROUTER_API_KEY: z.string().min(1).optional(),
+  OPENROUTER_MODEL: z.string().min(1).optional(),
 });
 
 export interface ApiConfig {
@@ -22,6 +35,11 @@ export interface ApiConfig {
   /** Sources switched from fail-closed to real by `ORBIT_LIVE_SOURCES`. Empty by default. */
   liveSources: ReadonlySet<LiveSource>;
   port: number;
+  /**
+   * Ask narration providers, in fallback order. Empty when no key is configured,
+   * which leaves Ask fully deterministic (ADR 0014).
+   */
+  askProviders: readonly ModelProvider[];
 }
 
 /**
@@ -59,7 +77,29 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     allowedOrigins: parseOrigins(vars.ALLOWED_ORIGINS),
     liveSources,
     port: vars.PORT,
+    askProviders: buildAskProviders(vars),
   };
+}
+
+/**
+ * Narration providers in fallback order: Groq first, OpenRouter second
+ * (ADR 0014 §2).
+ *
+ * OpenRouter needs an explicit model name and has no default on purpose. Its
+ * structured-output support is per *endpoint*, not per model, so a default
+ * pinned here from documentation would be a guess about a specific endpoint's
+ * capability at a moment I cannot check. A key with no model is treated as not
+ * configured rather than silently routed to something arbitrary.
+ */
+function buildAskProviders(vars: z.infer<typeof EnvSchema>): readonly ModelProvider[] {
+  const providers: ModelProvider[] = [];
+  if (vars.GROQ_API_KEY) {
+    providers.push(groqProvider(vars.GROQ_API_KEY, vars.GROQ_MODEL));
+  }
+  if (vars.OPENROUTER_API_KEY && vars.OPENROUTER_MODEL) {
+    providers.push(openRouterProvider(vars.OPENROUTER_API_KEY, vars.OPENROUTER_MODEL));
+  }
+  return providers;
 }
 
 /** Exact origins only. Wildcards are rejected until Aditya decides the preview policy. */
