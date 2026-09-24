@@ -142,6 +142,24 @@ describe('narrate', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it('fails over when the model could not generate valid JSON (Groq 400 json_validate_failed)', async () => {
+    const failed = JSON.stringify({ error: { code: 'json_validate_failed', message: 'max completion tokens reached' } });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(failed, { status: 400 }))
+      .mockResolvedValueOnce(completion('Revenue 12,400.'));
+    const outcome = await narrate('Net revenue was 12,400.', { providers: [PROVIDER, SECOND], fetchImpl });
+    expect(outcome).toEqual({ status: 'narrated', answer: 'Revenue 12,400.', provider: 'openrouter' });
+  });
+
+  it('asks Groq for low reasoning effort and leaves room for the answer', async () => {
+    const fetchImpl = vi.fn(async (_url: unknown, _init?: RequestInit) => completion('ok'));
+    await narrate('ok', { providers: [groqProvider('k')], fetchImpl });
+    const body = fetchImpl.mock.calls[0]?.[1]?.body;
+    const sent: unknown = JSON.parse(typeof body === 'string' ? body : '{}');
+    expect(sent).toMatchObject({ reasoning_effort: 'low', max_tokens: 1024 });
+  });
+
   /**
    * The more important half. Failing over on these is wrong: 400 is our own bug
    * and fails identically downstream, 401/402 are configuration or billing facts,

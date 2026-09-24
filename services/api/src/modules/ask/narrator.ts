@@ -52,6 +52,12 @@ export interface ModelProvider {
    * `response_format`, rather than silently degrading to free-form text.
    */
   requireParameters?: boolean;
+  /**
+   * For reasoning models (Groq's gpt-oss): how much hidden reasoning to spend.
+   * Reasoning tokens count against `max_tokens`; at a higher effort the model
+   * can exhaust the budget before writing the JSON answer.
+   */
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 export type DeclineReason =
@@ -111,8 +117,9 @@ const SYSTEM_PROMPT = [
   'Rules you must follow exactly:',
   '1. Reuse every figure exactly as written. Do not round, convert, recalculate, or add any number.',
   '2. Do not add facts, causes, recommendations, or confidence statements.',
-  '3. Do not mention data sources, systems, or that you are a model.',
-  '4. Keep it to at most two sentences.',
+  '3. Keep every statement in the input, including any caveat or limitation; do not drop or merge one away.',
+  '4. Do not mention data sources, systems, or that you are a model.',
+  '5. Keep it to at most three sentences.',
   'If you cannot comply, return the input unchanged.',
 ].join('\n');
 
@@ -169,6 +176,18 @@ export function introducedNumbers(narration: string, source: string): readonly s
   return [...numericTokens(narration)].filter((token) => !allowed.has(token));
 }
 
+const ProviderErrorSchema = z.object({ error: z.object({ code: z.string() }) });
+
+/** True when a 400 body says the model failed to generate valid JSON, rather than that our request is wrong. */
+async function generationFailed(response: Response): Promise<boolean> {
+  try {
+    const parsed = ProviderErrorSchema.safeParse(await response.json());
+    return parsed.success && parsed.data.error.code === 'json_validate_failed';
+  } catch {
+    return false;
+  }
+}
+
 interface CompletionAttempt {
   answer?: string;
   /** Set when the whole chain should stop rather than try the next provider. */
@@ -186,7 +205,9 @@ async function requestNarration(
     model: provider.model,
     // Low but not zero: this is a wording task, not a sampling one.
     temperature: 0.2,
-    max_tokens: 400,
+    // Headroom for reasoning models: their hidden reasoning shares this budget
+    // with the answer. 400 was measured to run out before the JSON was written.
+    max_tokens: 1024,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: source },
@@ -196,6 +217,15 @@ async function requestNarration(
       json_schema: { name: 'orbit_narration', strict: provider.strict, schema: NARRATION_JSON_SCHEMA },
     },
   };
+  if (provider.reasoningEffort) {
+    // Same setting, provider-specific spelling: Groq takes `reasoning_effort`,
+    // OpenRouter normalizes it as `reasoning: { effort }`.
+    if (provider.name === 'openrouter') {
+      body.reasoning = { effort: provider.reasoningEffort };
+    } else {
+      body.reasoning_effort = provider.reasoningEffort;
+    }
+  }
   if (provider.requireParameters) {
     // Route only to endpoints that actually support response_format, instead of
     // letting OpenRouter fall back to an endpoint that ignores it.
@@ -223,6 +253,13 @@ async function requestNarration(
   }
 
   if (!response.ok) {
+    // A 400 is normally our own bug and must not fail over. Groq's
+    // `json_validate_failed` is the exception: the model failed to produce a
+    // schema-valid document (e.g. ran out of tokens), which another provider
+    // may well manage, so it is treated as a provider failure.
+    if (response.status === 400 && (await generationFailed(response))) {
+      return { detail: `${provider.name} 400 json_validate_failed` };
+    }
     const terminal = TERMINAL_STATUS_REASON[response.status];
     if (terminal) {
       return { terminal, detail: `${provider.name} ${response.status}` };
@@ -342,6 +379,8 @@ export function groqProvider(apiKey: string, model = 'openai/gpt-oss-20b'): Mode
     model,
     // gpt-oss-20b/120b support constrained decoding.
     strict: true,
+    // Rewording one sentence needs little reasoning; low keeps it inside the token budget.
+    reasoningEffort: 'low',
   };
 }
 
@@ -362,5 +401,6 @@ export function openRouterProvider(apiKey: string, model: string): ModelProvider
     model,
     strict: true,
     requireParameters: true,
+    reasoningEffort: 'low',
   };
 }
