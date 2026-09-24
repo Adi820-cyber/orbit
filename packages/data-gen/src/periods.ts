@@ -42,11 +42,39 @@ export function monthOrdinal(value: string): number {
   return year * 12 + month;
 }
 
-/** The `YYYY-MM` period `offset` months after `from`. */
+/**
+ * The `YYYY-MM` period `offset` months after `from`. Negative offsets go back.
+ *
+ * The month is derived by subtracting the borrowed years rather than with
+ * `zeroBased % 12`. JavaScript's `%` is remainder, not modulo, so it stays
+ * negative for negative operands while `Math.floor` has already borrowed the
+ * year — which produced strings like `2024--9` for `periodAtOffset("2025-03",
+ * -12)`. That is exactly the call a year-on-year or trailing-twelve-month
+ * comparison makes, and the malformed value was returned silently: `parseMonth`
+ * would reject it, but nothing re-parses on the way out, so it would have
+ * reached an observation row and surfaced only as a gap in a chart.
+ */
 export function periodAtOffset(from: string, offset: number): string {
+  if (!Number.isInteger(offset)) {
+    throw new Error(`periodAtOffset requires an integer offset, got ${offset}.`);
+  }
   const { year, month } = parseMonth(from);
   const zeroBased = month - 1 + offset;
-  const y = year + Math.floor(zeroBased / 12);
-  const m = (zeroBased % 12) + 1;
+  const yearsBorrowed = Math.floor(zeroBased / 12);
+  const y = year + yearsBorrowed;
+  const m = zeroBased - yearsBorrowed * 12 + 1;
   return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * Every `YYYY-MM` period from `firstMonth` for `count` months, ascending.
+ *
+ * The one place a period *range* is produced, so a range and its members
+ * cannot disagree.
+ */
+export function periodRange(firstMonth: string, count: number): readonly string[] {
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error(`periodRange requires a non-negative integer count, got ${count}.`);
+  }
+  return Array.from({ length: count }, (_, i) => periodAtOffset(firstMonth, i));
 }

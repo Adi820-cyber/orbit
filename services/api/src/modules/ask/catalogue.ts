@@ -92,6 +92,11 @@ function answered(
   });
 }
 
+/** Makes a switch's exhaustiveness explicit: adding a union member without a case is a type error. */
+function unreachable(value: never): never {
+  throw new Error(`Unhandled case: ${JSON.stringify(value)}`);
+}
+
 const OUT_OF_SCOPE = 'This question is outside your authorized scope, so no data was used to answer it.';
 
 export function formatValue(value: MeasureValue, unit: string): string {
@@ -103,6 +108,7 @@ export function formatValue(value: MeasureValue, unit: string): string {
     case 'not_applicable':
       return value.reason === 'zero_denominator' ? 'not applicable (zero denominator)' : 'not applicable (invalid denominator)';
   }
+  return unreachable(value);
 }
 
 function describeTarget(target: Target, unit: string): string {
@@ -116,6 +122,7 @@ function describeTarget(target: Target, unit: string): string {
     case 'configured_range':
       return `Target range: ${target.low} to ${target.high} ${unit} (${approval(target.approval)}; basis: ${target.basis}).`;
   }
+  return unreachable(target);
 }
 
 function limitationsOf(observations: readonly Observation[]): string[] {
@@ -159,6 +166,7 @@ export async function answer(deps: ModuleDeps, membership: MembershipClaims, req
       case 'summarize_exceptions':
         return await summarizeExceptions(deps, membership, base);
     }
+    return unreachable(request);
   } catch (error) {
     if (error instanceof ApiError && error.code === 'unavailable') {
       return emptyAnswer('unavailable', 'The data needed for this answer is temporarily unavailable.', base);

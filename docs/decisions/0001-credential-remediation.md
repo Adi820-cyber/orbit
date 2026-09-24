@@ -1,6 +1,6 @@
 # ADR 0001: Remediate exposed Supabase service-role credential
 
-- **Status:** Proposed — blocked on Aditya completing the rotation steps below and checking off the acceptance criteria. Do not mark Accepted until every checkbox is true and dated.
+- **Status:** **Proposed — blocked on access, not on work.** Two of nine acceptance criteria are met. The remaining seven all require Supabase administrative privileges that Aditya does not hold: the exposed project belongs to Maruti's personal org, and disabling the new project's legacy keys needs Owner/Admin on `org for orbit` (Aditya's account returns 403). See "Status review 2026-09-23" at the end. Do not mark Accepted until every checkbox is true and dated.
 - **Owners:** Aditya (lead), Maruti (co-owner per TEAM_ASSIGNMENTS.md §8 item 1)
 - **Date opened:** 2026-09-22
 - **Date resolved:** _(fill in when Accepted)_
@@ -198,7 +198,16 @@ project existing. Decoupling the work is not closing the finding.
 - [ ] History-scrub decision made and recorded above (with date and who approved)
 - [x] New, separate Supabase project created for Orbit dev, not derived from either project above — 2026-09-23, `sxpnsnfzkpkzhsxjugde` in a dedicated org, asymmetric ES256 signing verified. Details and remaining gaps in ADR 0008.
 - [ ] Legacy `anon`/`service_role` keys **disabled on the new project** (ADR 0001 amendment condition 3) — they currently exist; see ADR 0008 §4.1
-- [ ] Repo/CI secret scan configured and passing
+- [x] Repo/CI secret scan configured and passing — 2026-09-23, PR #21. gitleaks
+      runs as the `secret scan` job in `.github/workflows/ci.yml` on every pull
+      request and has passed on every PR since (#21 onward). Two real failures
+      were fixed rather than suppressed wholesale: a `403 Resource not
+      accessible by integration` caused by over-tight job permissions (gitleaks
+      lists a PR's commits via the API and needs `pull-requests: read`), and
+      three `generic-api-key` hits on `idempotencyKey` literals in a web test,
+      allowlisted in `.gitleaks.toml` by identifier **and** test path with
+      `useDefault = true` retained, so the default ruleset still applies
+      everywhere else.
 - [ ] This ADR updated to Status: Accepted, with resolution date
 
 ## Consequences
@@ -216,3 +225,40 @@ project existing. Decoupling the work is not closing the finding.
   found, closed, and not silently ignored, satisfying RULES.md's
   requirement to record security-relevant decisions rather than act on
   them informally.
+
+## Status review 2026-09-23 (Aditya) — why this is still Proposed
+
+Reviewed against the acceptance criteria above. **Two of nine are done; seven
+are not, and none of the seven are waiting on effort.** Writing the reason down
+because "blocked on Aditya completing the rotation steps" now reads as though I
+simply have not got to it, which is not the situation.
+
+**What is done:** the new Orbit project exists with asymmetric ES256 signing
+(`sxpnsnfzkpkzhsxjugde`), and the CI secret scan is configured and passing.
+
+**What blocks the remaining seven, concretely.** Every outstanding item requires
+administrative access to a Supabase project, and I have none of it:
+
+- `xvqvqprztbvcywhrpnpf` (the originally exposed project) is in Maruti's
+  personal org. The migrate + rotate + revoke decision is the **owner's** to
+  make and execute. I cannot do it for her, and the choice between remediating
+  and deleting is genuinely hers — the project may hold work unrelated to Orbit.
+- Disabling the legacy `anon`/`service_role` keys on the *new* project needs
+  Owner or Admin on `org for orbit`. My account is a member only:
+  `supabase projects list` works, `supabase migration list --linked` returns
+  **403 "Your account does not have the necessary privileges"**.
+
+So the honest state is **blocked on access, not on work**, and it has been all
+day. This is the same blocker that prevents me verifying any database claim in
+ADR 0009, and the reason it is the top non-code item.
+
+**What does not change while this is open.** The amendment above already
+decoupled new-project work from old-project cleanup, so this ADR being Proposed
+is not gating implementation. What it *is* gating is any claim that Orbit's
+credential posture is sound. It is not yet, and per ADR 0013 §2 none of this is
+acceptable if Orbit ever holds real records rather than illustrative data.
+
+**Deliberately not done:** I am not marking this Accepted with unchecked boxes,
+and I am not narrowing the criteria to make them passable. The header rule —
+"Do not mark Accepted until every checkbox is true and dated" — exists precisely
+for a day like this one, when there is pressure to show everything green.

@@ -5,7 +5,7 @@
 > before numbering it. Two ADRs sharing a number makes every cross-reference
 > ambiguous, so the later one moved.
 
-- **Status:** Proposed. Needs Maruti (seeds and enforces it) and Ghansham (consumes it in the scope plugin). This is the content sign-off ARCHITECTURE.md §8.2 and §17 item 2 assign to me, and ADR 0005 left open.
+- **Status:** **Accepted** — 2026-09-23. Both reviewers have signed off by implementing it, which is the strongest form available: Maruti derived all 109 rows from these rules in PR #28 and generated the seed from them, and Ghansham consumes them in the scope plugin with framework-version filtering (PR #33). Maruti also found two defects in the rules as first written — rule 1 matched only 7 of 14 roles, and the breakdown invariant was ambiguous because the grains form a DAG rather than a chain — both fixed in PR #27 and verified at 14/14 roles and 109/109 assignments.
 - **Owner:** Aditya
 - **Date:** 2026-09-23
 - **Unblocks:** every data route. `pendingModuleDeps()` currently throws `unavailable` for `entitlement_store`, so the API is locked shut until this exists.

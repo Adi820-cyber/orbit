@@ -36,11 +36,30 @@ afterAll(async () => {
 });
 
 describe('health', () => {
-  it('is reachable without authentication and matches the contract', async () => {
-    const response = await app.inject({ method: 'GET', url: '/health' });
-    expect(response.statusCode).toBe(200);
-    expect(HealthResponseSchema.parse(response.json())).toEqual({ status: 'ok' });
-  });
+  /**
+   * Both paths, because the deployment needs `/api/health` and a developer
+   * needs `/health`.
+   *
+   * Under the same-origin topology (ADR 0013) a rewrite sends `/api/(.*)` here
+   * and a catch-all sends everything else to the SPA, with the original path
+   * forwarded unstripped. A probe of `/health` would be answered by the SPA,
+   * which returns 200 with `index.html` for unknown paths — so a health check
+   * would report the API healthy while it was down. `/api/health` is the path
+   * the deployed check must use.
+   *
+   * The 401 assertion is the point of the loop: these sit next to a plugin that
+   * applies `requireAuth` to everything under `/api`, and `/api/health` has to
+   * stay outside it. If someone later moves the registration inside that plugin
+   * the status becomes 401 and this fails, which is the regression worth
+   * catching.
+   */
+  for (const url of ['/health', '/api/health']) {
+    it(`${url} is reachable without authentication and matches the contract`, async () => {
+      const response = await app.inject({ method: 'GET', url });
+      expect(response.statusCode, `${url} should not require a token`).toBe(200);
+      expect(HealthResponseSchema.parse(response.json())).toEqual({ status: 'ok' });
+    });
+  }
 });
 
 describe('protected routes', () => {

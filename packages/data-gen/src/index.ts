@@ -30,6 +30,7 @@ export { COMPANY_MANIFEST } from "./manifest.ts";
 
 import { COMPANY_MANIFEST } from "./manifest.ts";
 import type { FacilityManifest, RegionManifest } from "./manifest-types.ts";
+import { periodRange } from "./periods.ts";
 
 /** The primary demonstration organization. */
 export const DEMO_ORGANIZATION = COMPANY_MANIFEST.organizations.find((o) => o.kind === "demo")!;
@@ -49,41 +50,16 @@ export function getFacility(facilitySlug: string): FacilityManifest | undefined 
   return COMPANY_MANIFEST.facilities.find((f) => f.slug === facilitySlug);
 }
 
-/** A calendar month, parsed from a `YYYY-MM` string. */
-export interface YearMonth {
-  year: number;
-  /** 1-12. */
-  month: number;
-}
-
 /**
- * Parses a `YYYY-MM` period string, rejecting anything else.
- *
- * Replaces an earlier `.split("-").map(Number) as [number, number]`, which
- * asserted a tuple shape nothing had checked: a malformed string such as
- * "2024" or "2024-09-01" would have destructured to `undefined` and produced
- * NaN arithmetic silently, in the code that defines every reporting period in
- * the dataset. Flagged by oxlint's typescript/no-unsafe-type-assertion.
+ * Period arithmetic lives in `./periods.ts` and is re-exported here so callers
+ * have one entrypoint. It is deliberately NOT reimplemented: this file
+ * previously carried its own byte-identical copies of `parseMonth` and
+ * `monthOrdinal`, and inlined the month-offset arithmetic a third time inside
+ * `monthlyPeriods`. Two copies with two passing test suites is how a fix lands
+ * in one of them and the other silently keeps the bug.
  */
-export function parseMonth(value: string): YearMonth {
-  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
-  const yearPart = match?.[1];
-  const monthPart = match?.[2];
-  if (yearPart === undefined || monthPart === undefined) {
-    throw new Error(`Invalid period "${value}". Expected YYYY-MM with month 01-12.`);
-  }
-  return { year: Number(yearPart), month: Number(monthPart) };
-}
-
-/**
- * Absolute month ordinal, for comparing or differencing two periods without
- * date arithmetic. Only meaningful relative to another value from this
- * function.
- */
-export function monthOrdinal(value: string): number {
-  const { year, month } = parseMonth(value);
-  return year * 12 + month;
-}
+export type { YearMonth } from "./periods.ts";
+export { parseMonth, monthOrdinal, periodAtOffset, periodRange } from "./periods.ts";
 
 /**
  * Every monthly period in the dataset range as `YYYY-MM`, ascending.
@@ -91,13 +67,5 @@ export function monthOrdinal(value: string): number {
  * list cannot disagree.
  */
 export function monthlyPeriods(): readonly string[] {
-  const { year: startYear, month: startMonth } = parseMonth(COMPANY_MANIFEST.periods.firstMonth);
-  const out: string[] = [];
-  for (let i = 0; i < COMPANY_MANIFEST.periods.monthCount; i++) {
-    const zeroBased = startMonth - 1 + i;
-    const year = startYear + Math.floor(zeroBased / 12);
-    const month = (zeroBased % 12) + 1;
-    out.push(`${year}-${String(month).padStart(2, "0")}`);
-  }
-  return out;
+  return periodRange(COMPANY_MANIFEST.periods.firstMonth, COMPANY_MANIFEST.periods.monthCount);
 }

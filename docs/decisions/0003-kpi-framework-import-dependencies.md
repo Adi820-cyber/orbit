@@ -1,7 +1,9 @@
 # ADR 0003: `packages/kpi-framework` import dependencies (`exceljs`, `pure-rand`)
 
 - **Status:** **Accepted** — approved by Aditya on PR #13, 2026-09-23, with two
-  corrections now applied. See "Corrections from review" below.
+  corrections now applied. See "Corrections from review" below. Amended
+  2026-09-23 with a `pure-rand` import-surface finding from PR #32 — see
+  "Amendment" at the end.
 - **Owners:** Maruti (author), Aditya (reviewer)
 - **Date opened:** 2026-09-23
 - **Date resolved:** _(fill in when Accepted)_
@@ -109,3 +111,41 @@ deployed runtime, so the failure surfaces at runtime rather than at typecheck.
   when `exceljs` ships a release that resolves it without the breaking
   downgrade to 3.4.0.
 - `pure-rand` is recorded in `packages/data-gen`'s own dependency set.
+
+## Amendment 2026-09-23: `pure-rand` 8.4.2 has no root export
+
+Recorded by Aditya after Maruti hit this while building the fact generator
+(PR #32). This ADR approved `pure-rand` on its published description and did
+not check how it is actually imported, which cost real time downstream.
+
+**`import { xoroshiro128plus } from "pure-rand"` does not work.** 8.4.2 publishes
+no root entry point — only subpaths:
+
+```ts
+import { xoroshiro128plus } from "pure-rand/generator/xoroshiro128plus";
+import { uniformInt } from "pure-rand/distribution/uniformInt";
+```
+
+**And the distribution API mutates.** `uniformInt(rng, from, to)` returns a plain
+number and advances `rng` in place — generator first, and *not* the pure
+`[value, nextRng]` tuple that older versions returned. Getting either wrong
+surfaces as `rng.next is not a function`, which points nowhere near the actual
+cause.
+
+Both were established by reading the shipped package and probing the API, not
+inferred. They are now documented at the top of
+`packages/data-gen/src/rng.ts`, which is the right place for whoever touches it
+next; this amendment exists so the ADR that approved the dependency is not the
+one artifact that still implies a root import.
+
+**The process lesson, which is the reason this is written down.** The
+research-before-coding rule in AGENTS.md says to search the official
+documentation for *currently supported behavior*. For a dependency this ADR
+approved on reputation — "powers `fast-check`, therefore mature" — maturity was
+established and the import surface was not. Maturity and API shape are separate
+questions. For the next dependency approval, a three-line import probe is part
+of the evidence, not a step the first implementer discovers.
+
+No change to the decision: `pure-rand` remains the right choice for PRD §8.4,
+and the mutating API is the reason `rng.ts` wraps it in `streamFor` rather than
+passing a shared generator around.

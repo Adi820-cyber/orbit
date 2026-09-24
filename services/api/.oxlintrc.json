@@ -14,6 +14,7 @@
     "typescript/no-misused-promises": "error",
     "typescript/no-base-to-string": "error",
     "typescript/no-unnecessary-type-assertion": "error",
-    "typescript/no-explicit-any": "error"
+    "typescript/no-explicit-any": "error",
+    "oxc/no-async-endpoint-handlers": "off"
   }
 }

@@ -1,6 +1,6 @@
 # ADR 0004: Bundled-KPI assignment → definition-family mapping
 
-- **Status:** Proposed — needs Aditya's (and ideally Ghansham's) sign-off before being treated as final, per ARCHITECTURE.md §8.2 ("Aditya owns this matrix; Maruti and Ghansham review it").
+- **Status:** **Accepted** — 2026-09-23. My sign-off was recorded on PR #13 (see Sign-off) along with the atomic-weight decision; this status line was simply left stale. Ghansham's review is still open and is a *review*, not a blocker: he consumes `definitionFamilies` in the `kpi` module, and if the mapping is wrong there he should say so then.
 - **Owners:** Maruti (author), Aditya (reviewer), Ghansham (reviewer — consumes this via `packages/kpi-framework`)
 - **Date opened:** 2026-09-23
 - **Date resolved:** _(fill in when Accepted)_
