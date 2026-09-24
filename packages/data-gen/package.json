@@ -10,6 +10,7 @@
   "main": "./src/index.ts",
   "scripts": {
     "generate": "node scripts/generate-seed.ts",
+    "generate:observations": "node scripts/generate-observations.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "oxlint --type-aware"
@@ -19,6 +20,7 @@
     "pure-rand": "^8.4.2"
   },
   "devDependencies": {
+    "@orbit/contracts": "*",
     "@types/node": "^22.20.4",
     "oxlint": "^1.85.0",
     "oxlint-tsgolint": "^7.0.2002",

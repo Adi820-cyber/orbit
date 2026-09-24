@@ -57,6 +57,13 @@ describe('wireSources', () => {
     await expect(sources.modules.observations.byIds(claims, ['x'])).rejects.toMatchObject({ code: 'unavailable' });
   });
 
+  it('switches on the Postgres dataset, observation and exception sources by name', async () => {
+    const { sources } = wire(['dataset', 'observations', 'exceptions']);
+    await expect(sources.modules.dataset.current(claims)).rejects.toMatchObject({ code: 'unavailable' });
+    await expect(sources.modules.observations.byIds(claims, ['x'])).resolves.toEqual([]);
+    await expect(sources.modules.exceptions.inbox(claims, { limit: 25 })).resolves.toMatchObject({ items: [], nextCursor: null });
+  });
+
   it('passes configured Ask providers to the Ask module, and none by default', () => {
     const providers = [groqProvider('test-key')];
     expect(wireSources({ liveSources: new Set(), databaseUrl: undefined, askProviders: providers }).modules.askNarration.providers).toEqual(providers);

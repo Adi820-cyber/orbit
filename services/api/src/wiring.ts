@@ -3,6 +3,7 @@ import { createDbActionStore } from './db/actions.ts';
 import { createDbAssigneeDirectory } from './db/assignees.ts';
 import { createDbAuditStore } from './db/audit.ts';
 import { createDatabase, type Database } from './db/client.ts';
+import { createDbDatasetSource, createDbExceptionSource, createDbObservationSource } from './db/kpi-data.ts';
 import { createDbMembershipSource } from './db/memberships.ts';
 import { createDbEntitlementSource, createDbEntityDirectory, createDbScopeResolver, membershipQuery } from './db/sources.ts';
 import { createMatrixTransitionPolicy, PROPOSED_TRANSITIONS } from './modules/actions/transitions.ts';
@@ -64,6 +65,15 @@ export function wireSources(
   }
   if (live.has('assignees')) {
     modules.assignees = createDbAssigneeDirectory(database());
+  }
+  if (live.has('dataset')) {
+    modules.dataset = createDbDatasetSource(database());
+  }
+  if (live.has('observations')) {
+    modules.observations = createDbObservationSource(database());
+  }
+  if (live.has('exceptions')) {
+    modules.exceptions = createDbExceptionSource(database());
   }
   if (live.has('transitions')) {
     modules.transitions = createMatrixTransitionPolicy(PROPOSED_TRANSITIONS);

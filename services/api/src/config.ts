@@ -48,6 +48,7 @@ export interface ApiConfig {
  * - `memberships`, `entitlements`, `scope`, `entities`: Maruti's schema (migrations 000400–000500)
  * - `transitions`: Aditya's sign-off of services/api/TRANSITIONS.md
  * - `actions`, `audit`, `assignees`: migration 20260924000700
+ * - `dataset`, `observations`, `exceptions`: migration 20260924000800 and seed 0002
  */
 export const LIVE_SOURCES = [
   'memberships',
@@ -58,6 +59,9 @@ export const LIVE_SOURCES = [
   'actions',
   'audit',
   'assignees',
+  'dataset',
+  'observations',
+  'exceptions',
 ] as const;
 export type LiveSource = (typeof LIVE_SOURCES)[number];
 
@@ -70,6 +74,9 @@ export const DATABASE_SOURCES: readonly LiveSource[] = [
   'actions',
   'audit',
   'assignees',
+  'dataset',
+  'observations',
+  'exceptions',
 ];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
