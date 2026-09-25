@@ -166,23 +166,47 @@ test("keeps evidence, the trend readout, and navigation available by keyboard", 
   await expect(page.locator(".orbit-trend__tooltip")).toContainText("Aug 26");
 });
 
-test("filters the inbox without widening scope and records a refused transition inline", async ({ page }) => {
+test("filters the inbox without widening scope and offers only the moves the server allows", async ({ page }) => {
   await installApi(page);
   await page.goto("/inbox", { waitUntil: "domcontentloaded" });
   await page.getByLabel("Priority").selectOption("act_now");
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByText(/Showing 1 of 3 authorized exceptions/)).toBeVisible();
 
+  // The persona is the assignee of the seeded action: acknowledging is the only
+  // move offered; approving or cancelling belongs to the creator and never appears.
   await page.goto("/actions/act-seed-1", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("Move to").selectOption("completed");
-  await page.getByLabel("Reason").fill("Closing early");
-  await page.getByRole("button", { name: "Update state" }).click();
-  await expect(page.getByText("This action cannot move to that state.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Acknowledge" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Cancel action" })).toHaveCount(0);
 
-  await page.getByLabel("Move to").selectOption("acknowledged");
-  await page.getByLabel("Reason").fill("Owned by the regional office");
-  await page.getByRole("button", { name: "Update state" }).click();
-  await expect(page.getByText("State updated to acknowledged.")).toBeVisible();
+  await page.getByLabel("Note").fill("Owned by the regional office");
+  await page.getByRole("button", { name: "Acknowledge" }).click();
+  await expect(page.getByText("Now acknowledged.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start work" })).toBeVisible();
+  await expect(page.getByText("Owned by the regional office")).toBeVisible();
+});
+
+test("opens Ask Orbit as an accessible chat panel with tabular answers", async ({ page }) => {
+  await installApi(page);
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const launcher = page.getByRole("button", { name: "Ask Orbit" });
+  await launcher.click();
+  const panel = page.getByRole("region", { name: "Ask Orbit" });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByLabel("Your question")).toBeFocused();
+  await expectNoOverflowOrAxeViolations(page);
+
+  const suggestion = panel.locator(".ask-chat__suggestion").first();
+  await expect(suggestion).toBeVisible();
+  await suggestion.click();
+  await expect(panel.locator(".ask-chat__answer").first()).toBeVisible();
+  await expectNoOverflowOrAxeViolations(page);
+
+  await panel.getByLabel("Your question").focus();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ask Orbit" })).toBeFocused();
 });
 
 test("serves the developer preview without authentication", async ({ page }) => {

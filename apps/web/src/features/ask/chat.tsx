@@ -223,6 +223,9 @@ export function AskChat() {
   const promptsFetcher = useFetcher<AskLoaderData>();
   const launcherRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
+  // Focus goes back to the button only after the panel has closed and the
+  // button is visible again (on phones it is hidden while the panel is open).
+  const restoreFocus = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLOListElement>(null);
   const nextId = useRef(1);
@@ -239,7 +242,12 @@ export function AskChat() {
   }, [open, path, promptsFetcher]);
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
+    if (open) {
+      inputRef.current?.focus();
+    } else if (restoreFocus.current) {
+      restoreFocus.current = false;
+      launcherRef.current?.focus();
+    }
   }, [open]);
 
   // Attach each answer to the question that asked it.
@@ -263,8 +271,8 @@ export function AskChat() {
     if (!open) return undefined;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape" && panelRef.current?.contains(document.activeElement)) {
+        restoreFocus.current = true;
         setOpen(false);
-        launcherRef.current?.focus();
       }
     };
     document.addEventListener("keydown", onKey);
@@ -288,8 +296,8 @@ export function AskChat() {
   }
 
   function close() {
+    restoreFocus.current = true;
     setOpen(false);
-    launcherRef.current?.focus();
   }
 
   return (

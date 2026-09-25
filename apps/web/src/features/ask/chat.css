@@ -204,7 +204,8 @@
 }
 
 .ask-chat__details summary {
-  color: var(--orbit-color-secondary);
+  /* The strong blue meets WCAG AA contrast on white; the plain brand blue does not. */
+  color: var(--orbit-color-secondary-strong);
   cursor: pointer;
   font-weight: var(--orbit-font-weight-semibold);
 }

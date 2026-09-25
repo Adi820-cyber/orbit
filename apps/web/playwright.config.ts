@@ -11,6 +11,9 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:5174",
     trace: "retain-on-failure",
+    // Optional: run on an installed browser instead of Playwright's bundled
+    // Chromium, e.g. PW_CHANNEL=msedge on Windows machines without it.
+    ...(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}),
   },
   webServer: {
     command: "npm run dev -- --host 127.0.0.1 --port 5174",
