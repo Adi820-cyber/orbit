@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from "react";
 import {
   Form,
-  Link,
   NavLink,
   Outlet,
   useLoaderData,
@@ -12,6 +11,7 @@ import {
 } from "react-router";
 import { OrbitBrand } from "@orbit/ui-kit";
 import { onSessionEnded } from "../../lib/auth";
+import { AskChat } from "../ask/chat";
 import { assignmentMap, humanize } from "../../lib/format";
 import { roleViewConfigFor } from "../../roles/config";
 import { Icon, type IconName } from "./components";
@@ -61,15 +61,6 @@ function Navigation({ environment, compact }: { environment: WorkspaceEnvironmen
         </NavLink>
       ))}
     </nav>
-  );
-}
-
-function AskLauncher({ environment }: { environment: WorkspaceEnvironment }) {
-  return (
-    <Link className="workspace-ask-launcher" to={workspacePath(environment.basePath, "/ask")} aria-label="Open Guided Ask">
-      <Icon name="ask" />
-      <span>Ask Orbit</span>
-    </Link>
   );
 }
 
@@ -209,7 +200,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
             <span>Role and scope are derived from the verified membership boundary; filters only narrow what you are authorized to see.</span>
           </footer>
         </div>
-        <AskLauncher environment={environment} />
+        <AskChat />
       </div>
     </WorkspaceContext.Provider>
   );

@@ -132,13 +132,45 @@ describe('narrate', () => {
     expect(fetchImpl, 'the second provider must not be called').toHaveBeenCalledTimes(1);
   });
 
-  it.each([408, 425, 429, 500, 502, 503, 504])('fails over to the second provider on %i', async (status) => {
+  it.each([408, 425, 500])('fails over to the second provider on %i', async (status) => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(new Response('{}', { status }))
       .mockResolvedValueOnce(completion('Revenue 12,400.'));
     const outcome = await narrate('Net revenue was 12,400.', { providers: [PROVIDER, SECOND], fetchImpl });
     expect(outcome).toEqual({ status: 'narrated', answer: 'Revenue 12,400.', provider: 'openrouter' });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([429, 502, 503, 504])('retries a transient %i once on the same provider, then fails over', async (status) => {
+    const failure = () => new Response('{}', { status, headers: { 'retry-after': '0' } });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(failure())
+      .mockResolvedValueOnce(failure())
+      .mockResolvedValueOnce(completion('Revenue 12,400.'));
+    const outcome = await narrate('Net revenue was 12,400.', { providers: [PROVIDER, SECOND], fetchImpl });
+    expect(outcome).toEqual({ status: 'narrated', answer: 'Revenue 12,400.', provider: 'openrouter' });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('recovers on the same provider when the retry succeeds', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 429, headers: { 'retry-after': '0' } }))
+      .mockResolvedValueOnce(completion('Revenue 12,400.'));
+    const outcome = await narrate('Net revenue was 12,400.', { providers: [PROVIDER, SECOND], fetchImpl });
+    expect(outcome).toEqual({ status: 'narrated', answer: 'Revenue 12,400.', provider: 'groq' });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not wait out a long rate limit: it moves to the next provider', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 429, headers: { 'retry-after': '30' } }))
+      .mockResolvedValueOnce(completion('Revenue 12,400.'));
+    const outcome = await narrate('Net revenue was 12,400.', { providers: [PROVIDER, SECOND], fetchImpl });
+    expect(outcome).toMatchObject({ status: 'narrated', provider: 'openrouter' });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
@@ -181,7 +213,24 @@ describe('narrate', () => {
     const fetchImpl = vi.fn(async () => new Response('{}', { status: 503 }));
     const outcome = await narrate('ok', { providers: [PROVIDER, SECOND], fetchImpl });
     expect(outcome).toMatchObject({ status: 'declined', reason: 'all_providers_failed' });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    // One retry per provider for a transient 503, then give up.
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+
+  it('bounds a response whose body stalls after the headers arrive', async () => {
+    // Headers arrive, then the body never finishes; only our abort ends it.
+    const fetchImpl = vi.fn(async (_input: unknown, init?: RequestInit) => {
+      const stream = new ReadableStream({
+        start(controller) {
+          init?.signal?.addEventListener('abort', () => controller.error(new DOMException('aborted', 'AbortError')));
+        },
+      });
+      return new Response(stream, { status: 200 });
+    });
+    const started = Date.now();
+    const outcome = await narrate('ok', { providers: [PROVIDER], fetchImpl, timeoutMs: 1100 });
+    expect(outcome).toMatchObject({ status: 'declined', reason: 'all_providers_failed' });
+    expect(Date.now() - started).toBeLessThan(8000);
   });
 
   it('declines rather than throwing when the network is unreachable', async () => {

@@ -99,7 +99,7 @@ describe('POST /api/ask', () => {
     const { ask } = await setup();
     const body = await ask({ intent: 'compare_periods', assignmentId: CAPACITY, target: REGION_A, period: JAN, comparePeriod: DEC });
     expect(body.outcome).toBe('answered');
-    expect(body.card.answer).toContain('a change of 3 fixture-unit');
+    expect(body.card.answer).toContain('a change of +3 fixture-unit');
     expect(body.card.reasoning.join(' ')).toContain('does not explain why');
   });
 
@@ -115,6 +115,9 @@ describe('POST /api/ask', () => {
     const body = await ask({ intent: 'explain_contributors', assignmentId: CAPACITY, target: REGION_A, period: JAN, breakdown: 'facility' });
     expect(body.outcome).toBe('answered');
     expect(body.card.relevantRecords.observations).toHaveLength(2);
+    // Names from the caller's directory, lowest and highest called out; never raw ids.
+    expect(body.card.answer).toMatch(/Lowest: Fixture facility A\d at .*Highest: Fixture facility A\d at /);
+    expect(`${body.card.answer} ${body.card.reasoning.join(' ')}`).not.toMatch(/e0000000-/);
   });
 
   it('summarizes authorized exceptions', async () => {

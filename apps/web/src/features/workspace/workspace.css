@@ -873,3 +873,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Leave room at the end of every page so the floating Ask Orbit button never covers content. */
+.workspace-frame {
+  padding-bottom: 5rem;
+}

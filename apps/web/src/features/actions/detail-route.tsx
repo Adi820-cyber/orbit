@@ -299,8 +299,8 @@ function History({ detail }: { detail: ActionDetailResponse }) {
     <section className="workspace-panel action-wide" aria-labelledby="history-title">
       <h2 id="history-title">History</h2>
       <ol className="action-history">
-        {detail.history.map((event, index) => (
-          <li key={`${event.occurredAt}-${index}`}>
+        {detail.history.map((event) => (
+          <li key={`${event.occurredAt}-${event.fromState ?? "new"}-${event.toState}`}>
             <p className="action-history__head">
               <strong>{roleLabel(event.actorRole)}</strong>{" "}
               {event.fromState === null

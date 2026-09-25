@@ -193,6 +193,50 @@ interface CompletionAttempt<T> {
   /** Set when the whole chain should stop rather than try the next provider. */
   terminal?: DeclineReason;
   detail?: string;
+  /** For a 429: how long the provider asked us to wait, when it said. */
+  retryAfterMs?: number;
+}
+
+/** Too little time left to be worth starting a request. */
+const MIN_REQUEST_MS = 1000;
+/**
+ * Total time one Ask step (interpretation, or narration) may spend across
+ * retries and providers, on top of one request's own timeout.
+ */
+const STEP_GRACE_MS = 4000;
+
+/** The longest we wait for one rate-limit retry before moving to the next provider. */
+const MAX_RETRY_WAIT_MS = 3000;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * One request, retried once on the same provider when the failure is
+ * transient: a short rate limit (free tiers throttle bursts), an empty reply
+ * (OpenRouter occasionally routes to an upstream that returns no content), or
+ * a 5xx. Anything else, and any second failure, falls through to the chain.
+ */
+async function requestJsonWithRetry<T>(
+  provider: ModelProvider,
+  task: JsonTask<T>,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+  deadline: number,
+): Promise<CompletionAttempt<T>> {
+  const budget = () => Math.min(timeoutMs, deadline - Date.now());
+  const first = await requestJson(provider, task, fetchImpl, budget());
+  if (first.value !== undefined || first.terminal) return first;
+  const detail = first.detail ?? '';
+  const rateLimited = detail.endsWith(' 429');
+  const transient = /missing_content$|content_not_json$| 50[234]$/.test(detail);
+  if (rateLimited) {
+    const wait = first.retryAfterMs ?? 1000;
+    if (wait > MAX_RETRY_WAIT_MS || deadline - Date.now() - wait < MIN_REQUEST_MS) return first;
+    await sleep(wait);
+  } else if (!transient) {
+    return first;
+  }
+  const second = await requestJson(provider, task, fetchImpl, budget());
+  return second.value !== undefined || second.terminal ? second : { ...second, detail: `${detail}, retried: ${second.detail ?? 'failed'}` };
 }
 
 /**
@@ -210,11 +254,32 @@ export interface JsonTask<T> {
   temperature: number;
 }
 
+/**
+ * One request with a single timer that covers sending AND reading the body.
+ * Clearing the timer once headers arrived let a stalled body hang a request
+ * for minutes (measured: 121 s); now the whole exchange is bounded.
+ */
 async function requestJson<T>(
   provider: ModelProvider,
   task: JsonTask<T>,
   fetchImpl: typeof fetch,
   timeoutMs: number,
+): Promise<CompletionAttempt<T>> {
+  if (timeoutMs < MIN_REQUEST_MS) return { detail: `${provider.name} deadline` };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await sendRequest(provider, task, fetchImpl, controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function sendRequest<T>(
+  provider: ModelProvider,
+  task: JsonTask<T>,
+  fetchImpl: typeof fetch,
+  signal: AbortSignal,
 ): Promise<CompletionAttempt<T>> {
   const body: Record<string, unknown> = {
     model: provider.model,
@@ -246,8 +311,6 @@ async function requestJson<T>(
     body.provider = { require_parameters: true };
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
     response = await fetchImpl(provider.endpoint, {
@@ -257,13 +320,11 @@ async function requestJson<T>(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
-      signal: controller.signal,
+      signal,
     });
   } catch (error: unknown) {
     // Network failure, DNS, or our own timeout. Worth the next provider.
     return { detail: error instanceof Error ? error.name : 'network_error' };
-  } finally {
-    clearTimeout(timer);
   }
 
   if (!response.ok) {
@@ -279,7 +340,11 @@ async function requestJson<T>(
       return { terminal, detail: `${provider.name} ${response.status}` };
     }
     if (FAILOVER_STATUSES.has(response.status)) {
-      return { detail: `${provider.name} ${response.status}` };
+      const retryAfter = Number(response.headers.get('retry-after'));
+      return {
+        detail: `${provider.name} ${response.status}`,
+        ...(response.status === 429 && Number.isFinite(retryAfter) && retryAfter >= 0 ? { retryAfterMs: retryAfter * 1000 } : {}),
+      };
     }
     // An unexpected status is not assumed retryable.
     return { terminal: 'request_rejected', detail: `${provider.name} ${response.status}` };
@@ -337,9 +402,10 @@ export async function completeJson<T>(
     return { status: 'declined', reason: 'not_configured' };
   }
   const failures: string[] = [];
+  const deadline = Date.now() + timeoutMs + STEP_GRACE_MS;
   for (const provider of providers) {
     // eslint-disable-next-line no-await-in-loop
-    const attempt = await requestJson(provider, task, fetchImpl, timeoutMs);
+    const attempt = await requestJsonWithRetry(provider, task, fetchImpl, timeoutMs, deadline);
     if (attempt.terminal) {
       return { status: 'declined', reason: attempt.terminal, detail: attempt.detail };
     }
@@ -379,12 +445,13 @@ export async function narrate(
   }
 
   const failures: string[] = [];
+  const deadline = Date.now() + timeoutMs + STEP_GRACE_MS;
   for (const provider of providers) {
     // Sequential on purpose: this is a fallback chain, not a race. Calling every
     // provider in parallel would spend a second provider's quota on every request
     // and bill for a completion we intend to discard.
     // eslint-disable-next-line no-await-in-loop
-    const attempt = await requestJson(
+    const attempt = await requestJsonWithRetry(
       provider,
       {
         system: SYSTEM_PROMPT,
@@ -397,6 +464,7 @@ export async function narrate(
       },
       fetchImpl,
       timeoutMs,
+      deadline,
     );
 
     if (attempt.terminal) {

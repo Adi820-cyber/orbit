@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { AskQuestionResponseSchema, type AskQuestionResponse } from '@orbit/contracts';
 import { getAssignment } from '@orbit/kpi-framework';
 import { SUBJECT } from '../../../test/helpers/fixtures.ts';
-import { buildModuleApp, CAPACITY, DHO_CAPACITY, REGION_A, REGION_B } from '../../../test/helpers/modules.ts';
+import { buildModuleApp, CAPACITY, DHO_CAPACITY, FACILITY_A1, REGION_A, REGION_B } from '../../../test/helpers/modules.ts';
 import { groqProvider } from './narrator.ts';
 
 /*
@@ -83,6 +83,17 @@ describe('POST /api/ask/question', () => {
     expect(body?.interpretedAs).toBeNull();
     expect(body?.response.outcome).toBe('unavailable');
     expect(body?.response.card.relevantRecords).toEqual({ observations: [], exceptions: [] });
+  });
+
+  it('breaks a KPI down from a parent above the breakdown level, whatever entity the model picked', async () => {
+    const { body } = await ask('Which hospital is lowest on capacity?', fakeModel(pick({ intent: 'explain_contributors', entityId: FACILITY_A1.entityId, breakdown: 'facility' })));
+    expect(body?.interpretedAs?.request).toMatchObject({ intent: 'explain_contributors', target: REGION_A, breakdown: 'facility' });
+  });
+
+  it('falls back to a clear keyword match when the model gives up, and says so', async () => {
+    const { body } = await ask('What is our capacity utilisation looking like?', fakeModel(pick({ intent: 'unsupported' })));
+    expect(body?.interpretedAs?.request).toMatchObject({ intent: 'report_performance', assignmentId: CAPACITY, target: REGION_A });
+    expect(body?.interpretedAs?.label).toMatch(/^Closest match to your words: /);
   });
 
   it('asks for clarification when the question fits no question type', async () => {

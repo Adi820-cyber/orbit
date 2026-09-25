@@ -8,6 +8,7 @@ import {
   type Period,
   type ScopeEntity,
 } from '@orbit/contracts';
+import { getDefinitionFamiliesForAssignment } from '@orbit/kpi-framework';
 import { ApiError } from '../../plugins/errors.ts';
 import { entitlementsFor } from '../../plugins/scope.ts';
 import type { ModuleDeps } from '../ports.ts';
@@ -31,17 +32,18 @@ const GRAINS: readonly Grain[] = ['group', 'region', 'facility', 'coe'];
 const MONTHS_OFFERED = 24;
 
 const INTENT_GUIDE = [
-  'explain_definition: what a KPI means, how it is calculated, or what its target basis is.',
-  'report_performance: how one KPI performed for one entity in one month.',
-  'compare_periods: how one KPI changed between two months for one entity.',
-  'explain_contributors: which sub-entities (e.g. hospitals) make up a KPI for one month.',
-  'summarize_exceptions: what needs attention, open exceptions, or open actions overall.',
-  'unsupported: anything else, including requests for other people, forecasts, advice, or data not in the lists.',
+  'explain_definition: only when the user asks what a KPI means, how it is calculated, or what its target basis is.',
+  'report_performance: how one KPI is doing for one entity in one month ("how is X", "are we on track", "are patients happy").',
+  'compare_periods: how one KPI changed between two months ("better or worse", "up or down", "since July", "versus last month").',
+  'explain_contributors: which sub-entities make up a KPI, or which one is best, worst, highest or lowest ("which hospital is worst on EBITDA", "break down by region").',
+  'summarize_exceptions: what needs attention, open exceptions, problems or issues overall ("what needs my attention", "any safety issues").',
+  'unsupported: anything else, including requests for other people, forecasts, advice, causes, or data not in the lists.',
 ];
 
 const SYSTEM_PROMPT = [
   'You map a leader\'s question to exactly one Orbit question type. You never answer the question yourself.',
   'Choose every value only from the lists provided. Use "none" when a value is not needed or not stated.',
+  'Match the KPI by what it measures, not only by its title: everyday words (for example "bed occupancy", "cash collected", "staff leaving") map to the KPI whose description covers them.',
   'If the question asks for anything the lists cannot express, choose intent "unsupported".',
   'Question types:',
   ...INTENT_GUIDE.map((line) => `- ${line}`),
@@ -49,7 +51,7 @@ const SYSTEM_PROMPT = [
 ].join('\n');
 
 interface Menu {
-  assignments: { id: string; title: string; grains: readonly Grain[]; breakdowns: readonly Grain[] }[];
+  assignments: { id: string; title: string; about: string; grains: readonly Grain[]; breakdowns: readonly Grain[] }[];
   entities: { entity: ScopeEntity; label: string }[];
   months: string[];
   current: Period;
@@ -86,6 +88,7 @@ async function buildMenu(deps: ModuleDeps, membership: MembershipClaims): Promis
   const assignments = entitlements.map((entitlement) => ({
     id: entitlement.assignmentId,
     title: frameworkAssignment(membership, entitlement.assignmentId).kpi,
+    about: aboutAssignment(entitlement.assignmentId),
     grains: entitlement.grains,
     breakdowns: entitlement.breakdowns,
   }));
@@ -106,6 +109,70 @@ async function buildMenu(deps: ModuleDeps, membership: MembershipClaims): Promis
   const months = [latest];
   while (months.length < MONTHS_OFFERED) months.push(previousMonth(months.at(-1) ?? latest));
   return { assignments, entities, months, current: dataset.currentPeriod };
+}
+
+/**
+ * What a KPI measures, in the workbook's own words, so plain questions ("bed
+ * occupancy", "cash we collected") can be matched to a KPI whose title uses
+ * different words. Framework text only; never a figure.
+ */
+function aboutAssignment(assignmentId: string): string {
+  return getDefinitionFamiliesForAssignment(assignmentId)
+    .map((family) => `${family.family}: ${family.standardDefinition.split('. ')[0]?.replace(/\.$/, '') ?? ''}`)
+    .join('; ');
+}
+
+/** How far up the organization a grain sits; a breakdown goes to a lower rank. */
+function rankOf(grain: string): number {
+  if (grain === 'group') return 3;
+  return grain === 'region' || grain === 'coe' ? 2 : 1;
+}
+
+/** Everyday words mapped onto the stems the workbook uses. */
+const SYNONYMS: Record<string, string> = {
+  occupancy: 'capac', beds: 'capac', busy: 'capac',
+  cash: 'colle', collected: 'colle', collect: 'colle',
+  rejected: 'denie', rejection: 'denie', rejections: 'denie', denials: 'denie',
+  happy: 'exper', satisfaction: 'exper', complaints: 'exper',
+  leaving: 'attri', quitting: 'attri', resignations: 'attri',
+  training: 'learn', credentials: 'crede',
+  stock: 'inven', stockouts: 'inven',
+  profit: 'ebitd', margin: 'ebitd',
+  sales: 'reven', income: 'reven',
+};
+
+/** Words too common in KPI titles to tell one KPI from another. */
+const STOP = new Set([
+  'what', 'when', 'where', 'which', 'with', 'this', 'that', 'there', 'their', 'have', 'does', 'show', 'tell', 'about',
+  'much', 'many', 'month', 'last', 'from', 'into', 'over', 'your', 'ours', 'hospital', 'hospitals', 'group',
+  'regional', 'region', 'rate', 'plan', 'approved', 'budget', 'versus', 'against', 'value', 'score', 'total',
+]);
+
+function stemsOf(text: string): Set<string> {
+  const stems = new Set<string>();
+  for (const word of text.toLowerCase().split(/[^a-z]+/)) {
+    if (word.length < 4 || STOP.has(word)) continue;
+    stems.add(SYNONYMS[word] ?? word.slice(0, 5));
+  }
+  return stems;
+}
+
+/**
+ * A deterministic fallback for when the model returns "unsupported": the KPI
+ * sharing the most distinct terms with the question, if at least two match
+ * and no other KPI ties. Chooses only from the caller's own menu.
+ */
+function keywordMatch(menu: Menu, question: string): Menu['assignments'][number] | null {
+  const asked = stemsOf(question);
+  const scored = menu.assignments
+    .map((row) => {
+      const known = stemsOf(`${row.title} ${row.about}`);
+      return { row, score: [...asked].filter((stem) => known.has(stem)).length };
+    })
+    .sort((a, b) => b.score - a.score);
+  const [best, next] = scored;
+  if (!best || best.score < 2 || (next && next.score === best.score)) return null;
+  return best.row;
 }
 
 /** An enum's values with "none" first: a non-empty tuple by construction, so no cast is needed. */
@@ -141,8 +208,8 @@ function taskFor(menu: Menu, question: string) {
   const user = [
     `Question: ${question}`,
     '',
-    'KPIs (assignmentId — title):',
-    ...menu.assignments.map((row) => `- ${row.id} — ${row.title}`),
+    'KPIs (assignmentId — title — what it measures):',
+    ...menu.assignments.map((row) => `- ${row.id} — ${row.title} — ${row.about}`),
     '',
     'Entities (entityId — name, level):',
     ...menu.entities.map((row) => `- ${row.entity.entityId} — ${row.label}, ${row.entity.grain}`),
@@ -174,7 +241,21 @@ export async function interpret(deps: ModuleDeps, membership: MembershipClaims, 
   }
 
   const pick = outcome.value;
-  if (pick.intent === 'unsupported') return { status: 'unclear', message: UNCLEAR };
+  if (pick.intent === 'unsupported') {
+    // The model gave up. A plain keyword match over the caller's own KPIs can
+    // still find an obvious one ("claims rejected" -> the rejected-claims KPI).
+    // It can only choose from the same menu, and says it was a closest match.
+    const guess = keywordMatch(menu, question);
+    if (!guess) return { status: 'unclear', message: UNCLEAR };
+    const target = membership.scopes.find((scope) => guess.grains.includes(scope.grain));
+    if (!target) return { status: 'unclear', message: UNCLEAR };
+    const month = monthOf(menu.current.start);
+    const targetLabel = menu.entities.find((row) => row.entity.entityId === target.entityId)?.label ?? `your ${target.grain}`;
+    const parsedGuess = AskRequestSchema.safeParse({ intent: 'report_performance', assignmentId: guess.id, target, period: periodOf(month) });
+    return parsedGuess.success
+      ? { status: 'interpreted', request: parsedGuess.data, label: `Closest match to your words: ${guess.title} for ${targetLabel}, ${monthLabel(month)}` }
+      : { status: 'unclear', message: UNCLEAR };
+  }
   if (pick.intent === 'summarize_exceptions') {
     return { status: 'interpreted', request: { intent: 'summarize_exceptions' }, label: 'Summarize my open exceptions' };
   }
@@ -214,8 +295,17 @@ export async function interpret(deps: ModuleDeps, membership: MembershipClaims, 
     case 'explain_contributors': {
       const breakdown = pick.breakdown === NONE ? assignment.breakdowns[0] : pick.breakdown;
       if (!breakdown) return { status: 'unclear', message: 'That KPI has no breakdown you are permitted to see.' };
-      request = { intent: 'explain_contributors', assignmentId: assignment.id, target, period, breakdown };
-      label = `${assignment.title} for ${targetLabel} by ${breakdown}, ${monthLabel(month)}`;
+      // A breakdown needs a parent above the level it breaks into ("EBITDA by
+      // region" is broken down from the group, not from one region). If the
+      // model picked a parent at or below that level, use the caller's own scope.
+      const parent =
+        rankOf(target.grain) > rankOf(breakdown)
+          ? target
+          : membership.scopes.find((scope) => assignment.grains.includes(scope.grain) && rankOf(scope.grain) > rankOf(breakdown));
+      if (!parent) return { status: 'unclear', message: 'That KPI has no breakdown you are permitted to see.' };
+      const parentLabel = menu.entities.find((row) => row.entity.entityId === parent.entityId)?.label ?? `your ${parent.grain}`;
+      request = { intent: 'explain_contributors', assignmentId: assignment.id, target: parent, period, breakdown };
+      label = `${assignment.title} for ${parentLabel} by ${breakdown === 'coe' ? 'COE' : breakdown}, ${monthLabel(month)}`;
       break;
     }
   }

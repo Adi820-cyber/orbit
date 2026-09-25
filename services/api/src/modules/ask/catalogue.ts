@@ -1,5 +1,6 @@
 import {
   AskResponseSchema,
+  EntityDirectoryEntrySchema,
   ExceptionSchema,
   ObservationSchema,
   PageQuerySchema,
@@ -103,7 +104,7 @@ const OUT_OF_SCOPE = 'This question is outside your authorized scope, so no data
 export function formatValue(value: MeasureValue, unit: string): string {
   switch (value.status) {
     case 'available':
-      return `${value.value} ${unit}`;
+      return unit === 'percent' ? `${value.value}%` : `${value.value} ${unit}`;
     case 'missing':
       return value.reason === 'missing_denominator' ? 'unavailable (denominator missing)' : 'not reported';
     case 'not_applicable':
@@ -130,8 +131,8 @@ function limitationsOf(observations: readonly Observation[]): string[] {
   const notes = new Set<string>(['All figures are illustrative synthetic data.']);
   for (const observation of observations) {
     const quality = observation.dataQuality;
-    if (quality.reconciliation === 'unreconciled') notes.add(`${observation.period.start} to ${observation.period.end}: source is unreconciled.`);
-    if (quality.freshness !== 'current') notes.add(`${observation.period.start} to ${observation.period.end}: source is ${quality.freshness}.`);
+    if (quality.reconciliation === 'unreconciled') notes.add(`${periodLabel(observation.period)}: source is unreconciled.`);
+    if (quality.freshness !== 'current') notes.add(`${periodLabel(observation.period)}: source is ${quality.freshness}.`);
     for (const limitation of quality.limitations) notes.add(limitation);
   }
   return [...notes];
@@ -147,8 +148,31 @@ function samePeriod(a: Period, b: Period): boolean {
   return a.cadence === b.cadence && a.start === b.start && a.end === b.end;
 }
 
+const MONTH_NAME = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+/** "August 2026" for a whole calendar month; the explicit range otherwise. */
 function periodLabel(period: Period): string {
+  if (period.cadence === 'month' && period.start.endsWith('-01')) {
+    return MONTH_NAME.format(new Date(`${period.start}T00:00:00Z`));
+  }
   return `${period.start} to ${period.end}`;
+}
+
+/** A difference in the measure's own unit; for percentages that is percentage points. */
+function changeText(change: number, unit: string): string {
+  const signed = change > 0 ? `+${change}` : `${change}`;
+  return unit === 'percent' ? `${signed} percentage points` : `${signed} ${unit}`;
+}
+
+/** Names from the caller's own entity directory, so answers never show raw ids. */
+async function entityNames(deps: ModuleDeps, membership: MembershipClaims): Promise<Map<string, string>> {
+  try {
+    const entries = parseRows(EntityDirectoryEntrySchema, await deps.entities.visible(membership), 'entity_row_failed_contract');
+    return new Map(entries.map((entry) => [`${entry.grain}:${entry.entityId}`, entry.label]));
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'unavailable') return new Map();
+    throw error;
+  }
 }
 
 /** Answers one typed Ask request for the caller. Never throws for scope; returns an `out_of_scope` answer. */
@@ -239,7 +263,10 @@ async function reportPerformance(
   if (observation.value.status !== 'available') {
     return emptyAnswer(
       'no_data',
-      `${assignment.kpi} for ${periodLabel(request.period)} is ${formatValue(observation.value, observation.unit)}.`,
+      // Say why, in the headline: the source's own data-quality note (e.g. a late feed).
+      `${assignment.kpi} for ${periodLabel(request.period)} is ${formatValue(observation.value, observation.unit)}.${
+        observation.dataQuality.limitations[0] ? ` ${observation.dataQuality.limitations[0]}` : ''
+      }`,
       context,
       limitationsOf([observation]),
     );
@@ -294,7 +321,7 @@ async function comparePeriods(
   // Strip binary floating-point noise without choosing a display precision.
   const change = Number((second.value.value - first.value.value).toPrecision(12));
   return answered(context, {
-    answer: `${assignment.kpi}: ${formatValue(second.value, second.unit)} in ${periodLabel(second.period)} against ${formatValue(first.value, first.unit)} in ${periodLabel(first.period)}, a change of ${change} ${second.unit}.`,
+    answer: `${assignment.kpi}: ${formatValue(second.value, second.unit)} in ${periodLabel(second.period)} against ${formatValue(first.value, first.unit)} in ${periodLabel(first.period)}, a change of ${changeText(change, second.unit)}.`,
     definitionBasis: definitionPolicy(membership, request.assignmentId),
     reasoning: [
       `Both observations use definition version ${second.definitionVersion}, unit ${second.unit}, and ${second.period.cadence} cadence.`,
@@ -336,11 +363,24 @@ async function explainContributors(
     return emptyAnswer('no_data', `No ${request.breakdown}-level observations exist for ${assignment.kpi} in ${periodLabel(request.period)}.`, context);
   }
 
+  const names = await entityNames(deps, membership);
+  const nameOf = (entity: Observation['entity']) => names.get(`${entity.grain}:${entity.entityId}`) ?? `a ${entity.grain} in your scope`;
+  const valueOf = (child: Observation) => (child.value.status === 'available' ? child.value.value : null);
+  const ranked = children.filter((child) => valueOf(child) !== null);
+  ranked.sort((a, b) => (valueOf(a) ?? 0) - (valueOf(b) ?? 0));
+  const lowest = ranked[0];
+  const highest = ranked.at(-1);
+  const spread =
+    lowest && highest && ranked.length > 1
+      ? ` Lowest: ${nameOf(lowest.entity)} at ${formatValue(lowest.value, lowest.unit)}. Highest: ${nameOf(highest.entity)} at ${formatValue(highest.value, highest.unit)}.`
+      : '';
+  const missing = children.length - ranked.length;
+
   return answered(context, {
-    answer: `${assignment.kpi} for ${periodLabel(request.period)} has ${children.length} ${request.breakdown}-level observations in your scope.`,
+    answer: `${assignment.kpi} for ${periodLabel(request.period)} across ${children.length} ${request.breakdown === 'coe' ? 'COE' : request.breakdown}${children.length === 1 ? '' : 's'} in your scope.${spread}${missing > 0 ? ` ${missing} ${missing === 1 ? 'has' : 'have'} no value to compare.` : ''}`,
     definitionBasis: definitionPolicy(membership, request.assignmentId),
     reasoning: [
-      ...children.map((child) => `${child.entity.entityId}: ${formatValue(child.value, child.unit)}.`),
+      ...children.map((child) => `${nameOf(child.entity)}: ${formatValue(child.value, child.unit)}.`),
       `These are observed values by ${request.breakdown}; they show where the value sits, not why it changed.`,
     ],
     limitations: limitationsOf(children),

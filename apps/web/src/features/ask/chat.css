@@ -1,0 +1,355 @@
+/* Ask Orbit chat panel. Design tokens only (packages/ui-kit). */
+.ask-chat {
+  position: fixed;
+  right: var(--orbit-space-6);
+  bottom: calc(var(--orbit-space-6) + 3.75rem);
+  z-index: var(--orbit-z-overlay);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  width: min(28rem, calc(100vw - 2 * var(--orbit-space-6)));
+  height: min(40rem, calc(100vh - 8rem));
+  overflow: hidden;
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  border-radius: var(--orbit-radius-card);
+  background: var(--orbit-color-surface);
+  box-shadow: var(--orbit-shadow-raised);
+}
+
+.ask-chat__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--orbit-space-3);
+  border-bottom: var(--orbit-border-width) solid var(--orbit-color-border);
+  padding: var(--orbit-space-3) var(--orbit-space-4);
+  background: var(--orbit-color-primary);
+  color: var(--orbit-color-on-primary);
+}
+
+.ask-chat__header h2 {
+  margin: 0;
+  font-size: var(--orbit-font-size-400);
+}
+
+.ask-chat__header p {
+  margin: var(--orbit-space-1) 0 0;
+  font-size: var(--orbit-font-size-100);
+  opacity: 0.85;
+}
+
+.ask-chat__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--orbit-space-2);
+}
+
+.ask-chat__link {
+  color: var(--orbit-color-on-primary);
+  font-size: var(--orbit-font-size-200);
+}
+
+.ask-chat__close {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--orbit-color-on-primary);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ask-chat__close:hover {
+  background: var(--orbit-color-primary-strong);
+}
+
+.ask-chat__close:focus-visible,
+.ask-chat__link:focus-visible {
+  outline: 3px solid var(--orbit-focus-ring);
+  outline-offset: 2px;
+}
+
+.ask-chat__log {
+  display: grid;
+  align-content: start;
+  gap: var(--orbit-space-4);
+  margin: 0;
+  overflow-y: auto;
+  padding: var(--orbit-space-4);
+  background: var(--orbit-color-surface-subtle);
+  list-style: none;
+}
+
+.ask-chat__exchange {
+  display: grid;
+  gap: var(--orbit-space-2);
+}
+
+.ask-chat__bubble {
+  max-width: 100%;
+  border-radius: var(--orbit-radius-card);
+  padding: var(--orbit-space-3);
+  font-size: var(--orbit-font-size-300);
+  line-height: 1.45;
+}
+
+.ask-chat__bubble p {
+  margin: 0;
+}
+
+.ask-chat__bubble p + p {
+  margin-top: var(--orbit-space-2);
+}
+
+.ask-chat__bubble--you {
+  justify-self: end;
+  max-width: 85%;
+  background: var(--orbit-color-primary);
+  color: var(--orbit-color-on-primary);
+}
+
+.ask-chat__bubble--orbit {
+  display: grid;
+  gap: var(--orbit-space-2);
+  justify-self: stretch;
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  background: var(--orbit-color-surface);
+  color: var(--orbit-color-text);
+}
+
+.ask-chat__bubble--orbit[data-tone="error"] {
+  border-color: var(--orbit-color-danger, var(--orbit-color-border));
+}
+
+.ask-chat__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--orbit-space-2);
+}
+
+.ask-chat__understood {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-200);
+}
+
+.ask-chat__answer {
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.ask-chat__table-wrap {
+  overflow-x: auto;
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  border-radius: var(--orbit-radius-control);
+}
+
+.ask-chat__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--orbit-font-size-200);
+}
+
+.ask-chat__table th,
+.ask-chat__table td {
+  border-bottom: var(--orbit-border-width) solid var(--orbit-color-border);
+  padding: var(--orbit-space-2);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ask-chat__table tr:last-child > * {
+  border-bottom: 0;
+}
+
+.ask-chat__table thead th {
+  background: var(--orbit-color-surface-subtle);
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+  font-weight: var(--orbit-font-weight-semibold);
+  white-space: nowrap;
+}
+
+.ask-chat__table tbody th {
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.ask-chat__table [data-numeric="true"] {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ask-chat__grain {
+  display: block;
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+  font-weight: normal;
+}
+
+.ask-chat__muted {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-200);
+}
+
+.ask-chat__limitations {
+  margin: 0;
+  padding-left: var(--orbit-space-5);
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-200);
+}
+
+.ask-chat__details {
+  font-size: var(--orbit-font-size-200);
+}
+
+.ask-chat__details summary {
+  color: var(--orbit-color-secondary);
+  cursor: pointer;
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.ask-chat__details h4 {
+  margin: var(--orbit-space-3) 0 var(--orbit-space-1);
+  font-size: var(--orbit-font-size-200);
+}
+
+.ask-chat__details ol,
+.ask-chat__details ul {
+  margin: 0;
+  padding-left: var(--orbit-space-5);
+}
+
+.ask-chat__next {
+  justify-self: start;
+}
+
+.ask-chat__disclosure {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+}
+
+.ask-chat__typing {
+  display: flex;
+  justify-self: start;
+  gap: var(--orbit-space-1);
+  padding: var(--orbit-space-3) var(--orbit-space-4);
+}
+
+.ask-chat__typing span[aria-hidden="true"] {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--orbit-color-text-muted);
+  animation: ask-chat-pulse 1.2s infinite ease-in-out;
+}
+
+.ask-chat__typing span[aria-hidden="true"]:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.ask-chat__typing span[aria-hidden="true"]:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+@keyframes ask-chat-pulse {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-chat__typing span[aria-hidden="true"] {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.ask-chat__suggestions {
+  display: flex;
+  gap: var(--orbit-space-2);
+  overflow-x: auto;
+  border-top: var(--orbit-border-width) solid var(--orbit-color-border);
+  padding: var(--orbit-space-2) var(--orbit-space-3);
+}
+
+.ask-chat__suggestion {
+  flex: 0 0 auto;
+  max-width: 16rem;
+  overflow: hidden;
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  border-radius: 999px;
+  padding: var(--orbit-space-1) var(--orbit-space-3);
+  background: var(--orbit-color-surface);
+  color: var(--orbit-color-text);
+  font-size: var(--orbit-font-size-200);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ask-chat__suggestion:hover:not(:disabled) {
+  border-color: var(--orbit-color-secondary);
+}
+
+.ask-chat__suggestion:focus-visible {
+  outline: 3px solid var(--orbit-focus-ring);
+  outline-offset: 2px;
+}
+
+.ask-chat__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--orbit-space-2);
+  border-top: var(--orbit-border-width) solid var(--orbit-color-border);
+  padding: var(--orbit-space-3);
+}
+
+.ask-chat__input {
+  flex: 1;
+  min-height: var(--orbit-control-height);
+  max-height: 7rem;
+  resize: vertical;
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  border-radius: var(--orbit-radius-control);
+  padding: var(--orbit-space-2) var(--orbit-space-3);
+  background: var(--orbit-color-surface);
+  color: var(--orbit-color-text);
+  font: inherit;
+  font-size: var(--orbit-font-size-300);
+}
+
+.ask-chat__input:focus-visible {
+  outline: 3px solid var(--orbit-focus-ring);
+  outline-offset: 1px;
+}
+
+@media (max-width: 47.99rem) {
+  .ask-chat {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: min(85vh, 100%);
+    border-radius: var(--orbit-radius-card) var(--orbit-radius-card) 0 0;
+  }
+}
+
+.ask-chat__suggestions {
+  min-width: 0;
+  margin: 0;
+}
+
+.ask-chat__footnote {
+  margin: 0;
+  border-top: var(--orbit-border-width) solid var(--orbit-color-border);
+  padding: var(--orbit-space-2);
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+}
+
+@media (max-width: 47.99rem) {
+  /* The panel is a full-width sheet with its own close button. */
+  .ask-chat + .workspace-ask-launcher {
+    display: none;
+  }
+}
