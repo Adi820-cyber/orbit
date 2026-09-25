@@ -56,6 +56,12 @@ jobs:
       - name: Lint
         run: npm run lint --workspaces --if-present
 
+      # The same command Vercel runs for apps/web. Typecheck passing does not
+      # prove the production bundle builds. Added to this job, not a new one, so
+      # the required check name stays `typecheck / test / lint`.
+      - name: Build
+        run: npm run build --workspaces --if-present
+
   secret-scan:
     name: secret scan
     runs-on: ubuntu-latest
