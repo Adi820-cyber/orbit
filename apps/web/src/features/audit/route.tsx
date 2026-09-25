@@ -1,14 +1,23 @@
 import type { AuditEvent, AuditListResponse } from "@orbit/contracts";
 import { Link, useLoaderData, useSearchParams, type LoaderFunctionArgs } from "react-router";
-import { formatDateTime, humanize, roleLabel } from "../../lib/format";
+import { actionStateLabel, formatDateTime, humanize, roleLabel } from "../../lib/format";
 import { Disclosure, ScrollRegion, SurfaceHeading } from "../workspace/components";
 import { useWorkspace, useWorkspacePath, withClient, type WorkspaceEnvironment } from "../workspace/environment";
 import "./audit.css";
 
+export interface AuditData {
+  audit: AuditListResponse;
+  /** Titles of the caller's own actions, so the trail names them instead of showing ids. */
+  actionTitles: Record<string, string>;
+}
+
 export function auditLoader(environment: WorkspaceEnvironment) {
-  return async ({ request }: LoaderFunctionArgs): Promise<AuditListResponse> => {
+  return async ({ request }: LoaderFunctionArgs): Promise<AuditData> => {
     const cursor = new URL(request.url).searchParams.get("cursor");
-    return withClient(environment, request, (client) => client.audit(cursor));
+    return withClient(environment, request, async (client) => {
+      const [audit, actions] = await Promise.all([client.audit(cursor), client.actions()]);
+      return { audit, actionTitles: Object.fromEntries(actions.items.map((action) => [action.actionId, action.title])) };
+    });
   };
 }
 
@@ -20,13 +29,13 @@ const KIND_TONE: Record<AuditEvent["kind"], string> = {
   evidence_viewed: "unavailable",
 };
 
-function Target({ event }: { event: AuditEvent }) {
+function Target({ event, titles }: { event: AuditEvent; titles: Record<string, string> }) {
   const path = useWorkspacePath();
   if (!event.target) return <span className="orbit-meta">None</span>;
   if (event.target.type === "action") {
     return (
-      <Link className="workspace-reference" to={path(`/actions/${encodeURIComponent(event.target.id)}`)}>
-        {event.target.id}
+      <Link to={path(`/actions/${encodeURIComponent(event.target.id)}`)}>
+        {titles[event.target.id] ?? "Open the action"}
       </Link>
     );
   }
@@ -37,7 +46,13 @@ function Target({ event }: { event: AuditEvent }) {
   );
 }
 
-export function AuditPage({ audit }: { audit: AuditListResponse }) {
+/** Action outcomes in the same words as the action pages; "delegated" for a hand-off. */
+function outcomeText(event: AuditEvent) {
+  if (event.kind === "action_created" && event.outcome === "delegated") return "Delegated part of the work";
+  return event.kind.startsWith("action_") ? actionStateLabel(event.outcome) : humanize(event.outcome);
+}
+
+export function AuditPage({ audit, actionTitles }: AuditData) {
   const [search] = useSearchParams();
   const path = useWorkspacePath();
   const { kpis } = useWorkspace();
@@ -65,9 +80,9 @@ export function AuditPage({ audit }: { audit: AuditListResponse }) {
                 <th scope="col">When</th>
                 <th scope="col">Event</th>
                 <th scope="col">Actor role</th>
-                <th scope="col">Target</th>
+                <th scope="col">Action</th>
                 <th scope="col">Outcome</th>
-                <th scope="col">Request</th>
+                <th scope="col">Reference</th>
               </tr>
             </thead>
             <tbody>
@@ -78,8 +93,8 @@ export function AuditPage({ audit }: { audit: AuditListResponse }) {
                     <span className="orbit-status" data-state={KIND_TONE[event.kind]}>{humanize(event.kind)}</span>
                   </th>
                   <td>{roleLabel(event.actorRole)}</td>
-                  <td><Target event={event} /></td>
-                  <td>{humanize(event.outcome)}</td>
+                  <td><Target event={event} titles={actionTitles} /></td>
+                  <td>{outcomeText(event)}</td>
                   <td className="workspace-reference">{event.requestId}</td>
                 </tr>
               ))}
@@ -109,5 +124,6 @@ export function AuditPage({ audit }: { audit: AuditListResponse }) {
 }
 
 export function AuditRoute() {
-  return <AuditPage audit={useLoaderData<AuditListResponse>()} />;
+  const data = useLoaderData<AuditData>();
+  return <AuditPage audit={data.audit} actionTitles={data.actionTitles} />;
 }

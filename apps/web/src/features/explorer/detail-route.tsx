@@ -3,6 +3,7 @@ import { TrendChart, type TrendTarget } from "@orbit/ui-kit";
 import { Form, Link, redirect, useLoaderData, useSearchParams, type LoaderFunctionArgs } from "react-router";
 import {
   formatNumber,
+  grainText,
   humanize,
   measureText,
   monthEnd,
@@ -234,12 +235,12 @@ function BreakdownSection({ detail, highlight }: { detail: KpiDetailResponse; hi
         <p>Each row is observed separately. The split shows where the value sits, not why it changed.</p>
       </div>
       {groups.length === 0 ? (
-        <p className="workspace-empty">No {breakdown.grain}-level observations were returned for this scope and period.</p>
+        <p className="workspace-empty">No {grainText(breakdown.grain)}-level observations were returned for this scope and period.</p>
       ) : (
         groups.map(({ family, rows }) => (
           <ScrollRegion key={family} className="explorer-breakdown" label={`${family} by ${breakdown.grain}`}>
             <table className="workspace-table">
-              <caption>{family} by {breakdown.grain}</caption>
+              <caption>{family} by {grainText(breakdown.grain)}</caption>
               <thead>
                 <tr>
                   <th scope="col">{humanize(breakdown.grain)}</th>
@@ -371,7 +372,7 @@ export function ExplorerDetailPage({ data }: { data: ExplorerDetailData }) {
         {assignment.breakdowns.length > 0 && detail.scope.grain === "region" ? (
           detail.breakdown ? (
             <Link className="orbit-button" data-variant="quiet" to={`${explorerHref(environment.basePath, assignment.assignmentId, detail.scope)}&breakdown=none`}>
-              Hide {detail.breakdown.grain} split
+              Hide {grainText(detail.breakdown.grain)} split
             </Link>
           ) : (
             <Link className="orbit-button" data-variant="quiet" to={explorerHref(environment.basePath, assignment.assignmentId, detail.scope, { breakdown: "facility" })}>

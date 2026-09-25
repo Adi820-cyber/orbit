@@ -48,7 +48,13 @@ export function shortPeriodLabel(period: Period) {
   return periodLabel(period);
 }
 
+/** Grain and other identifiers for display. "coe" is an acronym (Centre of Excellence). */
+export function grainText(grain: string) {
+  return grain === "coe" ? "COE" : grain;
+}
+
 export function humanize(value: string) {
+  if (value === "coe") return "COE";
   return value
     .split("_")
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)

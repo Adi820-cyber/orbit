@@ -61,7 +61,7 @@ function AssignmentCard({ assignment }: { assignment: KpiAssignmentSummary }) {
       </dl>
       {scope ? (
         <Link className="workspace-inline-link" to={explorerHref(environment.basePath, assignment.assignmentId, scope)}>
-          Explore {humanize(scope.grain).toLowerCase()} evidence <Icon name="arrow" />
+          Explore {scope.grain === "coe" ? "COE" : humanize(scope.grain).toLowerCase()} evidence <Icon name="arrow" />
         </Link>
       ) : (
         <p className="orbit-field-message">No scope in your membership is at a grain this assignment permits.</p>
