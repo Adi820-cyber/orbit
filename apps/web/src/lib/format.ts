@@ -5,6 +5,7 @@ import type {
   ScopeEntity,
   Target,
 } from "@orbit/contracts";
+import { getAssignment } from "@orbit/kpi-framework";
 
 const numberFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
 
@@ -115,7 +116,9 @@ export function assignmentLabel(
   assignmentId: string,
   assignments: ReadonlyMap<string, KpiAssignmentSummary>,
 ) {
-  return assignments.get(assignmentId)?.kpi ?? "Assignment unavailable";
+  // The framework is public reference data, so an assignee who does not hold
+  // the creator's KPI still sees its name (not its data).
+  return assignments.get(assignmentId)?.kpi ?? getAssignment(assignmentId)?.kpi ?? "Assignment unavailable";
 }
 
 export function assignmentMap(assignments: readonly KpiAssignmentSummary[]) {
@@ -135,4 +138,18 @@ export function monthEnd(month: string) {
 
 export function monthOf(date: string) {
   return date.slice(0, 7);
+}
+
+const ACTION_STATE_LABELS: Record<string, string> = {
+  open: "Open",
+  acknowledged: "Acknowledged",
+  in_progress: "In progress",
+  submitted: "Awaiting approval",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+/** Plain-language name of an action state; "submitted" reads as "Awaiting approval". */
+export function actionStateLabel(state: string) {
+  return ACTION_STATE_LABELS[state] ?? humanize(state);
 }

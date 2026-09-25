@@ -11,6 +11,7 @@ import type {
   ScopeEntity,
 } from "@orbit/contracts";
 import {
+  actionStateLabel,
   assignmentLabel,
   humanize,
   measureState,
@@ -83,7 +84,7 @@ export function ActionStateChip({ state }: { state: ActionState | "none" }) {
   }
 
   const tone = state === "completed" ? "ready" : state === "cancelled" ? "unavailable" : "illustrative";
-  return <span className="orbit-status" data-state={tone}>Action {humanize(state).toLowerCase()}</span>;
+  return <span className="orbit-status" data-state={tone}>Action {actionStateLabel(state).toLowerCase()}</span>;
 }
 
 /** A measured value with its state; missing and not-applicable never render as a number. */

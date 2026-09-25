@@ -1,4 +1,5 @@
 import {
+  ActionEventSchema,
   ActionSchema,
   AskRequestSchema,
   AuditEventSchema,
@@ -8,6 +9,7 @@ import {
   PageQuerySchema,
   TransitionActionRequestSchema,
   type Action,
+  type ActionEvent,
   type ActionState,
   type AskRequest,
   type AskResponse,
@@ -194,6 +196,7 @@ interface StoredAction {
   action: Action;
   relation: Relation;
   idempotencyKey: string | null;
+  events: ActionEvent[];
 }
 
 interface PreviewState {
@@ -231,15 +234,19 @@ const PROMPTED_ASSIGNMENTS = 3;
 export const ORDERING_BASIS =
   "Act-now before monitor; within each, safety, legal and compliance before performance; then the most recent period first.";
 
-/** Ghansham's PROPOSED transition matrix (services/api TRANSITIONS.md), awaiting Aditya's sign-off. */
+/** Ghansham's PROPOSED v2 transition matrix (services/api TRANSITIONS.md), awaiting Aditya's sign-off. */
 const PROPOSED_TRANSITIONS: readonly { from: ActionState; to: ActionState; by: Relation }[] = [
   { from: "open", to: "acknowledged", by: "assignee" },
   { from: "acknowledged", to: "in_progress", by: "assignee" },
-  { from: "in_progress", to: "completed", by: "assignee" },
+  { from: "in_progress", to: "submitted", by: "assignee" },
+  { from: "submitted", to: "completed", by: "creator" },
+  { from: "submitted", to: "in_progress", by: "creator" },
   { from: "open", to: "cancelled", by: "creator" },
   { from: "acknowledged", to: "cancelled", by: "creator" },
   { from: "in_progress", to: "cancelled", by: "creator" },
+  { from: "submitted", to: "cancelled", by: "creator" },
 ];
+const DELEGABLE_STATES: ReadonlySet<ActionState> = new Set(["open", "acknowledged", "in_progress"]);
 
 interface PreviewEntitlement {
   assignmentId: string;
@@ -571,11 +578,20 @@ function seedState(role: RoleId, scope: ScopeEntity): PreviewState {
     dueDate: "2026-09-15",
     createdAt: "2026-09-02T08:00:00Z",
     updatedAt: "2026-09-02T08:00:00Z",
+    parentActionId: null,
+    entityLabel: null,
   };
 
   return {
     version: 1,
-    actions: [{ action, relation: "assignee", idempotencyKey: null }],
+    actions: [
+      {
+        action,
+        relation: "assignee",
+        idempotencyKey: null,
+        events: [{ fromState: null, toState: "open", actorRole: action.creatorRole, reason: "Created from the brief", occurredAt: action.createdAt }],
+      },
+    ],
     audit: [
       {
         eventId: "evt-seed-1",
@@ -598,7 +614,8 @@ function restoreAction(row: unknown): StoredAction {
   const relation = row.relation === "creator" || row.relation === "assignee" ? row.relation : null;
   if (!relation) throw new Error("Stored preview relation is malformed.");
   const key = "idempotencyKey" in row && typeof row.idempotencyKey === "string" ? row.idempotencyKey : null;
-  return { action: ActionSchema.parse(row.action), relation, idempotencyKey: key };
+  const events = "events" in row && Array.isArray(row.events) ? row.events.map((event: unknown) => ActionEventSchema.parse(event)) : [];
+  return { action: ActionSchema.parse(row.action), relation, idempotencyKey: key, events };
 }
 
 /** Browser storage is untrusted input: parse it, and fall back to the seed on any mismatch. */
@@ -1119,8 +1136,15 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
       dueDate: input.dueDate,
       createdAt: timestamp,
       updatedAt: timestamp,
+      parentActionId: null,
+      entityLabel: visibleEntities().find((entry) => sameEntity(entry, input.entity))?.label ?? null,
     };
-    state.actions.push({ action, relation: "creator", idempotencyKey: input.idempotencyKey });
+    state.actions.push({
+      action,
+      relation: "creator",
+      idempotencyKey: input.idempotencyKey,
+      events: [{ fromState: null, toState: "open", actorRole: membership.role, reason: "created", occurredAt: timestamp }],
+    });
     record("action_created", { type: "action", id: action.actionId }, "open", requestId);
     return { status: 201, body: { action, replayed: false } };
   }
@@ -1138,11 +1162,13 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
       throw new FixtureError("forbidden", "You are not permitted to make this change.");
     }
 
+    const updatedAt = now().toISOString();
+    found.events.push({ fromState: found.action.state, toState: parsed.data.toState, actorRole: membership.role, reason: parsed.data.reason, occurredAt: updatedAt });
     found.action = {
       ...found.action,
       state: parsed.data.toState,
       version: found.action.version + 1,
-      updatedAt: now().toISOString(),
+      updatedAt,
     };
     record("action_transitioned", { type: "action", id: actionId }, parsed.data.toState, requestId);
     return { status: 200, body: { action: found.action, replayed: false } };
@@ -1285,7 +1311,25 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
         assertInScope(query.assignmentId, entity);
         return { status: 200, body: { assignees: permittedAssignees(entitlements, query.assignmentId, entity, membership.role) } };
       }
-      if (method === "GET" && id && !sub) return { status: 200, body: { action: stored(id).action, replayed: false } };
+      if (method === "GET" && id && !sub) {
+        const found = stored(id);
+        const moves = PROPOSED_TRANSITIONS.filter((rule) => rule.from === found.action.state && rule.by === found.relation).map((rule) => rule.to);
+        return {
+          status: 200,
+          body: {
+            action: found.action,
+            viewer: { relation: found.relation, moves, canDelegate: found.relation === "assignee" && DELEGABLE_STATES.has(found.action.state) },
+            history: found.events,
+            children: [],
+            parent: null,
+          },
+        };
+      }
+      // The preview persona has nobody inside its own scope to hand work to.
+      if (method === "GET" && id && sub === "delegates") return { status: 200, body: { assignees: [] } };
+      if (method === "POST" && id && sub === "delegations") {
+        throw new FixtureError("invalid_request", "The selected person cannot be given this work.");
+      }
       if (method === "POST" && !id) return createAction(request.body, requestId);
       if (method === "POST" && id && sub === "transitions") return transitionAction(id, request.body, requestId);
     }

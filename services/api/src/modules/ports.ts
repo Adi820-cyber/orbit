@@ -100,6 +100,10 @@ export interface NewAction {
   evidence: { observationIds: string[]; definitionVersion: string; datasetChecksum: string };
   assigneeId: string;
   dueDate: string;
+  /** Set for a delegated sub-action: the action this one was delegated from. */
+  parentActionId?: string | null;
+  /** The entity's display name as the creator sees it, snapshotted onto the action. */
+  entityLabel?: string | null;
 }
 
 export type TransitionResult =
@@ -123,6 +127,10 @@ export interface ActionStore {
     audit: AuditDraft,
   ): Promise<TransitionResult>;
   list(membership: MembershipClaims, page: PageQuery): Promise<{ items: readonly unknown[]; nextCursor: string | null }>;
+  /** The action's recorded state changes, oldest first, as ActionEventSchema rows. Empty when not visible. */
+  history(membership: MembershipClaims, actionId: string): Promise<readonly unknown[]>;
+  /** Actions delegated from this one that the caller can see, oldest first. */
+  children(membership: MembershipClaims, actionId: string): Promise<readonly unknown[]>;
 }
 
 /**
@@ -138,6 +146,8 @@ export type TransitionDecision = 'allowed' | 'invalid_transition' | 'not_permitt
 
 /** Aditya's action transition matrix (ARCH §17.3) — open decision, supplied as data. */
 export interface TransitionPolicy {
+  /** Every state the caller may move this action to from `from`; the UI offers exactly these. */
+  moves(input: { role: RoleId; relation: ActionRelation; from: ActionState }): Promise<ActionState[]>;
   decide(input: { role: RoleId; relation: ActionRelation; from: ActionState; to: ActionState }): Promise<TransitionDecision>;
 }
 

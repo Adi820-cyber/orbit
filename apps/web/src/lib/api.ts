@@ -1,5 +1,6 @@
 import {
   ActionListResponseSchema,
+  ActionDetailResponseSchema,
   ActionResponseSchema,
   AskPromptsResponseSchema,
   AskQuestionRequestSchema,
@@ -9,6 +10,7 @@ import {
   AuditListResponseSchema,
   BriefResponseSchema,
   CreateActionRequestSchema,
+  DelegateActionRequestSchema,
   EntityDirectoryResponseSchema,
   ErrorEnvelopeSchema,
   InboxResponseSchema,
@@ -20,6 +22,7 @@ import {
   TransitionActionRequestSchema,
   type AskRequest,
   type CreateActionRequest,
+  type DelegateActionRequest,
   type ErrorCode,
   type Grain,
   type KpiDetailQuery,
@@ -222,6 +225,20 @@ export function createApiClient(transport: ApiTransport) {
     action: (actionId: string) =>
       call(
         { method: "GET", path: `/api/actions/${encodeURIComponent(actionId)}` },
+        ActionDetailResponseSchema,
+      ),
+    delegates: (actionId: string) =>
+      call(
+        { method: "GET", path: `/api/actions/${encodeURIComponent(actionId)}/delegates` },
+        PermittedAssigneesResponseSchema,
+      ),
+    delegateAction: async (actionId: string, request: DelegateActionRequest) =>
+      call(
+        {
+          method: "POST",
+          path: `/api/actions/${encodeURIComponent(actionId)}/delegations`,
+          body: outgoing(DelegateActionRequestSchema, request),
+        },
         ActionResponseSchema,
       ),
     assignees: (target: { assignmentId: string; grain: Grain; entityId: string }) =>

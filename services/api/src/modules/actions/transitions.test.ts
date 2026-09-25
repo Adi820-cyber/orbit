@@ -13,14 +13,20 @@ const EXPECTED: Record<string, 'allowed' | 'not_permitted' | 'invalid_transition
   'open>acknowledged>creator': 'not_permitted',
   'acknowledged>in_progress>assignee': 'allowed',
   'acknowledged>in_progress>creator': 'not_permitted',
-  'in_progress>completed>assignee': 'allowed',
-  'in_progress>completed>creator': 'not_permitted',
+  'in_progress>submitted>assignee': 'allowed',
+  'in_progress>submitted>creator': 'not_permitted',
+  'submitted>completed>creator': 'allowed',
+  'submitted>completed>assignee': 'not_permitted',
+  'submitted>in_progress>creator': 'allowed',
+  'submitted>in_progress>assignee': 'not_permitted',
   'open>cancelled>creator': 'allowed',
   'open>cancelled>assignee': 'not_permitted',
   'acknowledged>cancelled>creator': 'allowed',
   'acknowledged>cancelled>assignee': 'not_permitted',
   'in_progress>cancelled>creator': 'allowed',
   'in_progress>cancelled>assignee': 'not_permitted',
+  'submitted>cancelled>creator': 'allowed',
+  'submitted>cancelled>assignee': 'not_permitted',
 };
 
 describe('proposed action transition matrix', () => {
@@ -42,6 +48,12 @@ describe('proposed action transition matrix', () => {
   it('gives every role the same lifecycle (no role hierarchy)', async () => {
     const input = { relation: 'assignee', from: 'open', to: 'acknowledged' } as const;
     expect(await policy.decide({ ...input, role: 'chairman' })).toBe(await policy.decide({ ...input, role: 'hospital-dho' }));
+  });
+
+  it('lists exactly the moves each party may make, for the UI to offer', async () => {
+    expect(await policy.moves({ role: 'hospital-dho', relation: 'assignee', from: 'in_progress' })).toEqual(['submitted']);
+    expect(await policy.moves({ role: 'regional-coo', relation: 'creator', from: 'submitted' })).toEqual(['completed', 'in_progress', 'cancelled']);
+    expect(await policy.moves({ role: 'regional-coo', relation: 'creator', from: 'completed' })).toEqual([]);
   });
 
   it('rejects a duplicate or self-loop rule instead of silently accepting it', () => {

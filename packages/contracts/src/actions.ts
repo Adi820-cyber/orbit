@@ -44,8 +44,60 @@ export const ActionSchema = z.strictObject({
   dueDate: z.iso.date(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
+  /** Set when this action was delegated from another one by that action's assignee. */
+  parentActionId: z.string().min(1).nullable(),
+  /**
+   * The entity's name as the creator saw it when raising the action; fixed at
+   * creation. An assignee scoped below the entity cannot look it up.
+   */
+  entityLabel: z.string().min(1).nullable(),
 });
 export type Action = z.infer<typeof ActionSchema>;
+
+export const ActionRelationSchema = z.enum(['creator', 'assignee']);
+export type ActionRelation = z.infer<typeof ActionRelationSchema>;
+
+/** One recorded state change, with the reason given. Roles only, never person ids. */
+export const ActionEventSchema = z.strictObject({
+  fromState: ActionStateSchema.nullable(),
+  toState: ActionStateSchema,
+  actorRole: RoleIdSchema,
+  reason: z.string().min(1),
+  occurredAt: z.iso.datetime({ offset: true }),
+});
+export type ActionEvent = z.infer<typeof ActionEventSchema>;
+
+/**
+ * `GET /api/actions/:actionId` — the action plus what the caller may do with
+ * it, decided by the server. The UI offers exactly `moves`; it never guesses.
+ * `children` are the delegated sub-actions the caller can see; `parent` is the
+ * action this one was delegated from, when the caller can see it.
+ */
+export const ActionDetailResponseSchema = z.strictObject({
+  action: ActionSchema,
+  viewer: z.strictObject({
+    relation: ActionRelationSchema,
+    moves: z.array(ActionStateSchema),
+    canDelegate: z.boolean(),
+  }),
+  history: z.array(ActionEventSchema),
+  children: z.array(ActionSchema),
+  parent: z.strictObject({ actionId: z.string().min(1), title: z.string().min(1) }).nullable(),
+});
+export type ActionDetailResponse = z.infer<typeof ActionDetailResponseSchema>;
+
+/**
+ * `POST /api/actions/:actionId/delegations` — the assignee hands part of the
+ * work to someone inside their own scope. The child keeps the parent's
+ * assignment, entity and evidence snapshot.
+ */
+export const DelegateActionRequestSchema = z.strictObject({
+  idempotencyKey: z.uuid(),
+  title: z.string().trim().min(1).max(200),
+  assigneeId: z.string().min(1),
+  dueDate: z.iso.date(),
+});
+export type DelegateActionRequest = z.infer<typeof DelegateActionRequestSchema>;
 
 /**
  * `POST /api/actions`. `idempotencyKey` makes a retried create return the

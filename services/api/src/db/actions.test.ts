@@ -42,6 +42,8 @@ const actionRow = {
   dueDate: '2026-10-01',
   createdAt: '2026-09-24T06:00:00.000Z',
   updatedAt: '2026-09-24T06:00:00.000Z',
+  parentActionId: null,
+  entityLabel: 'Fixture facility',
 };
 
 const newAction: NewAction = {

@@ -1,10 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  ActionDetailResponseSchema,
+  ActionEventSchema,
   ActionListResponseSchema,
   ActionResponseSchema,
   ActionSchema,
   CreateActionRequestSchema,
+  DelegateActionRequestSchema,
+  EntityDirectoryEntrySchema,
   GrainSchema,
   ObservationSchema,
   PageQuerySchema,
@@ -12,7 +16,9 @@ import {
   PermittedAssigneesResponseSchema,
   TransitionActionRequestSchema,
   type Action,
+  type ActionState,
   type CreateActionRequest,
+  type DelegateActionRequest,
   type MembershipClaims,
   type PermittedAssignee,
 } from '@orbit/contracts';
@@ -31,6 +37,9 @@ const AssigneeQuerySchema = z.strictObject({
 const RelationSchema = z.enum(['creator', 'assignee']);
 
 const NOT_FOUND = 'The requested resource does not exist.';
+const TERMINAL: ReadonlySet<ActionState> = new Set(['completed', 'cancelled']);
+/** States in which the assignee may still hand part of the work on. */
+const DELEGABLE: ReadonlySet<ActionState> = new Set(['open', 'acknowledged', 'in_progress']);
 const CHANGED = 'This action was changed by someone else. Reload it and try again.';
 
 /**
@@ -62,11 +71,69 @@ export function registerActionRoutes(api: FastifyInstance, deps: ModuleDeps): vo
   api.get('/actions/:actionId', async (request) => {
     const membership = membershipOf(request);
     const { actionId } = parseInput(ActionParamsSchema, request.params);
-    const found = await deps.actions.get(membership, actionId);
-    if (!found) {
-      throw new ApiError('not_found', NOT_FOUND, 'action_not_visible');
+    const { action, relation } = await loadVisible(deps, membership, actionId);
+    const [moves, historyRows, childRows] = await Promise.all([
+      deps.transitions.moves({ role: membership.role, relation, from: action.state }),
+      deps.actions.history(membership, actionId),
+      deps.actions.children(membership, actionId),
+    ]);
+    const parent = action.parentActionId ? await deps.actions.get(membership, action.parentActionId) : null;
+    const parentAction = parent ? parseRow(ActionSchema, parent.action, 'action_row_failed_contract') : null;
+    return ActionDetailResponseSchema.parse({
+      action,
+      viewer: { relation, moves, canDelegate: relation === 'assignee' && DELEGABLE.has(action.state) },
+      history: parseRows(ActionEventSchema, historyRows, 'action_event_row_failed_contract'),
+      children: parseRows(ActionSchema, childRows, 'action_row_failed_contract'),
+      parent: parentAction ? { actionId: parentAction.actionId, title: parentAction.title } : null,
+    });
+  });
+
+  api.get('/actions/:actionId/delegates', async (request) => {
+    const membership = membershipOf(request);
+    const { actionId } = parseInput(ActionParamsSchema, request.params);
+    const { action } = await loadDelegable(deps, membership, actionId);
+    return PermittedAssigneesResponseSchema.parse({
+      assignees: await loadAssignees(deps, membership, { assignmentId: action.assignmentId, entity: action.entity }),
+    });
+  });
+
+  api.post('/actions/:actionId/delegations', async (request, reply) => {
+    const membership = membershipOf(request);
+    const { actionId } = parseInput(ActionParamsSchema, request.params);
+    const body = parseInput(DelegateActionRequestSchema, request.body);
+    const { action: parent } = await loadDelegable(deps, membership, actionId);
+
+    const assignees = await loadAssignees(deps, membership, { assignmentId: parent.assignmentId, entity: parent.entity });
+    if (!assignees.some((assignee) => assignee.assigneeId === body.assigneeId)) {
+      throw new ApiError('invalid_request', 'The selected person cannot be given this work.', 'delegate_not_permitted');
     }
-    return ActionResponseSchema.parse({ action: parseRow(ActionSchema, found.action, 'action_row_failed_contract'), replayed: false });
+
+    // The child carries the parent's fixed evidence snapshot (FR-07): the
+    // delegate sees the same references the delegator was given, no more.
+    const result = await deps.actions.create(
+      membership,
+      {
+        idempotencyKey: body.idempotencyKey,
+        title: body.title,
+        assignmentId: parent.assignmentId,
+        entity: parent.entity,
+        evidence: parent.evidence,
+        assigneeId: body.assigneeId,
+        dueDate: body.dueDate,
+        parentActionId: parent.actionId,
+        entityLabel: parent.entityLabel,
+      },
+      { kind: 'action_created', target: { type: 'action', id: parent.actionId }, outcome: 'delegated', requestId: request.id },
+    );
+    const child = parseRow(ActionSchema, result.action, 'action_row_failed_contract');
+    if (result.replayed && !matchesDelegation(child, parent, body)) {
+      throw new ApiError('conflict', 'This request was already used for a different action.', 'idempotency_key_reused');
+    }
+    if (!result.replayed && (child.parentActionId !== parent.actionId || child.state !== 'open')) {
+      throw new ApiError('internal', 'An internal error occurred.', 'delegated_action_unexpected_shape');
+    }
+    reply.status(result.replayed ? 200 : 201);
+    return ActionResponseSchema.parse({ action: child, replayed: result.replayed });
   });
 
   api.post('/actions', async (request, reply) => {
@@ -79,7 +146,11 @@ export function registerActionRoutes(api: FastifyInstance, deps: ModuleDeps): vo
 
     const result = await deps.actions.create(
       membership,
-      { ...body, evidence: { ...body.evidence, observationIds: [...new Set(body.evidence.observationIds)] } },
+      {
+        ...body,
+        evidence: { ...body.evidence, observationIds: [...new Set(body.evidence.observationIds)] },
+        entityLabel: await entityLabelFor(deps, membership, body.entity),
+      },
       { kind: 'action_created', target: { type: 'assignment', id: body.assignmentId }, outcome: 'open', requestId: request.id },
     );
     const action = parseRow(ActionSchema, result.action, 'action_row_failed_contract');
@@ -119,6 +190,16 @@ export function registerActionRoutes(api: FastifyInstance, deps: ModuleDeps): vo
     if (decision !== 'allowed') {
       throw new ApiError('forbidden', 'You are not permitted to make this change.', 'transition_not_permitted');
     }
+    if (body.toState === 'submitted') {
+      const children = parseRows(ActionSchema, await deps.actions.children(membership, actionId), 'action_row_failed_contract');
+      if (children.some((child) => !TERMINAL.has(child.state))) {
+        throw new ApiError(
+          'conflict',
+          'Work you delegated from this action is still open. Close or cancel it before submitting for approval.',
+          'delegated_work_open',
+        );
+      }
+    }
 
     const result = await deps.actions.transition(
       membership,
@@ -138,6 +219,52 @@ export function registerActionRoutes(api: FastifyInstance, deps: ModuleDeps): vo
     }
     return ActionResponseSchema.parse({ action: updated, replayed: false });
   });
+}
+
+/**
+ * The entity's name from the creator's own directory, snapshotted onto the
+ * action. The directory is optional: without it the action simply has no label.
+ */
+async function entityLabelFor(deps: ModuleDeps, membership: MembershipClaims, entity: CreateActionRequest['entity']) {
+  try {
+    const entries = parseRows(EntityDirectoryEntrySchema, await deps.entities.visible(membership), 'entity_row_failed_contract');
+    return entries.find((entry) => sameEntity(entry, entity))?.label ?? null;
+  } catch (error) {
+    if (error instanceof ApiError && error.code === 'unavailable') return null;
+    throw error;
+  }
+}
+
+async function loadVisible(deps: ModuleDeps, membership: MembershipClaims, actionId: string) {
+  const found = await deps.actions.get(membership, actionId);
+  if (!found) {
+    throw new ApiError('not_found', NOT_FOUND, 'action_not_visible');
+  }
+  return {
+    action: parseRow(ActionSchema, found.action, 'action_row_failed_contract'),
+    relation: parseRow(RelationSchema, found.relation, 'action_relation_failed_contract'),
+  };
+}
+
+/** Only the assignee delegates, and only while the work is still theirs to do. */
+async function loadDelegable(deps: ModuleDeps, membership: MembershipClaims, actionId: string) {
+  const visible = await loadVisible(deps, membership, actionId);
+  if (visible.relation !== 'assignee') {
+    throw new ApiError('forbidden', 'Only the person this action is assigned to can delegate it.', 'delegate_not_assignee');
+  }
+  if (!DELEGABLE.has(visible.action.state)) {
+    throw new ApiError('conflict', 'This action can no longer be delegated.', 'delegate_wrong_state');
+  }
+  return visible;
+}
+
+function matchesDelegation(child: Action, parent: Action, body: DelegateActionRequest): boolean {
+  return (
+    child.parentActionId === parent.actionId &&
+    child.title === body.title &&
+    child.assignee.assigneeId === body.assigneeId &&
+    child.dueDate === body.dueDate
+  );
 }
 
 /**

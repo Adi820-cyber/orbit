@@ -1,5 +1,6 @@
 import {
   EntityDirectoryResponseSchema,
+  ActionDetailResponseSchema,
   ActionResponseSchema,
   AskPromptsResponseSchema,
   AskResponseSchema,
@@ -543,11 +544,11 @@ describe("preview fixture API", () => {
     await first.handle(post("/api/actions/act-seed-1/transitions", { toState: "acknowledged", expectedVersion: 1, reason: "Seen" }));
 
     const reloaded = createFixtureApi({ storage });
-    const action = ActionResponseSchema.parse((await reloaded.handle(get("/api/actions/act-seed-1"))).body).action;
+    const action = ActionDetailResponseSchema.parse((await reloaded.handle(get("/api/actions/act-seed-1"))).body).action;
     expect(action).toMatchObject({ state: "acknowledged", version: 2 });
 
     reloaded.reset();
-    const reset = ActionResponseSchema.parse((await reloaded.handle(get("/api/actions/act-seed-1"))).body).action;
+    const reset = ActionDetailResponseSchema.parse((await reloaded.handle(get("/api/actions/act-seed-1"))).body).action;
     expect(reset.state).toBe("open");
   });
 
@@ -555,7 +556,7 @@ describe("preview fixture API", () => {
     const storage = memoryStorage();
     storage.setItem("orbit-preview-state:north:v1", JSON.stringify({ version: 1, actions: [{ action: { title: "forged" }, relation: "creator" }], audit: [], counter: 0 }));
     const api = createFixtureApi({ storage });
-    const action = ActionResponseSchema.parse((await api.handle(get("/api/actions/act-seed-1"))).body).action;
+    const action = ActionDetailResponseSchema.parse((await api.handle(get("/api/actions/act-seed-1"))).body).action;
     expect(action.state).toBe("open");
   });
 });

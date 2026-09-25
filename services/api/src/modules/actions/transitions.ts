@@ -13,22 +13,24 @@ export interface TransitionRule {
 }
 
 /**
- * PROPOSED — not signed off. Drafted by Ghansham for Aditya (ARCH §17 item 3);
- * rationale and open questions are in services/api/TRANSITIONS.md. Not wired
- * into `app.ts`: the deployed API keeps answering `unavailable` for
- * transitions until Aditya accepts this or a revision of it.
+ * PROPOSED v2 — not signed off. Drafted by Ghansham for Aditya (ARCH §17 item
+ * 3); rationale is in services/api/TRANSITIONS.md.
  *
  * Derived from PRD FR-06 ("record acknowledgment, progress, completion, or
- * cancellation"): the assignee moves the work forward, the creator can
- * withdraw it, and `completed` / `cancelled` are terminal.
+ * cancellation") plus the product owner's request for an approval step: the
+ * assignee moves the work forward and submits it; the creator approves it,
+ * sends it back, or withdraws it. `completed` / `cancelled` are terminal.
  */
 export const PROPOSED_TRANSITIONS: readonly TransitionRule[] = [
   { from: 'open', to: 'acknowledged', by: 'assignee' },
   { from: 'acknowledged', to: 'in_progress', by: 'assignee' },
-  { from: 'in_progress', to: 'completed', by: 'assignee' },
+  { from: 'in_progress', to: 'submitted', by: 'assignee' },
+  { from: 'submitted', to: 'completed', by: 'creator' },
+  { from: 'submitted', to: 'in_progress', by: 'creator' },
   { from: 'open', to: 'cancelled', by: 'creator' },
   { from: 'acknowledged', to: 'cancelled', by: 'creator' },
   { from: 'in_progress', to: 'cancelled', by: 'creator' },
+  { from: 'submitted', to: 'cancelled', by: 'creator' },
 ];
 
 /**
@@ -48,6 +50,9 @@ export function createMatrixTransitionPolicy(rules: readonly TransitionRule[]): 
   }
 
   return {
+    async moves({ relation, from }): Promise<ActionState[]> {
+      return rules.filter((rule) => rule.from === from && rule.by === relation).map((rule) => rule.to);
+    },
     async decide({ relation, from, to }): Promise<TransitionDecision> {
       const matching = rules.filter((rule) => rule.from === from && rule.to === to);
       if (matching.some((rule) => rule.by === relation)) {

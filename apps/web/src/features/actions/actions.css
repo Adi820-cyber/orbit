@@ -250,3 +250,100 @@
     margin-inline: calc(var(--orbit-space-4) * -1);
   }
 }
+
+/* Action workflow v2: allowed moves, delegation, sub-tasks, history. */
+.action-side {
+  display: grid;
+  gap: var(--orbit-space-6);
+  align-content: start;
+}
+
+.action-wide {
+  grid-column: 1 / -1;
+}
+
+.action-moves {
+  display: grid;
+  gap: var(--orbit-space-3);
+}
+
+.action-move {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--orbit-space-3);
+}
+
+.action-parent {
+  margin: 0 0 var(--orbit-space-5);
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-300);
+}
+
+.action-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--orbit-font-size-200);
+}
+
+.action-table th,
+.action-table td {
+  border-bottom: var(--orbit-border-width) solid var(--orbit-color-border);
+  padding: var(--orbit-space-2) var(--orbit-space-3);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.action-table th {
+  color: var(--orbit-color-text-muted);
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.action-history {
+  display: grid;
+  gap: var(--orbit-space-4);
+  margin: 0;
+  padding: 0 0 0 var(--orbit-space-4);
+  border-left: 0.125rem solid var(--orbit-color-border);
+  list-style: none;
+}
+
+.action-history__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--orbit-space-2);
+  align-items: baseline;
+  margin: 0;
+  color: var(--orbit-color-text);
+  font-size: var(--orbit-font-size-300);
+}
+
+.action-history__head time {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+}
+
+.action-history__reason {
+  margin: var(--orbit-space-1) 0 0;
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-200);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 47.99rem) {
+  .action-table thead {
+    display: none;
+  }
+
+  .action-table tr {
+    display: grid;
+    gap: var(--orbit-space-1);
+    border-bottom: var(--orbit-border-width) solid var(--orbit-color-border);
+    padding: var(--orbit-space-2) 0;
+  }
+
+  .action-table td {
+    border: 0;
+    padding: 0;
+  }
+}

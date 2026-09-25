@@ -31,7 +31,9 @@ export const ACTION_COLUMNS = `
   jsonb_build_object('assigneeId', a.assignee_handle::text, 'role', a.assignee_role) as "assignee",
   to_char(a.due_date, 'YYYY-MM-DD') as "dueDate",
   to_char(a.created_at at time zone 'UTC', ${ISO_UTC}) as "createdAt",
-  to_char(a.updated_at at time zone 'UTC', ${ISO_UTC}) as "updatedAt"`;
+  to_char(a.updated_at at time zone 'UTC', ${ISO_UTC}) as "updatedAt",
+  a.parent_action_id::text as "parentActionId",
+  a.entity_label as "entityLabel"`;
 
 export const FIND_BY_KEY_SQL = `
 select ${ACTION_COLUMNS}
@@ -47,11 +49,11 @@ export const INSERT_ACTION_SQL = `
 insert into orbit.actions (
   organization_id, creator_membership_id, creator_role,
   assignee_membership_id, assignee_handle, assignee_role,
-  idempotency_key, title, assignment_id, entity_grain, entity_id, evidence, due_date
+  idempotency_key, title, assignment_id, entity_grain, entity_id, evidence, due_date, parent_action_id, entity_label
 )
 select orbit.current_org(), orbit.current_membership_id(), orbit.current_role_id(),
        pa.membership_id, pa.assignee_handle, pa.role_id,
-       $1::uuid, $2, $3, $4, $5::uuid, $6::text::jsonb, $7::date
+       $1::uuid, $2, $3, $4, $5::uuid, $6::text::jsonb, $7::date, $9::uuid, $10
 from orbit.permitted_assignees($3, $4, $5::uuid) pa
 where pa.assignee_handle = $8::uuid
 on conflict (creator_membership_id, idempotency_key) do nothing
@@ -72,8 +74,24 @@ where id = $1::uuid and version = $3
 returning id`;
 
 export const INSERT_EVENT_SQL = `
-insert into orbit.action_events (action_id, organization_id, actor_membership_id, from_state, to_state, reason)
-values ($1::uuid, orbit.current_org(), orbit.current_membership_id(), $2, $3, $4)`;
+insert into orbit.action_events (action_id, organization_id, actor_membership_id, actor_role, from_state, to_state, reason)
+values ($1::uuid, orbit.current_org(), orbit.current_membership_id(), orbit.current_role_id(), $2, $3, $4)`;
+
+/** State changes of one visible action, oldest first (RLS: creator or assignee only). */
+export const HISTORY_SQL = `
+select e.from_state as "fromState", e.to_state as "toState", e.actor_role as "actorRole", e.reason as "reason",
+       to_char(e.created_at at time zone 'UTC', ${ISO_UTC}) as "occurredAt"
+from orbit.action_events e
+join orbit.actions a on a.id = e.action_id
+where e.action_id = $1::uuid
+order by e.created_at, e.id`;
+
+/** Sub-actions delegated from one action that the caller can see (RLS), oldest first. */
+export const CHILDREN_SQL = `
+select ${ACTION_COLUMNS}
+from orbit.actions a
+where a.parent_action_id = $1::uuid
+order by a.created_at, a.id`;
 
 export const INSERT_AUDIT_SQL = `
 insert into orbit.audit_events (organization_id, actor_membership_id, actor_role, kind, target_type, target_id, outcome, request_id)
@@ -117,6 +135,8 @@ export function createDbActionStore(db: Database): ActionStore {
           JSON.stringify(action.evidence),
           action.dueDate,
           action.assigneeId,
+          action.parentActionId ?? null,
+          action.entityLabel ?? null,
         ]);
         const id = inserted[0]?.['id'];
         if (typeof id !== 'string') {
@@ -165,6 +185,16 @@ export function createDbActionStore(db: Database): ActionStore {
         const { relation: _relation, ...action } = row;
         return { status: 'ok', action };
       });
+    },
+
+    async history(membership, actionId) {
+      if (!IdSchema.safeParse(actionId).success) return [];
+      return withMembershipTx(db, membership, (tx) => tx.query(HISTORY_SQL, [actionId]));
+    },
+
+    async children(membership, actionId) {
+      if (!IdSchema.safeParse(actionId).success) return [];
+      return withMembershipTx(db, membership, (tx) => tx.query(CHILDREN_SQL, [actionId]));
     },
 
     async list(membership, page: PageQuery) {

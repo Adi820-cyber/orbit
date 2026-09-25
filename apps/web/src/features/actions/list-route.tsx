@@ -18,7 +18,7 @@ export function actionsLoader(environment: WorkspaceEnvironment) {
   };
 }
 
-const OPEN_STATES = new Set<Action["state"]>(["open", "acknowledged", "in_progress"]);
+const OPEN_STATES = new Set<Action["state"]>(["open", "acknowledged", "in_progress", "submitted"]);
 
 function ActionRow({ action }: { action: Action }) {
   const entityLabel = useEntityLabel();
@@ -33,7 +33,7 @@ function ActionRow({ action }: { action: Action }) {
         </Link>
         <p>
           {assignmentLabel(action.assignmentId, assignments)} · {humanize(action.entity.grain)}{" "}
-          <span>{entityLabel(action.entity)}</span>
+          <span>{action.entityLabel ?? entityLabel(action.entity)}</span>
         </p>
       </div>
       <dl className="action-row__facts">
@@ -61,8 +61,12 @@ function ActionRow({ action }: { action: Action }) {
 export function ActionsPage({ list }: { list: ActionListResponse }) {
   const [search] = useSearchParams();
   const path = useWorkspacePath();
-  const { kpis } = useWorkspace();
-  const open = list.items.filter((action) => OPEN_STATES.has(action.state));
+  const { kpis, membership } = useWorkspace();
+  // Submitted work waiting on the caller: they raised it (their role, and not assigned to themselves).
+  const toApprove = list.items.filter(
+    (action) => action.state === "submitted" && action.creatorRole === membership.role && action.assignee.role !== membership.role,
+  );
+  const open = list.items.filter((action) => OPEN_STATES.has(action.state) && !toApprove.includes(action));
   const closed = list.items.filter((action) => !OPEN_STATES.has(action.state));
 
   return (
@@ -85,13 +89,26 @@ export function ActionsPage({ list }: { list: ActionListResponse }) {
         </span>
       </div>
 
+      {toApprove.length ? (
+        <section className="workspace-section" aria-labelledby="approve-actions">
+          <div className="workspace-section__heading">
+            <div>
+              <p className="workspace-kicker">Your decision</p>
+              <h2 id="approve-actions">Waiting for your approval</h2>
+            </div>
+            <p>Submitted work you raised: approve it or send it back.</p>
+          </div>
+          <ul className="action-list">{toApprove.map((action) => <ActionRow key={action.actionId} action={action} />)}</ul>
+        </section>
+      ) : null}
+
       <section className="workspace-section" aria-labelledby="open-actions">
         <div className="workspace-section__heading">
           <div>
             <p className="workspace-kicker">In progress</p>
             <h2 id="open-actions">Open actions</h2>
           </div>
-          <p>Open, acknowledged, or in progress.</p>
+          <p>Open, acknowledged, in progress, or awaiting approval.</p>
         </div>
         {open.length ? (
           <ul className="action-list">{open.map((action) => <ActionRow key={action.actionId} action={action} />)}</ul>

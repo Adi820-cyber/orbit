@@ -14,7 +14,11 @@ import { RoleIdSchema } from './roles.ts';
  */
 
 /** Internal action lifecycle states named in PRD FR-06. Allowed transitions are Aditya's open decision. */
-export const ActionStateSchema = z.enum(['open', 'acknowledged', 'in_progress', 'completed', 'cancelled']);
+/**
+ * Action lifecycle. `submitted` means the assignee has finished and the
+ * creator is asked to approve (-> completed) or send it back (-> in_progress).
+ */
+export const ActionStateSchema = z.enum(['open', 'acknowledged', 'in_progress', 'submitted', 'completed', 'cancelled']);
 export type ActionState = z.infer<typeof ActionStateSchema>;
 
 /**

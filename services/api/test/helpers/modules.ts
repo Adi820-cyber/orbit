@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type {
   Action,
-  ActionState,
+  ActionEvent,
   AuditEvent,
   Entitlement,
   Exception,
@@ -13,7 +13,8 @@ import type {
 } from '@orbit/contracts';
 import { buildApp } from '../../src/build.ts';
 import { ILLUSTRATIVE_DISCLOSURE, type ModuleDeps } from '../../src/modules/index.ts';
-import type { ActionRelation, AuditDraft, NewAction, TransitionDecision } from '../../src/modules/ports.ts';
+import { createMatrixTransitionPolicy, PROPOSED_TRANSITIONS } from '../../src/modules/actions/transitions.ts';
+import type { ActionRelation, AuditDraft, NewAction } from '../../src/modules/ports.ts';
 import { fixtureMemberships, fixtureResolver, MEMBERSHIPS, ORG_A } from './fixtures.ts';
 import { createTestIssuer, TEST_AUDIENCE, TEST_ISSUER } from './tokens.ts';
 
@@ -48,6 +49,18 @@ const DHO_MEMBERSHIP: Membership = {
   status: 'active',
 };
 export const DHO_ASSIGNEE_ID = 'fixture-assignee-dho-a1';
+
+/** A facility-level member under the DHO, for delegation tests. */
+export const BILLING_SUBJECT = '10000000-0000-4000-8000-000000000007';
+const BILLING_MEMBERSHIP: Membership = {
+  membershipId: '20000000-0000-4000-8000-000000000007',
+  subject: BILLING_SUBJECT,
+  organizationId: ORG_A,
+  role: 'billing-lead',
+  scopes: [FACILITY_A1],
+  status: 'active',
+};
+export const BILLING_ASSIGNEE_ID = 'fixture-assignee-billing-a1';
 
 export const MODULE_ENTITLEMENTS: Entitlement[] = [
   { role: 'regional-coo', frameworkVersion: 'v1', assignmentId: CAPACITY, grains: ['region', 'facility'], breakdowns: ['facility'] },
@@ -126,17 +139,15 @@ export const EXCEPTIONS: Exception[] = [
   exception('exc-rev-a', REVENUE, REGION_A, 'monitor'),
 ];
 
-/** Placeholder policy for tests only; the real matrix is Aditya's open decision. */
-const TEST_TRANSITIONS: Record<ActionRelation, Partial<Record<ActionState, ActionState[]>>> = {
-  assignee: { open: ['acknowledged'], acknowledged: ['in_progress'], in_progress: ['completed'] },
-  creator: { open: ['cancelled'], acknowledged: ['cancelled'], in_progress: ['cancelled'] },
-};
+/** The API's own proposed matrix, so the route tests exercise the real rules. */
+const TRANSITION_POLICY = createMatrixTransitionPolicy(PROPOSED_TRANSITIONS);
 
 interface StoredAction {
   action: Action;
   creatorMembershipId: string;
   assigneeMembershipId: string;
   idempotencyKey: string;
+  events: ActionEvent[];
 }
 
 export interface ModuleFixture {
@@ -148,7 +159,10 @@ export interface ModuleFixture {
 export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): ModuleFixture {
   const auditEvents: AuditEvent[] = [];
   const actions: StoredAction[] = [];
-  const assigneeMembership: Record<string, string> = { [DHO_ASSIGNEE_ID]: DHO_MEMBERSHIP.membershipId };
+  const assigneeMembership: Record<string, Membership> = {
+    [DHO_ASSIGNEE_ID]: DHO_MEMBERSHIP,
+    [BILLING_ASSIGNEE_ID]: BILLING_MEMBERSHIP,
+  };
   let clock = 0;
   const now = () => new Date(Date.UTC(2026, 1, 3, 6, 0, clock++)).toISOString();
 
@@ -227,14 +241,22 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
           entity: input.entity,
           evidence: input.evidence,
           creatorRole: membership.role,
-          assignee: { assigneeId: input.assigneeId, role: 'hospital-dho' },
+          assignee: { assigneeId: input.assigneeId, role: assigneeMembership[input.assigneeId]?.role ?? 'hospital-dho' },
           dueDate: input.dueDate,
           createdAt: timestamp,
           updatedAt: timestamp,
+          parentActionId: input.parentActionId ?? null,
+          entityLabel: input.entityLabel ?? null,
         };
-        const assigneeMembershipId = assigneeMembership[input.assigneeId];
+        const assigneeMembershipId = assigneeMembership[input.assigneeId]?.membershipId;
         if (!assigneeMembershipId) throw new Error('fixture assignee missing');
-        actions.push({ action, creatorMembershipId: membership.membershipId, assigneeMembershipId, idempotencyKey: input.idempotencyKey });
+        actions.push({
+          action,
+          creatorMembershipId: membership.membershipId,
+          assigneeMembershipId,
+          idempotencyKey: input.idempotencyKey,
+          events: [{ fromState: null, toState: 'open', actorRole: membership.role, reason: 'created', occurredAt: timestamp }],
+        });
         writeAudit(membership, { ...audit, target: { type: 'action', id: action.actionId } });
         return { action, replayed: false };
       },
@@ -247,28 +269,35 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
         const stored = actions.find((row) => row.action.actionId === change.actionId);
         if (!stored || !relationOf(membership, stored)) return { status: 'not_found' };
         if (stored.action.version !== change.expectedVersion) return { status: 'stale' };
-        stored.action = { ...stored.action, state: change.toState, version: stored.action.version + 1, updatedAt: now() };
+        const updatedAt = now();
+        stored.events.push({ fromState: stored.action.state, toState: change.toState, actorRole: membership.role, reason: change.reason, occurredAt: updatedAt });
+        stored.action = { ...stored.action, state: change.toState, version: stored.action.version + 1, updatedAt };
         writeAudit(membership, audit);
         return { status: 'ok', action: stored.action };
       },
       async list(membership) {
         return { items: actions.filter((row) => relationOf(membership, row)).map((row) => row.action), nextCursor: null };
       },
+      async history(membership, actionId) {
+        const stored = actions.find((row) => row.action.actionId === actionId);
+        return stored && relationOf(membership, stored) ? stored.events : [];
+      },
+      async children(membership, actionId) {
+        return actions
+          .filter((row) => row.action.parentActionId === actionId && relationOf(membership, row))
+          .map((row) => row.action);
+      },
     },
     assignees: {
-      permitted: async (_m, target) =>
-        target.assignmentId === CAPACITY && ['e0000000-0000-4000-8000-00000000000a', 'e0000000-0000-4000-8000-0000000000a1'].includes(target.entity.entityId)
+      // The DHO may hand work to the billing lead at their own facility; others as before.
+      permitted: async (membership, target) =>
+        membership.membershipId === DHO_MEMBERSHIP.membershipId
+          ? [{ assigneeId: BILLING_ASSIGNEE_ID, role: 'billing-lead', scopes: [FACILITY_A1] }]
+          : target.assignmentId === CAPACITY && ['e0000000-0000-4000-8000-00000000000a', 'e0000000-0000-4000-8000-0000000000a1'].includes(target.entity.entityId)
           ? [{ assigneeId: DHO_ASSIGNEE_ID, role: 'hospital-dho', scopes: [FACILITY_A1] }]
           : [],
     },
-    transitions: {
-      decide: async ({ relation, from, to }): Promise<TransitionDecision> => {
-        const allowedForRelation = TEST_TRANSITIONS[relation][from] ?? [];
-        if (allowedForRelation.includes(to)) return 'allowed';
-        const other: ActionRelation = relation === 'creator' ? 'assignee' : 'creator';
-        return (TEST_TRANSITIONS[other][from] ?? []).includes(to) ? 'not_permitted' : 'invalid_transition';
-      },
-    },
+    transitions: TRANSITION_POLICY,
     audit: {
       record: async (membership, draft) => writeAudit(membership, draft),
       // Events about actions the caller created or is assigned, nothing else (ADR 0011 §7).
@@ -307,7 +336,7 @@ export async function buildModuleApp(overrides: Partial<ModuleDeps> = {}) {
       getKey: issuer.getKey,
       issuer: TEST_ISSUER,
       audience: TEST_AUDIENCE,
-      memberships: fixtureMemberships([...MEMBERSHIPS, DHO_MEMBERSHIP]),
+      memberships: fixtureMemberships([...MEMBERSHIPS, DHO_MEMBERSHIP, BILLING_MEMBERSHIP]),
     },
   });
 

@@ -44,9 +44,14 @@ export function pendingModuleDeps(): ModuleDeps {
       get: async () => pending('action_store'),
       transition: async () => pending('action_store'),
       list: async () => pending('action_store'),
+      history: async () => pending('action_store'),
+      children: async () => pending('action_store'),
     },
     assignees: { permitted: async () => pending('assignee_directory') },
-    transitions: { decide: async () => pending('transition_matrix') },
+    transitions: {
+      moves: async () => pending('transition_matrix'),
+      decide: async () => pending('transition_matrix'),
+    },
     entities: { visible: async () => pending('entity_directory') },
     audit: {
       record: async () => pending('audit_store'),

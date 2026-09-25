@@ -80,7 +80,11 @@ select ${OBSERVATION_COLUMNS}
 ${CURRENT_OBSERVATIONS}
   and o.observation_key in (select jsonb_array_elements_text($1::text::jsonb))`;
 
-/** Columns aliased to ExceptionSchema; actionState is the latest action the caller can see on it. */
+/**
+ * Columns aliased to ExceptionSchema; actionState is the latest top-level
+ * action the caller can see on it. Delegated sub-actions share their parent's
+ * assignment and entity, so they are excluded or they would mask its state.
+ */
 const EXCEPTION_COLUMNS = `
   x.exception_key as "exceptionId",
   x.assignment_id as "assignmentId",
@@ -96,6 +100,7 @@ const EXCEPTION_COLUMNS = `
   coalesce((
     select a.state from orbit.actions a
     where a.assignment_id = x.assignment_id and a.entity_grain = x.entity_grain and a.entity_id = x.entity_id
+      and a.parent_action_id is null
     order by a.created_at desc limit 1
   ), 'none') as "actionState",
   x.evidence as "evidence",

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  ActionDetailResponseSchema,
   ActionListResponseSchema,
   ActionResponseSchema,
   AuditListResponseSchema,
@@ -8,6 +9,8 @@ import {
 } from '@orbit/contracts';
 import { SUBJECT } from '../../../test/helpers/fixtures.ts';
 import {
+  BILLING_ASSIGNEE_ID,
+  BILLING_SUBJECT,
   buildModuleApp,
   CAPACITY,
   CHECKSUM,
@@ -194,6 +197,98 @@ describe('POST /api/actions/:actionId/transitions', () => {
     expect(await count(SUBJECT.cooRegionA)).toBe(1);
     expect(await count(DHO_SUBJECT)).toBe(1);
     expect(await count(SUBJECT.cooRegionB)).toBe(0);
+  });
+});
+
+describe('approval and delegation workflow', () => {
+  async function created() {
+    const built = await setup();
+    const { action } = ActionResponseSchema.parse((await built.call(SUBJECT.cooRegionA, 'POST', '/api/actions', createBody)).json());
+    let version = action.version;
+    const move = async (subject: string, toState: string, reason = `to ${toState}`) => {
+      const response = await built.call(subject, 'POST', `/api/actions/${action.actionId}/transitions`, { toState, expectedVersion: version, reason });
+      if (response.statusCode === 200) version = ActionResponseSchema.parse(response.json()).action.version;
+      return response;
+    };
+    const detail = async (subject: string, id = action.actionId) =>
+      ActionDetailResponseSchema.parse((await built.call(subject, 'GET', `/api/actions/${id}`)).json());
+    return { ...built, action, move, detail };
+  }
+
+  it('tells each party exactly which moves they have', async () => {
+    const { detail, move } = await created();
+    expect((await detail(DHO_SUBJECT)).viewer).toEqual({ relation: 'assignee', moves: ['acknowledged'], canDelegate: true });
+    expect((await detail(SUBJECT.cooRegionA)).viewer).toEqual({ relation: 'creator', moves: ['cancelled'], canDelegate: false });
+    await move(DHO_SUBJECT, 'acknowledged');
+    await move(DHO_SUBJECT, 'in_progress');
+    await move(DHO_SUBJECT, 'submitted');
+    expect((await detail(DHO_SUBJECT)).viewer.moves).toEqual([]);
+    expect((await detail(SUBJECT.cooRegionA)).viewer.moves).toEqual(['completed', 'in_progress', 'cancelled']);
+  });
+
+  it('needs the creator to approve: the assignee cannot close their own work', async () => {
+    const { move, detail } = await created();
+    await move(DHO_SUBJECT, 'acknowledged');
+    await move(DHO_SUBJECT, 'in_progress');
+    expect((await move(DHO_SUBJECT, 'completed')).statusCode).toBe(409);
+    expect((await move(DHO_SUBJECT, 'submitted', 'Beds reopened on ward 3')).statusCode).toBe(200);
+    expect((await move(DHO_SUBJECT, 'completed')).statusCode).toBe(403);
+    expect((await move(SUBJECT.cooRegionA, 'in_progress', 'Need the staffing plan too')).statusCode).toBe(200);
+    expect((await move(DHO_SUBJECT, 'submitted', 'Staffing plan attached')).statusCode).toBe(200);
+    expect((await move(SUBJECT.cooRegionA, 'completed', 'Approved')).statusCode).toBe(200);
+    const history = (await detail(SUBJECT.cooRegionA)).history;
+    expect(history.map((event) => [event.toState, event.actorRole])).toEqual([
+      ['open', 'regional-coo'],
+      ['acknowledged', 'hospital-dho'],
+      ['in_progress', 'hospital-dho'],
+      ['submitted', 'hospital-dho'],
+      ['in_progress', 'regional-coo'],
+      ['submitted', 'hospital-dho'],
+      ['completed', 'regional-coo'],
+    ]);
+    expect(history[4]?.reason).toBe('Need the staffing plan too');
+  });
+
+  it('lets the assignee delegate inside their scope, linked to the parent with its evidence', async () => {
+    const { call, action, detail } = await created();
+    const delegates = PermittedAssigneesResponseSchema.parse((await call(DHO_SUBJECT, 'GET', `/api/actions/${action.actionId}/delegates`)).json());
+    expect(delegates.assignees.map((row) => row.role)).toEqual(['billing-lead']);
+    const body = { idempotencyKey: '30000000-0000-4000-8000-000000000009', title: 'Check the claims backlog', assigneeId: BILLING_ASSIGNEE_ID, dueDate: '2026-02-10' };
+    const response = await call(DHO_SUBJECT, 'POST', `/api/actions/${action.actionId}/delegations`, body);
+    expect(response.statusCode).toBe(201);
+    const child = ActionResponseSchema.parse(response.json()).action;
+    expect(child).toMatchObject({ parentActionId: action.actionId, creatorRole: 'hospital-dho', assignee: { role: 'billing-lead' }, evidence: action.evidence });
+    expect((await call(DHO_SUBJECT, 'POST', `/api/actions/${action.actionId}/delegations`, body)).statusCode).toBe(200);
+    expect((await detail(DHO_SUBJECT)).children.map((row) => row.actionId)).toEqual([child.actionId]);
+    expect((await detail(BILLING_SUBJECT, child.actionId)).parent).toBeNull();
+    expect((await detail(DHO_SUBJECT, child.actionId)).parent).toEqual({ actionId: action.actionId, title: action.title });
+    // The original creator does not gain the child.
+    expect((await call(SUBJECT.cooRegionA, 'GET', `/api/actions/${child.actionId}`)).statusCode).toBe(404);
+  });
+
+  it('only the assignee delegates', async () => {
+    const { call, action } = await created();
+    expect((await call(SUBJECT.cooRegionA, 'GET', `/api/actions/${action.actionId}/delegates`)).statusCode).toBe(403);
+    const response = await call(SUBJECT.cooRegionA, 'POST', `/api/actions/${action.actionId}/delegations`, {
+      idempotencyKey: '30000000-0000-4000-8000-00000000000a', title: 'x', assigneeId: BILLING_ASSIGNEE_ID, dueDate: '2026-02-10',
+    });
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('blocks submitting for approval while delegated work is open', async () => {
+    const { call, action, move } = await created();
+    await move(DHO_SUBJECT, 'acknowledged');
+    await move(DHO_SUBJECT, 'in_progress');
+    const child = ActionResponseSchema.parse(
+      (await call(DHO_SUBJECT, 'POST', `/api/actions/${action.actionId}/delegations`, {
+        idempotencyKey: '30000000-0000-4000-8000-00000000000b', title: 'Check claims', assigneeId: BILLING_ASSIGNEE_ID, dueDate: '2026-02-10',
+      })).json(),
+    ).action;
+    const blocked = await move(DHO_SUBJECT, 'submitted');
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.body).toContain('delegated');
+    await call(DHO_SUBJECT, 'POST', `/api/actions/${child.actionId}/transitions`, { toState: 'cancelled', expectedVersion: 1, reason: 'Not needed' });
+    expect((await move(DHO_SUBJECT, 'submitted')).statusCode).toBe(200);
   });
 });
 

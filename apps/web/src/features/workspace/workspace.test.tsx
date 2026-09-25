@@ -389,7 +389,7 @@ describe("actions and audit", () => {
 
     await submit(router, "/actions/act-seed-1", { toState: "acknowledged", expectedVersion: "1", reason: "Seen and owned" });
     const markup = textOf(render(router));
-    expect(markup).toContain("State updated to acknowledged.");
+    expect(markup).toContain("Now acknowledged.");
     expect(markup).toContain("Action acknowledged");
   });
 });
