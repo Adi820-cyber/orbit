@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ActionDetailResponseSchema,
   ActionSchema,
+  ActionStateSchema,
   AskQuestionRequestSchema,
   AskQuestionResponseSchema,
   AskRequestSchema,
@@ -222,9 +224,20 @@ describe('actions and audit', () => {
       dueDate: '2026-02-15',
       createdAt: '2026-02-03T06:00:00Z',
       updatedAt: '2026-02-03T06:00:00Z',
+      parentActionId: null,
+      entityLabel: null,
     };
     expect(ActionSchema.safeParse(action).success).toBe(true);
     expect(ActionSchema.safeParse({ ...action, creatorSubject: 'x' }).success).toBe(false);
+    // A delegated sub-action names its parent; an empty reference is refused.
+    expect(ActionSchema.safeParse({ ...action, parentActionId: 'act-0', entityLabel: 'Region A' }).success).toBe(true);
+    expect(ActionSchema.safeParse({ ...action, parentActionId: '' }).success).toBe(false);
+  });
+
+  it('accepts the approval state and only the server-decided moves in a detail response', () => {
+    expect(ActionStateSchema.safeParse('submitted').success).toBe(true);
+    expect(ActionDetailResponseSchema.shape.viewer.safeParse({ relation: 'assignee', moves: ['submitted'], canDelegate: true }).success).toBe(true);
+    expect(ActionDetailResponseSchema.shape.viewer.safeParse({ relation: 'owner', moves: [], canDelegate: false }).success).toBe(false);
   });
 
   it('keeps raw question text out of audit events', () => {
