@@ -234,6 +234,9 @@ export async function interpret(deps: ModuleDeps, membership: MembershipClaims, 
   const outcome = await completeJson(taskFor(menu, question), {
     providers: deps.askNarration.providers,
     timeoutMs: deps.askNarration.timeoutMs,
+    // A short grace: the question must be understood within a few seconds, or
+    // the user is better served by the guided questions.
+    graceMs: 1500,
     ...(deps.askNarration.fetchImpl ? { fetchImpl: deps.askNarration.fetchImpl } : {}),
   });
   if (outcome.status !== 'ok') {

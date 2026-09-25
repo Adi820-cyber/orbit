@@ -96,6 +96,18 @@ describe('POST /api/ask/question', () => {
     expect(body?.interpretedAs?.label).toMatch(/^Closest match to your words: /);
   });
 
+  it('skips the rewording when understanding the question used most of the time budget', async () => {
+    const slow = fakeModel(pick({ entityId: REGION_A.entityId, month: '2026-01' }));
+    const delayed: typeof fetch = async (input, init) => {
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      return slow.fetchImpl(input, init);
+    };
+    const { body } = await ask('How did capacity look in January?', { ...slow, fetchImpl: delayed });
+    expect(body?.response).toMatchObject({ outcome: 'answered', mode: 'deterministic' });
+    // Only the interpretation call was made; the answer keeps Orbit's own sentence.
+    expect(slow.sent.map((call) => call.task)).toEqual(['orbit_question']);
+  }, 15000);
+
   it('asks for clarification when the question fits no question type', async () => {
     const { body } = await ask('Should I fire the hospital manager?', fakeModel(pick({ intent: 'unsupported' })));
     expect(body?.interpretedAs).toBeNull();

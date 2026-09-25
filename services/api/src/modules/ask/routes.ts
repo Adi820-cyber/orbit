@@ -13,6 +13,9 @@ import { guidedPrompts } from './prompts.ts';
  * typed outcome; scope refusals are answers, not errors. The raw request is
  * never logged or audited — only the intent and the outcome.
  */
+
+/** Total time a plain-language question may take before rewording is skipped. */
+const QUESTION_BUDGET_MS = 6000;
 export function registerAskRoutes(api: FastifyInstance, deps: ModuleDeps): void {
   api.get('/ask/prompts', async (request) => {
     const membership = membershipOf(request);
@@ -72,6 +75,7 @@ export function registerAskRoutes(api: FastifyInstance, deps: ModuleDeps): void 
     const { question } = parseInput(AskQuestionRequestSchema, request.body);
     const context = { membership, period: null, disclosure: deps.disclosure };
 
+    const started = Date.now();
     const interpretation = await interpret(deps, membership, question);
     request.log.info(
       interpretation.status === 'interpreted'
@@ -84,7 +88,9 @@ export function registerAskRoutes(api: FastifyInstance, deps: ModuleDeps): void 
 
     let response;
     if (interpretation.status === 'interpreted') {
-      const narrated = await narrateAnswer(deps, await answer(deps, membership, interpretation.request));
+      const answered = await answer(deps, membership, interpretation.request);
+      // PRD §9 target: an assisted answer within about six seconds overall.
+      const narrated = await narrateAnswer(deps, answered, QUESTION_BUDGET_MS - (Date.now() - started));
       response = narrated.response;
     } else if (interpretation.status === 'unavailable') {
       response = emptyAnswer(

@@ -397,12 +397,12 @@ export async function completeJson<T>(
   task: JsonTask<T>,
   options: NarrateOptions,
 ): Promise<JsonOutcome<T>> {
-  const { providers, fetchImpl = fetch, timeoutMs = 8000 } = options;
+  const { providers, fetchImpl = fetch, timeoutMs = 8000, graceMs = STEP_GRACE_MS } = options;
   if (providers.length === 0) {
     return { status: 'declined', reason: 'not_configured' };
   }
   const failures: string[] = [];
-  const deadline = Date.now() + timeoutMs + STEP_GRACE_MS;
+  const deadline = Date.now() + timeoutMs + graceMs;
   for (const provider of providers) {
     // eslint-disable-next-line no-await-in-loop
     const attempt = await requestJsonWithRetry(provider, task, fetchImpl, timeoutMs, deadline);
@@ -425,6 +425,8 @@ export interface NarrateOptions {
   fetchImpl?: typeof fetch;
   /** Per-provider budget. Ask must stay responsive; a slow model is a declined one. */
   timeoutMs?: number;
+  /** Extra time the whole step may take for retries and fallbacks; defaults to STEP_GRACE_MS. */
+  graceMs?: number;
 }
 
 /**
@@ -439,13 +441,13 @@ export async function narrate(
   options: NarrateOptions,
   source: string = deterministicAnswer,
 ): Promise<NarrationOutcome> {
-  const { providers, fetchImpl = fetch, timeoutMs = 8000 } = options;
+  const { providers, fetchImpl = fetch, timeoutMs = 8000, graceMs = STEP_GRACE_MS } = options;
   if (providers.length === 0) {
     return { status: 'declined', reason: 'not_configured' };
   }
 
   const failures: string[] = [];
-  const deadline = Date.now() + timeoutMs + STEP_GRACE_MS;
+  const deadline = Date.now() + timeoutMs + graceMs;
   for (const provider of providers) {
     // Sequential on purpose: this is a fallback chain, not a race. Calling every
     // provider in parallel would spend a second provider's quota on every request

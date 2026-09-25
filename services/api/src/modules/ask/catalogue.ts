@@ -101,6 +101,9 @@ function unreachable(value: never): never {
 
 const OUT_OF_SCOPE = 'This question is outside your authorized scope, so no data was used to answer it.';
 
+/** Below this, rewording is not attempted: Orbit's own sentence is returned at once. */
+const MIN_NARRATION_MS = 2500;
+
 export function formatValue(value: MeasureValue, unit: string): string {
   switch (value.status) {
     case 'available':
@@ -441,18 +444,28 @@ export function narrationSource(response: AskResponse): string {
  * records, citations, scope and disclosure are never passed back from the
  * model, so only `card.answer` can change, and the mode says so.
  */
+/**
+ * Rewords an answered card's sentence. `budgetMs`, when given, is the total
+ * time left for the request: the rewording is skipped when too little remains,
+ * and the deterministic sentence (which carries the same figures) is returned.
+ */
 export async function narrateAnswer(
   deps: ModuleDeps,
   response: AskResponse,
+  budgetMs?: number,
 ): Promise<{ response: AskResponse; narration: NarrationOutcome | null }> {
   if (response.outcome !== 'answered' || deps.askNarration.providers.length === 0) {
+    return { response, narration: null };
+  }
+  if (budgetMs !== undefined && budgetMs < MIN_NARRATION_MS) {
     return { response, narration: null };
   }
   const narration = await narrate(
     response.card.answer,
     {
       providers: deps.askNarration.providers,
-      timeoutMs: deps.askNarration.timeoutMs,
+      timeoutMs: budgetMs === undefined ? deps.askNarration.timeoutMs : Math.min(deps.askNarration.timeoutMs, budgetMs),
+      ...(budgetMs === undefined ? {} : { graceMs: 0 }),
       ...(deps.askNarration.fetchImpl ? { fetchImpl: deps.askNarration.fetchImpl } : {}),
     },
     narrationSource(response),
