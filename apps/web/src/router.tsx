@@ -1,5 +1,6 @@
 import { createBrowserRouter, redirect, type RouteObject } from "react-router";
 import { LoginRoute, loginAction, loginLoader } from "./features/auth/login-route";
+import { erpRoutes } from "./features/erp/routes";
 import { liveEnvironment } from "./features/workspace/environment";
 import { LoadingShell, workspaceRoutes } from "./features/workspace/routes";
 import { AuthConfigurationError, signOut } from "./lib/auth";
@@ -26,6 +27,8 @@ const routes: RouteObject[] = [
     loader: () => redirect("/"),
     action: logoutAction,
   },
+  // Hospital operations for ERP operator accounts (ADR 0016); live environment only.
+  erpRoutes(liveEnvironment),
   workspaceRoutes(liveEnvironment),
 ];
 

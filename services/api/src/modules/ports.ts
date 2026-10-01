@@ -12,6 +12,7 @@ import {
 } from '@orbit/contracts';
 import type { ScopeDeps } from '../plugins/scope.ts';
 import type { ModelProvider } from './ask/narrator.ts';
+import type { ErpStore } from './erp/ports.ts';
 
 /*
  * Ports between the API modules and the data they read or write.
@@ -190,6 +191,8 @@ export interface ModuleDeps {
   transitions: TransitionPolicy;
   audit: AuditStore;
   entities: EntityDirectory;
+  /** Hospital operations (ADR 0016). Served only to ERP operator accounts. */
+  erp: ErpStore;
   askNarration: AskNarration;
   /** The disclosure rendered on every number surface (PRD §8.4). */
   disclosure: string;

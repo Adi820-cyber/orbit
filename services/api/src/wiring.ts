@@ -5,6 +5,7 @@ import { createDbAuditStore } from './db/audit.ts';
 import { createDatabase, type Database } from './db/client.ts';
 import { createDbDatasetSource, createDbExceptionSource, createDbObservationSource } from './db/kpi-data.ts';
 import { createDbMembershipSource } from './db/memberships.ts';
+import { createDbErpStore } from './db/erp.ts';
 import { createDbEntitlementSource, createDbEntityDirectory, createDbScopeResolver, membershipQuery } from './db/sources.ts';
 import { createMatrixTransitionPolicy, PROPOSED_TRANSITIONS } from './modules/actions/transitions.ts';
 import type { ModuleDeps } from './modules/index.ts';
@@ -74,6 +75,9 @@ export function wireSources(
   }
   if (live.has('exceptions')) {
     modules.exceptions = createDbExceptionSource(database());
+  }
+  if (live.has('erp')) {
+    modules.erp = createDbErpStore(database());
   }
   if (live.has('transitions')) {
     modules.transitions = createMatrixTransitionPolicy(PROPOSED_TRANSITIONS);

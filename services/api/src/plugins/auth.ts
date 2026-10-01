@@ -1,14 +1,26 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { errors as joseErrors, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import { z } from 'zod';
-import { MembershipSchema, type MembershipClaims } from '@orbit/contracts';
+import { MembershipSchema, type MembershipClaims, type OperatorClaims } from '@orbit/contracts';
 import { ApiError } from './errors.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Verified membership claims. Set only by the auth hook; never from request data. */
+    /**
+     * Verified LEADER membership claims. Set only by the auth hook; never from
+     * request data. Null for an ERP operator, so every leader module refuses one.
+     */
     membership: MembershipClaims | null;
+    /** Verified ERP OPERATOR claims (ADR 0016). Null for a leader. */
+    operator: OperatorClaims | null;
   }
+}
+
+/** Either kind of verified claims; exactly one is set per request. */
+export type VerifiedClaims = MembershipClaims | OperatorClaims;
+
+export function isOperatorClaims(claims: VerifiedClaims): claims is OperatorClaims {
+  return 'operatorRole' in claims;
 }
 
 /**
@@ -72,7 +84,7 @@ export async function verifyAccessToken(
 }
 
 /** Resolve the subject to exactly one active membership, or deny. */
-export async function loadMembership(subject: string, source: MembershipSource): Promise<MembershipClaims> {
+export async function loadMembership(subject: string, source: MembershipSource): Promise<VerifiedClaims> {
   const rows = await source.findBySubject(subject);
 
   const parsed = rows.map((row) => MembershipSchema.safeParse(row));
@@ -95,13 +107,22 @@ export async function loadMembership(subject: string, source: MembershipSource):
   if (!membership) {
     throw new ApiError('forbidden', FORBIDDEN, 'no_active_membership');
   }
-  const { status: _status, ...claims } = membership;
-  return claims;
+  // Strip the row-only fields, keeping exactly one kind of claims (ADR 0016).
+  if ('operatorRole' in membership && membership.operatorRole) {
+    const { status: _status, role: _role, ...operator } = membership;
+    return operator;
+  }
+  if ('role' in membership && membership.role) {
+    const { status: _status, operatorRole: _operatorRole, ...leader } = membership;
+    return leader;
+  }
+  throw new ApiError('internal', 'An internal error occurred.', 'membership_without_role');
 }
 
 /** Call once on the root instance, before any route is registered. */
 export function decorateMembership(app: FastifyInstance): void {
   app.decorateRequest('membership', null);
+  app.decorateRequest('operator', null);
 }
 
 /**
@@ -111,14 +132,45 @@ export function decorateMembership(app: FastifyInstance): void {
 export function requireAuth(scope: FastifyInstance, options: AuthOptions): void {
   scope.addHook('onRequest', async (request) => {
     const subject = await verifyAccessToken(request.headers.authorization, options);
-    request.membership = await loadMembership(subject, options.memberships);
+    const claims = await loadMembership(subject, options.memberships);
+    if (isOperatorClaims(claims)) {
+      request.operator = claims;
+    } else {
+      request.membership = claims;
+    }
   });
 }
 
-/** Read the verified membership inside a protected handler. */
+/**
+ * Read the verified LEADER membership inside a protected handler. An ERP
+ * operator is refused here, so no leader module can serve one.
+ */
 export function membershipOf(request: FastifyRequest): MembershipClaims {
+  if (request.operator) {
+    throw new ApiError('forbidden', 'This area is for leadership accounts.', 'operator_on_leader_route');
+  }
   if (!request.membership) {
     throw new ApiError('unauthenticated', UNAUTHENTICATED, 'route_not_behind_auth_hook');
   }
   return request.membership;
+}
+
+/** Read the verified ERP OPERATOR claims; a leader is refused (ADR 0016). */
+export function operatorOf(request: FastifyRequest): OperatorClaims {
+  if (request.membership) {
+    throw new ApiError('forbidden', 'Hospital operations are for hospital and admin accounts.', 'leader_on_erp_route');
+  }
+  if (!request.operator) {
+    throw new ApiError('unauthenticated', UNAUTHENTICATED, 'route_not_behind_auth_hook');
+  }
+  return request.operator;
+}
+
+/** Either kind of verified claims, for the few routes both may call (`GET /api/me`). */
+export function claimsOf(request: FastifyRequest): VerifiedClaims {
+  const claims = request.membership ?? request.operator;
+  if (!claims) {
+    throw new ApiError('unauthenticated', UNAUTHENTICATED, 'route_not_behind_auth_hook');
+  }
+  return claims;
 }

@@ -1,7 +1,7 @@
 import cors from '@fastify/cors';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { HealthResponseSchema, MeResponseSchema } from '@orbit/contracts';
-import { decorateMembership, membershipOf, requireAuth, type AuthOptions } from './plugins/auth.ts';
+import { HealthResponseSchema, MeResponseSchema, OperatorMeResponseSchema } from '@orbit/contracts';
+import { claimsOf, decorateMembership, isOperatorClaims, requireAuth, type AuthOptions } from './plugins/auth.ts';
 import { registerErrorHandling } from './plugins/errors.ts';
 import { registerModules, type ModuleDeps } from './modules/index.ts';
 
@@ -28,7 +28,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   await app.register(cors, {
     origin: [...options.allowedOrigins],
-    methods: ['GET', 'POST', 'PATCH'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT'],
     allowedHeaders: ['Authorization', 'Content-Type'],
     credentials: false,
   });
@@ -60,11 +60,18 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       requireAuth(api, options.auth);
 
       api.get('/me', async (request) => {
-        const membership = membershipOf(request);
+        const claims = claimsOf(request);
+        if (isOperatorClaims(claims)) {
+          return OperatorMeResponseSchema.parse({
+            operatorRole: claims.operatorRole,
+            organizationId: claims.organizationId,
+            scopes: claims.scopes,
+          });
+        }
         return MeResponseSchema.parse({
-          role: membership.role,
-          organizationId: membership.organizationId,
-          scopes: membership.scopes,
+          role: claims.role,
+          organizationId: claims.organizationId,
+          scopes: claims.scopes,
         });
       });
 

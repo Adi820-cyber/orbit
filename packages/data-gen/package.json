@@ -13,7 +13,9 @@
     "generate:observations": "node scripts/generate-observations.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "lint": "oxlint --type-aware"
+    "lint": "oxlint --type-aware",
+    "generate:erp": "node scripts/generate-erp-seed.ts",
+    "provision:erp": "node scripts/provision-erp-accounts.ts"
   },
   "dependencies": {
     "@orbit/kpi-framework": "*",

@@ -4,6 +4,7 @@ import { registerAskRoutes } from './ask/routes.ts';
 import { recordDenials, registerAuditRoutes } from './audit/routes.ts';
 import { registerBriefRoutes } from './brief/routes.ts';
 import { registerEntityRoutes } from './entities/routes.ts';
+import { registerErpModule } from './erp/routes.ts';
 import { registerInboxRoutes } from './inbox/routes.ts';
 import { registerKpiRoutes } from './kpi/routes.ts';
 import type { ModuleDeps } from './ports.ts';
@@ -24,4 +25,5 @@ export function registerModules(api: FastifyInstance, deps: ModuleDeps): void {
   registerActionRoutes(api, deps);
   registerAuditRoutes(api, deps);
   registerEntityRoutes(api, deps);
+  registerErpModule(api, deps);
 }
