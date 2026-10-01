@@ -44,6 +44,7 @@ create index knowledge_chunks_org_idx
 -- RLS: a member sees only their own organisation's chunks, filtered by role.
 -- ──────────────────────────────────────────────────────────────────────────────
 alter table orbit.knowledge_chunks enable row level security;
+alter table orbit.knowledge_chunks force row level security;
 
 create policy knowledge_chunks_select_own_org
   on orbit.knowledge_chunks
@@ -55,6 +56,10 @@ create policy knowledge_chunks_select_own_org
       or (current_setting('orbit.membership', true)::jsonb ->> 'role') = any(visible_roles)
     )
   );
+
+-- security invoker runs as orbit_app, so the role needs table-level SELECT in
+-- addition to the RLS policy above (the grant that was missing before this fix).
+grant select on orbit.knowledge_chunks to orbit_app;
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- RPC: scoped vector match
@@ -80,6 +85,7 @@ returns table (
 )
 language sql stable
 security invoker  -- runs as orbit_app, RLS applies
+set search_path = extensions, pg_catalog  -- the <=> operator lives in extensions, not on the default path
 as $$
   select
     k.id,
