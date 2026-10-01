@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { errors as joseErrors, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import { z } from 'zod';
 import { MembershipSchema, type MembershipClaims, type OperatorClaims } from '@orbit/contracts';
+import { servesLeaders, servesOperators, type ApiSurface } from '../surface.ts';
 import { ApiError } from './errors.ts';
 
 declare module 'fastify' {
@@ -36,6 +37,8 @@ export interface AuthOptions {
   issuer: string;
   audience: string;
   memberships: MembershipSource;
+  /** Which kind of account this deployment serves; default `all` (src/surface.ts). */
+  surface?: ApiSurface;
 }
 
 /** Supabase signs user tokens asymmetrically; HS256 and `none` are never accepted. */
@@ -133,6 +136,11 @@ export function requireAuth(scope: FastifyInstance, options: AuthOptions): void 
   scope.addHook('onRequest', async (request) => {
     const subject = await verifyAccessToken(request.headers.authorization, options);
     const claims = await loadMembership(subject, options.memberships);
+    // A deployment serves one kind of account (ADR 0016 §9): refuse the other before any route runs.
+    const surface = options.surface ?? 'all';
+    if (isOperatorClaims(claims) ? !servesOperators(surface) : !servesLeaders(surface)) {
+      throw new ApiError('forbidden', FORBIDDEN, isOperatorClaims(claims) ? 'operator_on_leader_surface' : 'leader_on_erp_surface');
+    }
     if (isOperatorClaims(claims)) {
       request.operator = claims;
     } else {

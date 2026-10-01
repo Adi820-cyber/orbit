@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { OperatorClaims } from '@orbit/contracts';
 import { buildApp } from '../../src/build.ts';
 import type { ErpStore, ErpWrite } from '../../src/modules/erp/ports.ts';
+import type { ApiSurface } from '../../src/surface.ts';
 import { fixtureMemberships, MEMBERSHIPS, ORG_A, SUBJECT } from './fixtures.ts';
 import { createModuleFixture } from './modules.ts';
 import { createTestIssuer, TEST_AUDIENCE, TEST_ISSUER } from './tokens.ts';
@@ -238,13 +239,14 @@ export function recordingErpStore(overrides: Partial<ErpStore> = {}) {
 }
 
 /** The full app with leader and operator memberships and a recording ERP store. */
-export async function buildErpApp(overrides: Partial<ErpStore> = {}) {
+export async function buildErpApp(overrides: Partial<ErpStore> = {}, surface?: ApiSurface) {
   const issuer = await createTestIssuer();
   const { store, calls } = recordingErpStore(overrides);
   const fixture = createModuleFixture({ erp: store });
   const app: FastifyInstance = await buildApp({
     allowedOrigins: [],
     modules: fixture.deps,
+    ...(surface ? { surface } : {}),
     auth: {
       getKey: issuer.getKey,
       issuer: TEST_ISSUER,

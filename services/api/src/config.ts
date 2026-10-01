@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { API_SURFACES, type ApiSurface } from './surface.ts';
 import { groqProvider, openRouterProvider, type ModelProvider } from './modules/ask/narrator.ts';
 
 /**
@@ -19,6 +20,8 @@ const EnvSchema = z.object({
   DATABASE_URL: optional(z.string().min(1)),
   ALLOWED_ORIGINS: z.string().default(''),
   ORBIT_LIVE_SOURCES: z.string().default(''),
+  /** Which half of Orbit this deployment serves (src/surface.ts). Default `all`. */
+  ORBIT_SURFACE: optional(z.enum(API_SURFACES)),
   PORT: z.coerce.number().int().positive().default(3000),
   /*
    * Ask narration (ADR 0014). All optional: absent keys mean Ask stays fully
@@ -43,6 +46,8 @@ export interface ApiConfig {
   /** Sources switched from fail-closed to real by `ORBIT_LIVE_SOURCES`. Empty by default. */
   liveSources: ReadonlySet<LiveSource>;
   port: number;
+  /** Leader routes, ERP routes, or both (ADR 0016 §9). */
+  surface: ApiSurface;
   /**
    * Ask narration providers, in fallback order. Empty when no key is configured,
    * which leaves Ask fully deterministic (ADR 0014).
@@ -114,6 +119,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     allowedOrigins: parseOrigins(vars.ALLOWED_ORIGINS),
     liveSources,
     port: vars.PORT,
+    surface: vars.ORBIT_SURFACE ?? 'all',
     askProviders: buildAskProviders(vars),
   };
 }

@@ -1294,7 +1294,7 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     if (method === "POST" && resource === "chatbot") {
       const message =
         typeof request.body === "object" && request.body !== null && "message" in request.body
-          ? String((request.body as { message: unknown }).message)
+          ? String(request.body.message)
           : "";
       return {
         status: 200,

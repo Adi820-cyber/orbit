@@ -13,6 +13,7 @@ import {
 import { OrbitBrand } from "@orbit/ui-kit";
 import { ApiRequestError } from "../../lib/api";
 import { onSessionEnded } from "../../lib/auth";
+import { APP_SURFACE, servesLeaders } from "../../lib/surface";
 import { Icon } from "../workspace/components";
 import { withClient, type WorkspaceEnvironment } from "../workspace/environment";
 import "../workspace/workspace.css";
@@ -41,6 +42,10 @@ export function erpLayoutLoader(environment: WorkspaceEnvironment) {
     withClient(environment, request, async (client) => {
       const identity = await client.identity();
       if (!("operatorRole" in identity)) {
+        // In the hospital-operations build "/" leads back here, so redirecting would loop.
+        if (!servesLeaders(APP_SURFACE)) {
+          throw new ApiRequestError("forbidden", "This portal is for hospital operations accounts.", 403);
+        }
         throw redirect("/");
       }
       const reference = await client.erp.reference();

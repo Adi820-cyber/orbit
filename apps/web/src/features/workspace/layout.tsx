@@ -11,7 +11,9 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import { OrbitBrand } from "@orbit/ui-kit";
+import { ApiRequestError } from "../../lib/api";
 import { onSessionEnded } from "../../lib/auth";
+import { APP_SURFACE, servesOperators } from "../../lib/surface";
 import { AskChat } from "../ask/chat";
 import { ChatbotPanel } from "../chatbot/panel";
 import { assignmentMap, humanize } from "../../lib/format";
@@ -45,6 +47,9 @@ export function workspaceLoader(environment: WorkspaceEnvironment) {
 
       // An ERP operator account has no leader workspace; its home is hospital operations (ADR 0016).
       if ("operatorRole" in membership) {
+        if (!servesOperators(APP_SURFACE)) {
+          throw new ApiRequestError("forbidden", "This portal is for leadership accounts. Use the hospital operations portal.", 403);
+        }
         throw redirect("/erp");
       }
 

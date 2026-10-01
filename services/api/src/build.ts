@@ -4,6 +4,7 @@ import { HealthResponseSchema, MeResponseSchema, OperatorMeResponseSchema } from
 import { claimsOf, decorateMembership, isOperatorClaims, requireAuth, type AuthOptions } from './plugins/auth.ts';
 import { registerErrorHandling } from './plugins/errors.ts';
 import { registerModules, type ModuleDeps } from './modules/index.ts';
+import type { ApiSurface } from './surface.ts';
 
 export interface AppOptions {
   auth: AuthOptions;
@@ -12,6 +13,8 @@ export interface AppOptions {
   /** Data sources for the six modules; `pendingModuleDeps()` until the schema exists. */
   modules: ModuleDeps;
   logger?: boolean;
+  /** Which half of Orbit this deployment serves; default `all` (src/surface.ts). */
+  surface?: ApiSurface;
 }
 
 /**
@@ -23,6 +26,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     logger: options.logger ? { redact: ['req.headers.authorization', 'req.headers.cookie'] } : false,
   });
 
+  const surface = options.surface ?? 'all';
   registerErrorHandling(app);
   decorateMembership(app);
 
@@ -57,7 +61,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   await app.register(
     async (api) => {
-      requireAuth(api, options.auth);
+      requireAuth(api, { ...options.auth, surface });
 
       api.get('/me', async (request) => {
         const claims = claimsOf(request);
@@ -75,7 +79,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
         });
       });
 
-      registerModules(api, options.modules);
+      registerModules(api, options.modules, surface);
     },
     { prefix: '/api' },
   );

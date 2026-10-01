@@ -113,6 +113,7 @@ Every source is fail-closed (`503 unavailable`) unless `ORBIT_LIVE_SOURCES` name
 | `scope` | RLS-visible `regions` / `facilities` / `coes` in the caller's organization; `group` needs an explicit group scope | Organization rows are seeded |
 | `entities` | Names from `organizations` / `regions` / `facilities` / `coes`, under the same RLS | Organization rows are seeded (already true since #28) |
 | `transitions` | `PROPOSED_TRANSITIONS` ([TRANSITIONS.md](TRANSITIONS.md)) | Aditya signs off the matrix |
+| `ORBIT_SURFACE` (not a source) | `leader`, `erp` or `all` (default): which routes this deployment registers and which kind of account it accepts | Running leadership and hospital operations as separate deployments ([DEPLOYMENT.md](../../docs/orbit/DEPLOYMENT.md)) |
 | `erp` | `orbit_erp` schema under operator claims (`db/erp.ts`, ADR 0016) | Migration 20261001000100 and seeds 0008–0010 are applied, and operator accounts are provisioned |
 
 Example: `ORBIT_LIVE_SOURCES=memberships,entitlements,scope`. The observation, exception, dataset, action, assignee, and audit stores have no tables yet, so they have no live option and stay fail-closed.

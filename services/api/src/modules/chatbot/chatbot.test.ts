@@ -49,8 +49,8 @@ describe('POST /api/chatbot', () => {
     expect(body.provenance).toBe('illustrative');
     expect(body.role).toBe('regional-coo');
     expect(body.sources).toHaveLength(2);
-    expect(body.sources[0].chunkId).toBe('k-1');
-    expect(body.sources[0].title).toBe('Regional Bed Capacity Target');
+    expect(body.sources[0]?.chunkId).toBe('k-1');
+    expect(body.sources[0]?.title).toBe('Regional Bed Capacity Target');
     expect(body.answer).toContain('Regional Bed Capacity Target');
     expect(body.disclosure).toMatch(/illustrative/i);
   });

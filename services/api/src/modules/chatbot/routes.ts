@@ -40,7 +40,7 @@ export function registerChatbotRoutes(api: FastifyInstance, deps: ModuleDeps): v
 
     // When no provider is configured (e.g. local preview or tests without keys),
     // fall back to a zero vector so role-scoped knowledge search still functions.
-    const queryEmbedding = embedding ?? new Array(1536).fill(0);
+    const queryEmbedding = embedding ?? Array.from({ length: 1536 }, () => 0);
 
     // Search knowledge chunks scoped to the caller's org, role (via RLS),
     // and primary entity scope.

@@ -1,6 +1,6 @@
 # ADR 0016: Hospital operations (ERP) module and the `admin` / `hospital` operator roles
 
-- **Status:** Proposed — implemented on branch `ghansham/docs-erp-plan` at the product owner's request, and verified locally (see "Verification"). It changes release-one scope (PRD §5.2: "a system-of-record replacement"), the membership model, and adds a schema, so it needs sign-off before merge: **Aditya** (scope, authorization, the two accounts), **Maruti** (migration, RLS, seed), **Ayas** (ERP screens).
+- **Status:** Proposed — implemented (merged to `main` of `ghanshamrna27-source/Pragyan`) at the product owner's request, and verified locally (see "Verification"). It changes release-one scope (PRD §5.2: "a system-of-record replacement"), the membership model, and adds a schema, so it needs sign-off before merge: **Aditya** (scope, authorization, the two accounts), **Maruti** (migration, RLS, seed), **Ayas** (ERP screens).
 - **Author:** Ghansham
 - **Date opened:** 2026-10-01
 - **Specification:** [docs/orbit/ERP_PLAN.md](../orbit/ERP_PLAN.md). This ADR records what was actually decided and built, including where it departs from the plan.
@@ -89,6 +89,14 @@ No contact, address, government-id, insurance, salary, bank or performance field
 - **Passwords:** the product owner chose short, memorable passwords and shares them out of band. They are **not in the repository**, following ADR 0013 §2 and RULES.md. The demo owner puts them in the gitignored `supabase/.env.provisioning`, and `npm run provision:erp --workspace=@orbit/data-gen` sets them in Supabase Auth and writes the membership SQL to the gitignored `supabase/seed/local/`.
 - **Risk to accept:** these passwords are short and guessable, and the web app is public. Anyone who guesses them sees synthetic records only, but can create and change ERP records in the demo. Rotate them before any external demo, or keep the accounts disabled outside demos.
 
+### §9 Separate hosting and the shared database
+
+- **Same database.** Hospital operations uses the same Supabase project as the leadership workspace, in its own `orbit_erp` schema (forced RLS on every table), through the same `orbit_app` role. It is **not** a separate database.
+- **Separate deployments are possible.** `ORBIT_SURFACE` (API) and `VITE_APP_SURFACE` (web) select `leader`, `erp` or `all` (the default, unchanged). A `leader` API does not register `/api/erp/*` and refuses operator accounts. An `erp` API does not register the leader routes and refuses leadership accounts. Four Vercel projects, one pair each, give separate URLs, environments, CORS lists and logs. See [DEPLOYMENT.md](../orbit/DEPLOYMENT.md).
+- **What it does not do.** Both API pairs still hold the same database credential, so separate hosting is not separate data. A deployment pair cannot serve the other kind of account, but a leaked `orbit_app` credential reaches both schemas. The web bundle also still contains the unused half's code; only the API and the database are the barrier.
+- **Stronger options, not built (a decision for Aditya):** (a) a dedicated database role for `orbit_erp` (every policy is currently `to orbit_app`, so this means revising them), or (b) a separate Supabase project for hospital operations. Option (b) needs no code change: apply all migrations plus the organization seed `0001` to the new project and run `provision:erp` against it. It costs a project slot (ADR 0008 §4.2).
+- **Applied to the dev project (2026-10-01):** migration `20261001000100` and seeds `0008`–`0010` were applied to `sxpnsnfzkpkzhsxjugde` with the Supabase CLI, **excluding** the chatbot's migration `20261001000200`. Afterwards the hosted database held 218 staff, 9,517 rosters, 8,651 punches, 1,020 patients, 2,010 visits and 3,516 services delivered, all 16 `orbit_erp` tables had RLS enabled and forced, and the 17 existing accounts and 14,688 KPI observations were unchanged. The three KPI seeds `0005`–`0007` were not re-run; the CLI only updated their recorded hashes.
+
 ## Verification (2026-10-01, local only; nothing applied to a shared project)
 
 **Migrations and seed**
@@ -119,8 +127,9 @@ No contact, address, government-id, insurance, salary, bank or performance field
 ## Follow-ups (owners)
 
 1. Sign off §1–§8, or reverse any of them. Then update PRD §5.2 and ARCHITECTURE §2/§7 (Aditya).
-2. Review the migration, RLS and seed. Then apply them to the dev project: `npx supabase db push --linked --include-seed` (Maruti).
-3. Provision the two accounts and hand over passwords out of band. Add `erp` to `ORBIT_LIVE_SOURCES` on the API project (Aditya).
+2. Review the migration, RLS and seed. They are already applied to the dev project (§9); Maruti reviews the result.
+3. Provision the two accounts and hand over passwords out of band (DEPLOYMENT.md §5). Add `erp` to `ORBIT_LIVE_SOURCES` on the API project (Aditya).
+3a. Decide whether hospital operations needs a dedicated database role or a separate Supabase project (§9) (Aditya).
 4. FILE_STRUCTURE.md: add `orbit_erp`, `features/erp`, `modules/erp` and their owners (Aditya).
 5. Manual keyboard review of the ERP screens (Ayas).
 6. D6: decide whether ERP facts should feed workbook KPIs (Maruti, Aditya).
