@@ -1,0 +1,71 @@
+{
+  "generatedBy": "packages/data-gen/scripts/generate-erp-seed.ts",
+  "provenance": "illustrative",
+  "seed": 20260923,
+  "organization": "kestrion",
+  "checksum": "e6216234b0af2e24aaeaf3bf0651ac47428e335b2722d85d976ea55872fc33e9",
+  "config": {
+    "rosterFrom": "2026-09-01",
+    "rosterTo": "2026-10-31",
+    "activityTo": "2026-09-30",
+    "settings": {
+      "lateGraceMinutes": 10,
+      "earlyExitGraceMinutes": 10,
+      "punchWindowBeforeMinutes": 120,
+      "punchWindowAfterMinutes": 240,
+      "credentialWarningDays": 30
+    },
+    "staffPer100Beds": {
+      "nurse": 6,
+      "doctor": 2.5,
+      "technician": 1.5,
+      "administrative": 1,
+      "support": 1.5
+    },
+    "patientsPer100Beds": 60,
+    "outpatientVisitsPer100BedsPerDay": 4,
+    "attendance": {
+      "absent": 0.03,
+      "late": 0.05,
+      "missingOut": 0.02,
+      "earlyExit": 0.02
+    }
+  },
+  "scenarios": [
+    {
+      "slug": "avenhurst-late-arrivals",
+      "facility": "avenhurst",
+      "description": "Three Avenhurst nurses arrive late on about a third of their shifts."
+    },
+    {
+      "slug": "brackmoor-missing-punches",
+      "facility": "brackmoor",
+      "description": "Brackmoor's last week of September has a cluster of missing out-punches."
+    },
+    {
+      "slug": "credential-renewals",
+      "facility": "dunmarrow",
+      "description": "Two Dunmarrow doctors' credentials expire within the warning window; one expired mid-September."
+    }
+  ],
+  "counts": {
+    "departments": 12,
+    "specialties": 8,
+    "shifts": 4,
+    "services": 17,
+    "availability": 80,
+    "staff": 218,
+    "doctors": 45,
+    "schedule": 117,
+    "rosters": 9517,
+    "punches": 8651,
+    "patients": 1020,
+    "encounters": 2010,
+    "deliveries": 3516
+  },
+  "files": [
+    "supabase/seed/0008_erp_reference.sql",
+    "supabase/seed/0009_erp_people.sql",
+    "supabase/seed/0010_erp_care.sql"
+  ]
+}

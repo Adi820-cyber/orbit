@@ -37,7 +37,7 @@ test("supports keyboard navigation and clear required-field errors", async ({ pa
   await expect(page.getByRole("textbox", { name: "Password" })).toBeFocused();
 
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByText("Enter your work email.")).toBeVisible();
+  await expect(page.getByText("Enter your work email or sign-in ID.")).toBeVisible();
   await expect(page.getByText("Enter your password.")).toBeVisible();
   await expect(page.getByLabel("Work email")).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByRole("textbox", { name: "Password" })).toHaveAttribute("aria-invalid", "true");

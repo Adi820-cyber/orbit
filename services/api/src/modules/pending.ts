@@ -1,6 +1,7 @@
 import { FRAMEWORK_MANIFEST } from '@orbit/kpi-framework';
 import { ApiError } from '../plugins/errors.ts';
 import { ILLUSTRATIVE_DISCLOSURE } from './index.ts';
+import { pendingErpStore } from './erp/pending.ts';
 import type { ModuleDeps } from './ports.ts';
 
 /** ADR 0014: Ask must stay responsive, so each provider gets at most this long. */
@@ -53,6 +54,7 @@ export function pendingModuleDeps(): ModuleDeps {
       decide: async () => pending('transition_matrix'),
     },
     entities: { visible: async () => pending('entity_directory') },
+    erp: pendingErpStore(() => pending('erp_store')),
     audit: {
       record: async () => pending('audit_store'),
       list: async () => pending('audit_store'),

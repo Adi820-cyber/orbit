@@ -13,6 +13,7 @@ import {
   DelegateActionRequestSchema,
   EntityDirectoryResponseSchema,
   ErrorEnvelopeSchema,
+  IdentityResponseSchema,
   InboxResponseSchema,
   KpiDetailQuerySchema,
   KpiDetailResponseSchema,
@@ -28,13 +29,14 @@ import {
   type KpiDetailQuery,
   type TransitionActionRequest,
 } from "@orbit/contracts";
+import { createErpClient } from "./erp-api";
 
-interface ContractParser<T> {
+export interface ContractParser<T> {
   safeParse(value: unknown): { success: true; data: T } | { success: false };
 }
 
 export interface ApiRequest {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PATCH" | "PUT";
   path: string;
   query?: URLSearchParams;
   body?: unknown;
@@ -140,7 +142,7 @@ function pageQuery(cursor?: string | null) {
 }
 
 /** Parses before sending, so the client never emits a payload the contract rejects. */
-function outgoing<T>(schema: ContractParser<T>, value: unknown): T {
+export function outgoing<T>(schema: ContractParser<T>, value: unknown): T {
   const parsed = schema.safeParse(value);
 
   if (!parsed.success) {
@@ -191,6 +193,9 @@ export function createApiClient(transport: ApiTransport) {
 
   return {
     me: () => call({ method: "GET", path: "/api/me" }, MeResponseSchema),
+    /** Either account kind: a leader (workbook role) or an ERP operator (ADR 0016). */
+    identity: () => call({ method: "GET", path: "/api/me" }, IdentityResponseSchema),
+    erp: createErpClient(call),
     brief: () => call({ method: "GET", path: "/api/brief" }, BriefResponseSchema),
     inbox: (cursor?: string | null) =>
       call({ method: "GET", path: "/api/inbox", query: pageQuery(cursor) }, InboxResponseSchema),

@@ -28,6 +28,7 @@ select
   m.subject::text         as "subject",
   m.organization_id::text as "organizationId",
   m.role_id               as "role",
+  m.operator_role         as "operatorRole",
   m.status                as "status",
   coalesce(
     jsonb_agg(

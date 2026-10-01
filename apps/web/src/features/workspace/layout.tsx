@@ -3,6 +3,7 @@ import {
   Form,
   NavLink,
   Outlet,
+  redirect,
   useLoaderData,
   useNavigate,
   useNavigation,
@@ -39,7 +40,12 @@ const SURFACES: readonly { path: string; label: string; short: string; icon: Ico
 export function workspaceLoader(environment: WorkspaceEnvironment) {
   return async ({ request }: LoaderFunctionArgs): Promise<WorkspaceData> =>
     withClient(environment, request, async (client) => {
-      const membership = await client.me();
+      const membership = await client.identity();
+
+      // An ERP operator account has no leader workspace; its home is hospital operations (ADR 0016).
+      if ("operatorRole" in membership) {
+        throw redirect("/erp");
+      }
 
       // Role selects the view configuration, never the data scope (ARCH §5).
       if (!roleViewConfigFor(membership.role)) {

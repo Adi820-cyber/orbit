@@ -15,6 +15,8 @@ import { buildApp } from '../../src/build.ts';
 import { ILLUSTRATIVE_DISCLOSURE, type ModuleDeps } from '../../src/modules/index.ts';
 import { createMatrixTransitionPolicy, PROPOSED_TRANSITIONS } from '../../src/modules/actions/transitions.ts';
 import type { ActionRelation, AuditDraft, NewAction } from '../../src/modules/ports.ts';
+import { pendingErpStore } from '../../src/modules/erp/pending.ts';
+import { ApiError } from '../../src/plugins/errors.ts';
 import { fixtureMemberships, fixtureResolver, MEMBERSHIPS, ORG_A } from './fixtures.ts';
 import { createTestIssuer, TEST_AUDIENCE, TEST_ISSUER } from './tokens.ts';
 
@@ -320,6 +322,10 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
             ]
           : [],
     },
+    // Leader tests never reach the ERP; ERP route tests use test/helpers/erp.ts.
+    erp: pendingErpStore(() => {
+      throw new ApiError('unavailable', 'Orbit is not available yet.', 'erp_store_not_in_leader_fixture');
+    }),
     ...overrides,
   };
   return { deps, auditEvents, actions };

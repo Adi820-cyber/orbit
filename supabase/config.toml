@@ -8,10 +8,13 @@
 # the all-role dataset (packages/data-gen: npm run generate:observations); they
 # superseded the financial-only 0002-0004, whose dataset stays in the linked
 # database but is no longer current.
+# 0008-0010 hold the hospital-operations (ERP) dataset (packages/data-gen:
+# npm run generate:erp; ADR 0016).
 # Demo accounts and memberships are provisioned out of band (ADR 0013 §2),
-# not by a seed file.
+# not by a seed file: see packages/data-gen/scripts/provision-erp-accounts.ts
+# for the ERP admin and hospital accounts.
 project_id = "orbit"
 
 [db.seed]
 enabled = true
-sql_paths = ["./seed/0005_kpi_observations.sql", "./seed/0006_kpi_exceptions.sql", "./seed/0007_kpi_brief_on_track.sql"]
+sql_paths = ["./seed/0005_kpi_observations.sql", "./seed/0006_kpi_exceptions.sql", "./seed/0007_kpi_brief_on_track.sql", "./seed/0008_erp_reference.sql", "./seed/0009_erp_people.sql", "./seed/0010_erp_care.sql"]

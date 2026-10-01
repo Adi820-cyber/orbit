@@ -9,3 +9,8 @@ export * from './exceptions.ts';
 export * from './ask.ts';
 export * from './actions.ts';
 export * from './entities.ts';
+export * from './erp-common.ts';
+export * from './erp-people.ts';
+export * from './erp-attendance.ts';
+export * from './erp-services.ts';
+export * from './erp-patients.ts';

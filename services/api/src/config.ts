@@ -70,6 +70,7 @@ export const LIVE_SOURCES = [
   'dataset',
   'observations',
   'exceptions',
+  'erp',
 ] as const;
 export type LiveSource = (typeof LIVE_SOURCES)[number];
 
@@ -85,6 +86,7 @@ export const DATABASE_SOURCES: readonly LiveSource[] = [
   'dataset',
   'observations',
   'exceptions',
+  'erp',
 ];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
