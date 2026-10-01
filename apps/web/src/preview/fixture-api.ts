@@ -1291,6 +1291,26 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
       return { status: 200, body: { interpretedAs: null, response } };
     }
 
+    if (method === "POST" && resource === "chatbot") {
+      const message =
+        typeof request.body === "object" && request.body !== null && "message" in request.body
+          ? String((request.body as { message: unknown }).message)
+          : "";
+      return {
+        status: 200,
+        body: {
+          answer: `[Preview mode] Received question: "${message}". In live mode, pgvector retrieves knowledge chunks scoped to your verified role (${membership.role}) and authorized facilities.`,
+          mode: "deterministic",
+          sources: [
+            { chunkId: "preview-chunk-1", title: `Operational guidelines for ${membership.role}`, similarity: 0.89 },
+          ],
+          role: membership.role,
+          provenance: "illustrative",
+          disclosure: PREVIEW_DISCLOSURE,
+        },
+      };
+    }
+
     if (method === "GET" && resource === "entities" && !id) return { status: 200, body: { entities: visibleEntities() } };
 
     if (resource === "actions") {

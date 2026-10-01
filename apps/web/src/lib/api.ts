@@ -9,6 +9,8 @@ import {
   AskResponseSchema,
   AuditListResponseSchema,
   BriefResponseSchema,
+  ChatbotRequestSchema,
+  ChatbotResponseSchema,
   CreateActionRequestSchema,
   DelegateActionRequestSchema,
   EntityDirectoryResponseSchema,
@@ -275,6 +277,11 @@ export function createApiClient(transport: ApiTransport) {
       ),
     audit: (cursor?: string | null) =>
       call({ method: "GET", path: "/api/audit", query: pageQuery(cursor) }, AuditListResponseSchema),
+    chatbot: async (message: string) =>
+      call(
+        { method: "POST", path: "/api/chatbot", body: outgoing(ChatbotRequestSchema, { message }) },
+        ChatbotResponseSchema,
+      ),
   };
 }
 

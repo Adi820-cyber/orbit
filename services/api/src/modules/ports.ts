@@ -168,6 +168,27 @@ export interface EntityDirectory {
   visible(membership: MembershipClaims): Promise<readonly unknown[]>;
 }
 
+/** Retrieved knowledge chunk from the vector store (pgvector). */
+export interface KnowledgeChunk {
+  id: string;
+  title: string;
+  content: string;
+  source: string;
+  similarity: number;
+}
+
+/**
+ * RAG knowledge source. Runs a cosine-similarity search over
+ * `orbit.knowledge_chunks`, scoped by RLS (org + role) and optional entity.
+ */
+export interface KnowledgeSource {
+  search(
+    membership: MembershipClaims,
+    embedding: number[],
+    options?: { threshold?: number; limit?: number; entityGrain?: string; entityId?: string },
+  ): Promise<readonly KnowledgeChunk[]>;
+}
+
 /**
  * Model narration for Ask answers (ADR 0014). No providers means every answer
  * stays deterministic, which is the default.
@@ -194,6 +215,8 @@ export interface ModuleDeps {
   /** Hospital operations (ADR 0016). Served only to ERP operator accounts. */
   erp: ErpStore;
   askNarration: AskNarration;
+  /** RAG knowledge retrieval for the chatbot. */
+  knowledge: KnowledgeSource;
   /** The disclosure rendered on every number surface (PRD §8.4). */
   disclosure: string;
 }

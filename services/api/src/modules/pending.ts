@@ -54,6 +54,7 @@ export function pendingModuleDeps(): ModuleDeps {
       decide: async () => pending('transition_matrix'),
     },
     entities: { visible: async () => pending('entity_directory') },
+    knowledge: { search: async () => pending('knowledge_store') },
     erp: pendingErpStore(() => pending('erp_store')),
     audit: {
       record: async () => pending('audit_store'),

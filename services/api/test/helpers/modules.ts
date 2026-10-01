@@ -326,6 +326,9 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
     erp: pendingErpStore(() => {
       throw new ApiError('unavailable', 'Orbit is not available yet.', 'erp_store_not_in_leader_fixture');
     }),
+    knowledge: {
+      search: async () => [],
+    },
     ...overrides,
   };
   return { deps, auditEvents, actions };

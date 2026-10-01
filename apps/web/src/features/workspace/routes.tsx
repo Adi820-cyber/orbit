@@ -6,6 +6,7 @@ import { NewActionRoute, newActionAction, newActionLoader } from "../actions/new
 import { AskRoute, askAction, askLoader } from "../ask/route";
 import { AuditRoute, auditLoader } from "../audit/route";
 import { BriefRoute, briefLoader } from "../brief/route";
+import { chatbotAction } from "../chatbot/action";
 import { ExplorerDetailRoute, explorerDetailLoader } from "../explorer/detail-route";
 import { ExplorerIndexRoute } from "../explorer/index-route";
 import { InboxRoute, inboxLoader } from "../inbox/route";
@@ -50,6 +51,7 @@ export function workspaceRoutes(environment: WorkspaceEnvironment): RouteObject 
       { path: "explorer", Component: ExplorerIndexRoute, ...surface },
       { path: "explorer/:assignmentId", loader: explorerDetailLoader(environment), Component: ExplorerDetailRoute, ...surface },
       { path: "ask", loader: askLoader(environment), action: askAction(environment), Component: AskRoute, ...surface },
+      { path: "chatbot", action: chatbotAction(environment) },
       { path: "actions", loader: actionsLoader(environment), Component: ActionsRoute, ...surface },
       { path: "actions/new", loader: newActionLoader(environment), action: newActionAction(environment), Component: NewActionRoute, ...surface },
       {

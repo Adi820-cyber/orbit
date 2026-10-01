@@ -13,6 +13,7 @@ import {
 import { OrbitBrand } from "@orbit/ui-kit";
 import { onSessionEnded } from "../../lib/auth";
 import { AskChat } from "../ask/chat";
+import { ChatbotPanel } from "../chatbot/panel";
 import { assignmentMap, humanize } from "../../lib/format";
 import { roleViewConfigFor } from "../../roles/config";
 import { Icon, type IconName } from "./components";
@@ -207,6 +208,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
           </footer>
         </div>
         <AskChat />
+        <ChatbotPanel />
       </div>
     </WorkspaceContext.Provider>
   );
