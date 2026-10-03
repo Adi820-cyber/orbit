@@ -212,7 +212,7 @@ export function ErpErrorBoundary() {
   return (
     <>
       <title>Unavailable | Orbit hospital operations</title>
-      <SurfaceState kind={described.kind} title={described.title} message={described.message}>
+      <SurfaceState kind={described.kind} title={described.title} message={described.message} level={1}>
         <Link className="orbit-button" data-variant="secondary" to="/erp">
           Back to today
         </Link>

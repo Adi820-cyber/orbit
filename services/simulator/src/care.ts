@@ -98,6 +98,15 @@ async function progressVisits(ctx: Ctx, state: SimState, facility: FacilityRef, 
       const marker = `${encounter.encounterId}|${index}`;
       if (state.delivered.has(marker) || service.offsetMinutes > ageMinutes) continue;
 
+      const plannedMs = startedMs + service.offsetMinutes * 60_000;
+      // Never rewrite history older than the back-fill limit (ADR 0017 §3), and in
+      // single-run mode leave what earlier runs covered to them.
+      const lookbackMs = Math.min(ctx.cfg.catchupMaxHours * 3_600_000, (ctx.cfg.serviceLookbackSeconds ?? Infinity) * 1000);
+      if (nowMs - plannedMs > lookbackMs) {
+        state.delivered.add(marker);
+        continue;
+      }
+
       const offered = catalogue.filter((item) => item.service.isActive && item.availability?.isAvailable && item.service.category === service.category);
       const chosen = pickBy(offered, ctx.cfg.seed, 'service', encounter.encounterId, String(index));
       if (!chosen) {
@@ -110,7 +119,6 @@ async function progressVisits(ctx: Ctx, state: SimState, facility: FacilityRef, 
         continue;
       }
 
-      const plannedMs = startedMs + service.offsetMinutes * 60_000;
       const backDated = nowMs - plannedMs > ctx.cfg.catchupSeconds * 1000;
       const result = await write(ctx, 'record service', () =>
         desk.api.recordDelivery(encounter.encounterId, {

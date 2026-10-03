@@ -35,6 +35,8 @@ async function main(): Promise<void> {
   let cfg: SimConfig;
   try {
     cfg = loadConfig();
+    // Three intervals: covers a scheduled run that starts late or is skipped once.
+    if (once) cfg = { ...cfg, serviceLookbackSeconds: cfg.tickSeconds * 3 };
   } catch (error: unknown) {
     log.error('configuration error', { message: error instanceof Error ? error.message : 'unknown' });
     process.exit(1);

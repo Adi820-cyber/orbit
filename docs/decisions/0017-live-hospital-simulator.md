@@ -29,7 +29,8 @@ Vercel hosts the web app and the API, and cannot host this. Its functions are sh
 Each tick reads what the ERP says is happening and does whatever should have happened by now.
 
 - Every decision (who is late, how long a visit lasts, which services it needs) is drawn from a seeded stream keyed on the person, visit and date. Every write carries an idempotency key from the same labels. A tick is therefore safe to repeat, skip or run after a long pause, and a restart never re-decides a day or records anything twice. (Verified: a second process replaying the same state created no duplicate rows.)
-- After downtime it catches up. A punch within a few minutes of its time is recorded by the desk at the real time. A later one is back-dated by the admin to when it should have happened. Planned events older than a limit (24 hours by default; the API allows 31 days) are never back-filled, so history is not rewritten.
+- After downtime it catches up. A punch within a few minutes of its time is recorded by the desk at the real time. A later one is back-dated by the admin to when it should have happened. Planned events older than a limit (24 hours by default; the API allows 31 days) are never back-filled, so history is not rewritten. This applies to services as well as punches (fixed 2026-10-03: services on long-open visits were being back-dated a week).
+- **Single-run mode (`--once`).** Used by the scheduled GitHub Actions run every ten minutes. A fresh process cannot tell which services earlier runs recorded, so it only considers services due within three run intervals; without this each run re-sent every open visit's history, which the API ignored as duplicates but which used up the write budget. The tick length is set to the run interval (600 seconds), because patient arrivals per tick scale with it.
 
 ### §4 The day director: a model chooses an hour's mood, nothing more
 

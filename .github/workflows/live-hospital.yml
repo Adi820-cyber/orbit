@@ -65,7 +65,10 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           SIM_ADMIN_EMAIL: ${{ secrets.SIM_ADMIN_EMAIL }}
           SIM_ADMIN_PASSWORD: ${{ secrets.SIM_ADMIN_PASSWORD }}
-          # A run every ten minutes: allow the write budget a little more per tick.
+          # One run covers ten minutes. Patient arrivals per run scale with this,
+          # so at the default 60 a run would bring a tenth of the expected patients.
+          SIM_TICK_SECONDS: '600'
+          # ...and a ten-minute run makes more writes than a one-minute tick.
           SIM_MAX_WRITES_PER_TICK: '150'
 
       - name: Knowledge sync

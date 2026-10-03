@@ -55,6 +55,13 @@ export interface SimConfig {
   catchupSeconds: number;
   /** Planned events older than this are never back-filled. */
   catchupMaxHours: number;
+  /**
+   * Single-run mode only (`--once`, e.g. a scheduler every ten minutes): a fresh
+   * process cannot tell which services earlier runs already recorded, so it only
+   * considers services due within this many seconds and leaves older ones to the
+   * runs that came before. Null for the always-on worker, which remembers.
+   */
+  serviceLookbackSeconds: number | null;
   directorMinutes: number;
   providers: readonly LlmProvider[];
   /** Health endpoint port, for hosts that probe one (Railway, Render web services). */
@@ -190,6 +197,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     bootstrap: vars.SIM_BOOTSTRAP,
     catchupSeconds: vars.SIM_CATCHUP_SECONDS,
     catchupMaxHours: vars.SIM_CATCHUP_MAX_HOURS,
+    serviceLookbackSeconds: null,
     directorMinutes: vars.SIM_DIRECTOR_MINUTES,
     providers,
     port: vars.PORT,

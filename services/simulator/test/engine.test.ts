@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from '../src/config.ts';
+import { loadConfig, type SimConfig } from '../src/config.ts';
 import { NEUTRAL_MOOD, type Mood } from '../src/director.ts';
 import { createSimulator, type TickSummary } from '../src/engine.ts';
 import { silentLogger } from '../src/log.ts';
@@ -44,19 +44,23 @@ function world(env: Record<string, string> = {}, options: { desk?: boolean; mood
   const admin = new FakeErp('admin', clock, { isAdmin: true });
   const desk = new FakeErp('desk', clock, { isAdmin: false, shared: admin });
   const desks = options.desk === false ? new Map<string, FakeErp>() : new Map([['avenhurst', desk]]);
-  const sim = createSimulator({
-    cfg,
-    clock,
-    log: silentLogger,
-    admin,
-    desks,
-    director: { decide: async () => moods[Math.min(moodCalls++, moods.length - 1)] ?? NEUTRAL_MOOD },
-  });
+  const simWith = (overrides: Partial<SimConfig> = {}) =>
+    createSimulator({
+      cfg: { ...cfg, ...overrides },
+      clock,
+      log: silentLogger,
+      admin,
+      desks,
+      director: { decide: async () => moods[Math.min(moodCalls++, moods.length - 1)] ?? NEUTRAL_MOOD },
+    });
+  const sim = simWith();
   return {
     cfg,
     admin,
     desk,
     sim,
+    /** Another simulator process over the same hospital and clock, e.g. one started with --once. */
+    simWith,
     setNow: (ms: number) => {
       nowMs = ms;
     },
@@ -311,6 +315,33 @@ describe('visits', () => {
     expect(visit.status).toBe('closed');
     expect(visit.endedAt).not.toBeNull();
     for (const delivery of w.admin.deliveries) expect(delivery.at <= (visit.endedAt ?? '')).toBe(true);
+  });
+
+  it('never back-fills a service planned longer ago than the back-fill limit, and still closes the visit', async () => {
+    const { w } = await ward({ SIM_CATCHUP_MAX_HOURS: '1' });
+    const visit = w.admin.seedEncounter(A, 'inpatient', `${DATE}T10:00:00.000Z`);
+    const plan = visitPlan(w.cfg.seed, visit.encounterId, 'inpatient');
+    w.setNow(at(visit.startedAt) + (plan.lengthMinutes + 1) * MINUTE);
+    await w.sim.tick();
+    const limit = w.now() - 60 * MINUTE;
+    expect(w.admin.deliveries.every((delivery) => Date.parse(delivery.at) >= limit)).toBe(true);
+    expect(visit.status).toBe('closed');
+  });
+
+  it('in single-run mode, only sends services due since the last few runs, so a run does not resend a visit’s history', async () => {
+    const lookbackSeconds = 1800;
+    const run = async (overrides: Partial<SimConfig>) => {
+      const { w } = await ward();
+      const visit = w.admin.seedEncounter(A, 'inpatient', `${DATE}T10:00:00.000Z`);
+      w.setNow(at(`${DATE}T15:00:00Z`));
+      await w.simWith(overrides).tick();
+      const cutoff = w.now() - lookbackSeconds * 1000;
+      return w.admin.deliveries.filter((delivery) => delivery.encounterId === visit.encounterId && Date.parse(delivery.at) < cutoff).length;
+    };
+    // The always-on worker catches up on the whole day...
+    expect(await run({})).toBeGreaterThan(0);
+    // ...a single run leaves what earlier runs covered to them.
+    expect(await run({ serviceLookbackSeconds: lookbackSeconds })).toBe(0);
   });
 
   it('leaves the visit open until it is old enough, and does not record a service before it is due', async () => {

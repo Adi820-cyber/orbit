@@ -334,18 +334,22 @@ export function SurfaceState({
   title,
   message,
   children,
+  level = 2,
 }: {
   kind: SurfaceStateKind;
   title: string;
   message: string;
   children?: ReactNode;
+  /** 1 when the state replaces the whole page (an error boundary), so the page still has a main heading. */
+  level?: 1 | 2;
 }) {
+  const Heading = level === 1 ? "h1" : "h2";
   return (
     <section className="workspace-state" data-kind={kind} role={kind === "empty" ? undefined : "alert"}>
       <span className="orbit-status" data-state={kind === "invalid_request" ? "missing" : kind}>
         {STATE_LABEL[kind]}
       </span>
-      <h2>{title}</h2>
+      <Heading>{title}</Heading>
       <p>{message}</p>
       {children ? <div className="workspace-state__actions">{children}</div> : null}
     </section>
