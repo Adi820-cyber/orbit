@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useFetcher } from "react-router";
-import { roleLabel } from "../../lib/format";
+import { formatDateTime, humanize, roleLabel } from "../../lib/format";
 import { useWorkspace, useWorkspacePath } from "../workspace/environment";
 import type { ChatbotActionData } from "./action";
 import "./chatbot.css";
@@ -51,16 +51,21 @@ function BotAnswer({ result }: { result: ChatbotResult }) {
       {response.sources.length > 0 ? (
         <details>
           <summary style={{ cursor: "pointer", fontSize: "var(--orbit-font-size-200)", color: "var(--orbit-color-secondary-strong)", fontWeight: "var(--orbit-font-weight-semibold)" }}>
-            {response.sources.length} source{response.sources.length === 1 ? "" : "s"} used
+            {response.sources.length} source{response.sources.length === 1 ? "" : "s"} found for your role
           </summary>
-          <ul className="chatbot-panel__sources">
+          <ol className="chatbot-panel__sources">
             {response.sources.map((source) => (
               <li key={source.chunkId} className="chatbot-panel__source">
-                <span className="chatbot-panel__source-title">{source.title}</span>
-                <span className="chatbot-panel__source-score">{Math.round(source.similarity * 100)}% match</span>
+                <span className="chatbot-panel__source-title">
+                  {source.title}
+                  {source.cited ? " (cited)" : ""}
+                </span>
+                <span className="chatbot-panel__source-score">
+                  {humanize(source.domain)} · as of {formatDateTime(source.asOf)} · matched by {source.matchedBy === "hybrid" ? "meaning and words" : source.matchedBy === "vector" ? "meaning" : "words"}
+                </span>
               </li>
             ))}
-          </ul>
+          </ol>
         </details>
       ) : null}
       {response.mode === "assisted" ? (

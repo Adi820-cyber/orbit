@@ -10,6 +10,7 @@ import { chatbotAction } from "../chatbot/action";
 import { ExplorerDetailRoute, explorerDetailLoader } from "../explorer/detail-route";
 import { ExplorerIndexRoute } from "../explorer/index-route";
 import { InboxRoute, inboxLoader } from "../inbox/route";
+import { OperationsRoute, operationsLoader } from "../operations/route";
 import { SurfaceState } from "./components";
 import type { WorkspaceEnvironment } from "./environment";
 import { WorkspaceLayout, workspaceLoader } from "./layout";
@@ -50,6 +51,7 @@ export function workspaceRoutes(environment: WorkspaceEnvironment): RouteObject 
       { path: "inbox", loader: inboxLoader(environment), Component: InboxRoute, ...surface },
       { path: "explorer", Component: ExplorerIndexRoute, ...surface },
       { path: "explorer/:assignmentId", loader: explorerDetailLoader(environment), Component: ExplorerDetailRoute, ...surface },
+      { path: "operations", loader: operationsLoader(environment), Component: OperationsRoute, ...surface },
       { path: "ask", loader: askLoader(environment), action: askAction(environment), Component: AskRoute, ...surface },
       { path: "chatbot", action: chatbotAction(environment) },
       { path: "actions", loader: actionsLoader(environment), Component: ActionsRoute, ...surface },

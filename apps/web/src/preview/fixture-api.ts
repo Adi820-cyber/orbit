@@ -7,6 +7,7 @@ import {
   GrainSchema,
   KpiDetailQuerySchema,
   PageQuerySchema,
+  seesOperations,
   TransitionActionRequestSchema,
   type Action,
   type ActionEvent,
@@ -22,6 +23,8 @@ import {
   type EntityDirectoryEntry,
   type MeResponse,
   type MeasureValue,
+  type OperationsDay,
+  type OperationsNow,
   type Observation,
   type Period,
   type PermittedAssignee,
@@ -204,6 +207,28 @@ interface PreviewState {
   actions: StoredAction[];
   audit: AuditEvent[];
   counter: number;
+}
+
+function operationsAttendance(days: readonly OperationsDay[]) {
+  const sum = (pick: (day: OperationsDay) => number) => days.reduce((total, day) => total + pick(day), 0);
+  const finished = sum((d) => d.rostered) - sum((d) => d.inProgress);
+  const completed = sum((d) => d.onTime) + sum((d) => d.late) + sum((d) => d.earlyExit);
+  const rate = (count: number): MeasureValue =>
+    finished === 0 ? { status: "not_applicable", reason: "zero_denominator" } : { status: "available", value: Math.round((count / finished) * 1000) / 10 };
+  return {
+    days: 14,
+    finished,
+    completed,
+    onTime: sum((d) => d.onTime),
+    late: sum((d) => d.late),
+    earlyExit: sum((d) => d.earlyExit),
+    missingPunch: sum((d) => d.missingPunch),
+    absent: sum((d) => d.absent),
+    completionRate: rate(completed),
+    onTimeRate: rate(sum((d) => d.onTime)),
+    missingPunchRate: rate(sum((d) => d.missingPunch)),
+    absentRate: rate(sum((d) => d.absent)),
+  };
 }
 
 class FixtureError extends Error {
@@ -760,6 +785,115 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     return all.filter((entry) => groupScoped || contains({ grain: entry.grain, entityId: entry.entityId }));
   }
 
+
+  /**
+   * Mirrors `GET /api/operations`: placeholder counts for each hospital the
+   * caller can see. Invented for the preview only; not generated hospital data.
+   */
+  function operationsFor(): unknown {
+    if (!seesOperations(membership.role)) {
+      throw new FixtureError("forbidden", "Your role does not include hospital operations.");
+    }
+    const hospitals = visibleEntities()
+      .filter((entry) => entry.grain === "facility")
+      .map((entry, index) => {
+        const n = index + 1;
+        const snapshotNow: OperationsNow = {
+          staffing: { activeStaff: 40 + n, rosteredToday: 24 + n, onDutyNow: 10 + n, lateToday: n, missingPunchToday: 0, absentToday: 1 },
+          doctors: { total: 8, credentialActive: 7, credentialExpiring: 1, credentialExpired: 0, credentialSuspended: 0 },
+          visits: { openNow: 4 + n, openInpatients: 3, startedToday: 8 + n, startedLast7Days: 50 + n },
+          services: { deliveredToday: 18 + n, deliveredLast7Days: 120 + n },
+          pendingCorrections: 1,
+        };
+        const daily: OperationsDay[] = [1, 2, 3].map((back) => ({
+          date: `2026-09-${String(30 - back).padStart(2, "0")}`,
+          rostered: 24,
+          inProgress: 0,
+          onTime: 20,
+          late: 2,
+          earlyExit: 1,
+          missingPunch: 0,
+          absent: 1,
+          onLeave: 2,
+        }));
+        return {
+          facilityId: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+          name: entry.label,
+          now: snapshotNow,
+          attendance: operationsAttendance(daily),
+          daily,
+          lastActivityAt: "2026-10-01T09:00:00.000Z",
+        };
+      });
+    const sum = (pick: (hospital: (typeof hospitals)[number]) => number) => hospitals.reduce((total, hospital) => total + pick(hospital), 0);
+    const rollupDaily: OperationsDay[] = hospitals[0]
+      ? hospitals[0].daily.map((day, i) => {
+          const at = (pick: (d: OperationsDay) => number) => sum((hospital) => pick(hospital.daily[i] as OperationsDay));
+          return {
+            date: day.date,
+            rostered: at((d) => d.rostered),
+            inProgress: at((d) => d.inProgress),
+            onTime: at((d) => d.onTime),
+            late: at((d) => d.late),
+            earlyExit: at((d) => d.earlyExit),
+            missingPunch: at((d) => d.missingPunch),
+            absent: at((d) => d.absent),
+            onLeave: at((d) => d.onLeave),
+          };
+        })
+      : [];
+    return {
+      source: "hospital-operations",
+      asOf: "2026-10-01T10:00:00.000Z",
+      today: "2026-10-01",
+      periodDays: 14,
+      scope: membership.scopes,
+      rollup: {
+        hospitals: hospitals.length,
+        now: {
+          staffing: {
+            activeStaff: sum((h) => h.now.staffing.activeStaff),
+            rosteredToday: sum((h) => h.now.staffing.rosteredToday),
+            onDutyNow: sum((h) => h.now.staffing.onDutyNow),
+            lateToday: sum((h) => h.now.staffing.lateToday),
+            missingPunchToday: sum((h) => h.now.staffing.missingPunchToday),
+            absentToday: sum((h) => h.now.staffing.absentToday),
+          },
+          doctors: {
+            total: sum((h) => h.now.doctors.total),
+            credentialActive: sum((h) => h.now.doctors.credentialActive),
+            credentialExpiring: sum((h) => h.now.doctors.credentialExpiring),
+            credentialExpired: sum((h) => h.now.doctors.credentialExpired),
+            credentialSuspended: sum((h) => h.now.doctors.credentialSuspended),
+          },
+          visits: {
+            openNow: sum((h) => h.now.visits.openNow),
+            openInpatients: sum((h) => h.now.visits.openInpatients),
+            startedToday: sum((h) => h.now.visits.startedToday),
+            startedLast7Days: sum((h) => h.now.visits.startedLast7Days),
+          },
+          services: {
+            deliveredToday: sum((h) => h.now.services.deliveredToday),
+            deliveredLast7Days: sum((h) => h.now.services.deliveredLast7Days),
+          },
+          pendingCorrections: sum((h) => h.now.pendingCorrections),
+        },
+        attendance: operationsAttendance(rollupDaily),
+        daily: rollupDaily,
+      },
+      hospitals,
+      dataQuality: {
+        state: "illustrative",
+        reconciliation: "not_applicable",
+        freshness: "current",
+        refreshedAt: "2026-10-01T09:00:00.000Z",
+        limitations: ["Preview placeholder counts; not generated hospital data."],
+      },
+      provenance: "illustrative",
+      disclosure: PREVIEW_DISCLOSURE,
+    };
+  }
+
   function decide(assignmentId: string, target: ScopeEntity, breakdown?: ScopeEntity["grain"]) {
     const entitlement = entitlements.find((row) => row.assignmentId === assignmentId);
     if (!entitlement) return null;
@@ -1299,17 +1433,29 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
       return {
         status: 200,
         body: {
-          answer: `[Preview mode] Received question: "${message}". In live mode, pgvector retrieves knowledge chunks scoped to your verified role (${membership.role}) and authorized facilities.`,
+          answer: `[Preview mode] Received question: "${message}". In live mode the knowledge base is searched as your verified role (${membership.role}) and scope, and only what that role may read is used.`,
           mode: "deterministic",
           sources: [
-            { chunkId: "preview-chunk-1", title: `Operational guidelines for ${membership.role}`, similarity: 0.89 },
+            {
+              chunkId: "preview-chunk-1",
+              title: `Preview knowledge for ${membership.role}`,
+              similarity: 0.89,
+              domain: "kpi-definitions",
+              matchedBy: "text",
+              asOf: "2026-10-01T09:00:00.000Z",
+              cited: false,
+            },
           ],
+          coverage: "answered",
           role: membership.role,
+          scope: membership.scopes,
           provenance: "illustrative",
           disclosure: PREVIEW_DISCLOSURE,
         },
       };
     }
+
+    if (method === "GET" && resource === "operations" && !id) return { status: 200, body: operationsFor() };
 
     if (method === "GET" && resource === "entities" && !id) return { status: 200, body: { entities: visibleEntities() } };
 

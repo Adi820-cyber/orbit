@@ -8,6 +8,7 @@ import { registerEntityRoutes } from './entities/routes.ts';
 import { registerErpModule } from './erp/routes.ts';
 import { registerInboxRoutes } from './inbox/routes.ts';
 import { registerKpiRoutes } from './kpi/routes.ts';
+import { registerOperationsRoutes } from './operations/routes.ts';
 import { servesLeaders, servesOperators, type ApiSurface } from '../surface.ts';
 import type { ModuleDeps } from './ports.ts';
 
@@ -33,6 +34,7 @@ export function registerModules(api: FastifyInstance, deps: ModuleDeps, surface:
     registerAuditRoutes(api, deps);
     registerEntityRoutes(api, deps);
     registerChatbotRoutes(api, deps);
+    registerOperationsRoutes(api, deps);
   }
   if (servesOperators(surface)) {
     registerErpModule(api, deps);

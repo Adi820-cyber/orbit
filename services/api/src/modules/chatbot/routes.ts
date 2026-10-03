@@ -7,20 +7,19 @@ import { generateEmbedding } from './embedder.ts';
 import { buildChatbotResponse } from './responder.ts';
 
 /*
- * RAG chatbot route (POST /api/chatbot).
+ * Knowledge chatbot (POST /api/chatbot, ADR 0019).
  *
- * Authorization flow:
- * 1. Auth hook verifies the token and loads the membership (same as every route).
- * 2. The user's message is embedded via the configured model provider.
- * 3. The embedding is used to search `orbit.knowledge_chunks` under RLS,
- *    which filters by organization and role. Entity-scope is taken from the
- *    caller's primary scope entity.
- * 4. Retrieved chunks are assembled into a context card and narrated.
- * 5. The numeric token guard (ADR 0014 §1) rejects any narration that
- *    introduces a number not present in the source chunks.
+ * 1. The auth hook verifies the token and loads the membership, as for every route.
+ * 2. The question is embedded when a provider is configured. If not (or if the
+ *    provider fails), search still runs on the question's words.
+ * 3. orbit.search_knowledge() runs under the caller's verified claims. Row-level
+ *    security decides what it can see: their organization, a scope that covers
+ *    the chunk's entity, and a role or domain grant. The route sends no entity,
+ *    role or filter of its own, so a client cannot widen the search.
+ * 4. The answer is written from what came back (see responder.ts): a grounded
+ *    model answer with citations, or a deterministic one.
  *
- * If embedding or retrieval fails, the response is an explicit "unavailable"
- * rather than a fabricated answer.
+ * If search fails the answer says so; it is never invented.
  */
 
 export function registerChatbotRoutes(api: FastifyInstance, deps: ModuleDeps): void {
@@ -28,53 +27,39 @@ export function registerChatbotRoutes(api: FastifyInstance, deps: ModuleDeps): v
     const membership = membershipOf(request);
     const { message } = parseInput(ChatbotRequestSchema, request.body);
 
-    // Use the first configured provider for embeddings when available.
-    const provider = deps.askNarration.providers[0];
-    let embedding: number[] | null = null;
-    if (provider) {
-      embedding = await generateEmbedding(message, {
-        provider,
-        ...(deps.askNarration.fetchImpl ? { fetchImpl: deps.askNarration.fetchImpl } : {}),
-      });
-    }
+    const { provider, model, fetchImpl } = deps.embedding;
+    const embedding = provider
+      ? await generateEmbedding(message, { provider, model, ...(fetchImpl ? { fetchImpl } : {}) })
+      : null;
 
-    // When no provider is configured (e.g. local preview or tests without keys),
-    // fall back to a zero vector so role-scoped knowledge search still functions.
-    const queryEmbedding = embedding ?? Array.from({ length: 1536 }, () => 0);
-
-    // Search knowledge chunks scoped to the caller's org, role (via RLS),
-    // and primary entity scope.
-    const primaryScope = membership.scopes[0];
     let chunks;
     try {
-      chunks = await deps.knowledge.search(membership, queryEmbedding, {
-        entityGrain: primaryScope?.grain,
-        entityId: primaryScope?.entityId,
-      });
+      chunks = await deps.knowledge.search(membership, { text: message, embedding });
     } catch (error) {
       request.log.error({ err: error }, 'chatbot knowledge search failed');
       return {
         answer: 'Knowledge search is temporarily unavailable. Please try again later.',
         mode: 'deterministic',
         sources: [],
+        coverage: 'no_sources',
         role: membership.role,
+        scope: membership.scopes,
         provenance: 'illustrative',
         disclosure: deps.disclosure,
       };
     }
 
-    // Build the response: deterministic card + optional narration.
     const { response, narration } = await buildChatbotResponse(deps, membership, message, chunks);
-    if (narration) {
-      request.log.info(
-        narration.status === 'narrated'
-          ? { narration: 'narrated', provider: narration.provider }
-          : { narration: 'declined', reason: narration.reason, detail: narration.detail },
-        'chatbot narration',
-      );
-    }
+    request.log.info(
+      {
+        retrieval: embedding ? 'vector+text' : 'text',
+        sources: chunks.length,
+        narration: narration?.status ?? 'none',
+        ...(narration?.status === 'declined' ? { reason: narration.reason, detail: narration.detail } : {}),
+      },
+      'chatbot answer',
+    );
 
-    // Audit the interaction (read-side, not blocking the response).
     await auditRead(deps, request, membership, {
       kind: 'ask_answered',
       target: { type: 'ask', id: 'chatbot' },

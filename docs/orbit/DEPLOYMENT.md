@@ -21,6 +21,8 @@ Set **Node.js 22.x** on every project (`engines` is `>=22.18 <23`).
 
 **A. Combined (what runs today).** Two projects, `orbit-web` and `orbit-api`, with `ORBIT_SURFACE` and `VITE_APP_SURFACE` unset. Both kinds of account use the same URLs.
 
+**A2. ERP web separate, one shared API (ADR 0018).** Three projects: `orbit-web` (`VITE_APP_SURFACE` `leader` or unset), `orbit-erp-web` (`VITE_APP_SURFACE=erp`) and one `orbit-api` (`ORBIT_SURFACE` unset or `all`). Leaders get a **Hospital operations** page built from the ERP's aggregates; hospital staff use the ERP web. On `orbit-api`, `ORBIT_LIVE_SOURCES` must include `erp` (it also switches on the leaders' operations feed, and without it `/api/operations` answers 503), and `ALLOWED_ORIGINS` must list **both** web origins. The `orbit-erp-web` project needs only `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_API_BASE_URL` (the shared API URL) and `VITE_APP_SURFACE=erp`; Root Directory `apps/web`. Migration `20261001000150_operations_feed.sql` must be applied first.
+
 **B. Separated (recommended for hospital operations).** Four projects. Leadership and hospital operations get their own URLs, environment variables, CORS allow-list, deployment history and logs:
 
 | Project | Root directory | `VITE_APP_SURFACE` / `ORBIT_SURFACE` | Serves |
@@ -55,7 +57,7 @@ How the switch works:
 | `ALLOWED_ORIGINS` | the leadership web URL | the hospital operations web URL | **Exact origins only**, comma-separated, no wildcards. Preview deployments are not matched (the ADR 0007 pattern is not implemented in code). |
 | `GROQ_API_KEY`, `GROQ_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | optional | not used | Ask narration; leader only. |
 
-The chatbot added in commit `1212040` uses an extra `knowledge` source. Its migration (`20261001000200`) is now applied to the dev project (see §6) with no rows loaded; add `knowledge` to `ORBIT_LIVE_SOURCES` once there is content to serve.
+The chatbot uses an extra `knowledge` source (ADR 0019). Migrations `20261001000200` and `20261001000250` are applied to the dev project and its knowledge base is built (892 chunks). To switch it on, add `knowledge` to `ORBIT_LIVE_SOURCES` on the API. `EMBEDDING_MODEL` (optional, default `openai/text-embedding-3-small`, must be 1536 dimensions) uses the existing `OPENROUTER_API_KEY`; without that key the chatbot searches by words only. The knowledge base is kept current by the `orbit-knowledge-sync` cron job in [render.yaml](../../render.yaml) (`DATABASE_URL`, `OPENROUTER_API_KEY`), or by running `npm run knowledge:sync --workspace=@orbit/api` on any schedule.
 
 ### Web projects (public: inlined into the browser bundle)
 
@@ -95,7 +97,20 @@ Short, guessable passwords on a public site expose synthetic records but allow e
 - **Chatbot migration** `20261001000200_knowledge_chunks.sql` is now applied to the dev project: it was missing `grant select` on `orbit.knowledge_chunks` for `orbit_app` (the table-level grant a `security invoker` function still needs on top of its RLS policy), and its `match_knowledge` function could not resolve the pgvector `<=>` operator because `extensions` was not on its search path. Both are fixed in the migration file and applied.
 - **Automatic deploys** need Vercel's GitHub app on the repository; until then deploy with the Vercel CLI.
 
-## 7. What was verified (2026-10-01, locally)
+## 7. The live hospital simulator (separate project, Render or Railway)
+
+An optional third service that acts as a hospital around the clock, so the ERP shows live activity instead of seeded history: it punches staff in and out, registers patients, runs visits and records services, all through the ERP API as real accounts. It is **not** on Vercel (a process that runs all day cannot be). It runs on **Render** (a background worker; [render.yaml](../../render.yaml) is a Blueprint) or **Railway**.
+
+Build `npm ci --omit=dev --ignore-scripts --workspace=@orbit/simulator`, start `node services/simulator/src/main.ts`, Node 22. It needs only the ERP API URL, the Supabase URL and publishable key, and an admin account; everything else is optional. Full guide, settings, load estimate and limits: [services/simulator/README.md](../../services/simulator/README.md). Decisions: [ADR 0017](../decisions/0017-live-hospital-simulator.md).
+
+It changes this guide in two ways:
+
+- The database then needs only the migrations, the organization seed `0001` and the reference seed `0008`. The people and history seeds (`0009`, `0010`) are not needed.
+- It adds load to the ERP API: roughly 0.9 million reads a month at six hospitals with a 60-second tick. Check this against the API plan's request allowance.
+
+Use dedicated accounts with strong passwords for it, held only in the host's secret settings.
+
+## 8. What was verified (2026-10-01, locally)
 
 - `npm run build` for the web app with each of `VITE_APP_SURFACE` = `leader`, `erp` and unset.
 - `node scripts/bundle-vercel.mjs`, which is the API's Vercel build step.

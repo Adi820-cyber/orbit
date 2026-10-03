@@ -6,7 +6,9 @@ import { createDatabase, type Database } from './db/client.ts';
 import { createDbDatasetSource, createDbExceptionSource, createDbObservationSource } from './db/kpi-data.ts';
 import { createDbMembershipSource } from './db/memberships.ts';
 import { createDbErpStore } from './db/erp.ts';
+import { DEFAULT_EMBEDDING_MODEL, embeddingProvider } from './modules/chatbot/embedder.ts';
 import { createDbKnowledgeSource } from './db/knowledge.ts';
+import { createDbOperationsSource } from './db/operations.ts';
 import { createDbEntitlementSource, createDbEntityDirectory, createDbScopeResolver, membershipQuery } from './db/sources.ts';
 import { createMatrixTransitionPolicy, PROPOSED_TRANSITIONS } from './modules/actions/transitions.ts';
 import type { ModuleDeps } from './modules/index.ts';
@@ -33,13 +35,18 @@ export const pendingMembershipSource: MembershipSource = {
  * `ORBIT_LIVE_SOURCES` keeps answering `unavailable`.
  */
 export function wireSources(
-  config: Pick<ApiConfig, 'liveSources' | 'databaseUrl'> & Partial<Pick<ApiConfig, 'askProviders'>>,
+  config: Pick<ApiConfig, 'liveSources' | 'databaseUrl'> & Partial<Pick<ApiConfig, 'askProviders' | 'embeddingModel'>>,
   openDatabase: (url: string) => Database = (url) => createDatabase({ url }),
 ): Sources {
   const live = config.liveSources;
   const modules = pendingModuleDeps();
   // Narration is not a data source: it is on whenever a provider key is configured.
   modules.askNarration = { ...modules.askNarration, providers: config.askProviders ?? [] };
+  // Embeddings use the OpenRouter key when there is one; otherwise search is by words only.
+  modules.embedding = {
+    provider: embeddingProvider(config.askProviders ?? []),
+    model: config.embeddingModel ?? DEFAULT_EMBEDDING_MODEL,
+  };
   let db: Database | undefined;
   const database = (): Database => {
     if (!config.databaseUrl) {
@@ -79,6 +86,8 @@ export function wireSources(
   }
   if (live.has('erp')) {
     modules.erp = createDbErpStore(database());
+    // The leadership view reads the same ERP data, as aggregates (ADR 0018).
+    modules.operations = createDbOperationsSource(database());
   }
   if (live.has('transitions')) {
     modules.transitions = createMatrixTransitionPolicy(PROPOSED_TRANSITIONS);

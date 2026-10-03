@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { API_SURFACES, type ApiSurface } from './surface.ts';
+import { DEFAULT_EMBEDDING_MODEL } from './modules/chatbot/embedder.ts';
 import { groqProvider, openRouterProvider, type ModelProvider } from './modules/ask/narrator.ts';
 
 /**
@@ -35,6 +36,8 @@ const EnvSchema = z.object({
   GROQ_MODEL: z.string().min(1).default('openai/gpt-oss-20b'),
   OPENROUTER_API_KEY: optional(z.string().min(1)),
   OPENROUTER_MODEL: optional(z.string().min(1)),
+  /** Knowledge-base embeddings (ADR 0019). Must produce 1536 dimensions; uses the OpenRouter key. */
+  EMBEDDING_MODEL: z.string().min(1).default(DEFAULT_EMBEDDING_MODEL),
 });
 
 export interface ApiConfig {
@@ -53,6 +56,8 @@ export interface ApiConfig {
    * which leaves Ask fully deterministic (ADR 0014).
    */
   askProviders: readonly ModelProvider[];
+  /** Embedding model for the knowledge base (ADR 0019). */
+  embeddingModel: string;
 }
 
 /**
@@ -121,6 +126,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     port: vars.PORT,
     surface: vars.ORBIT_SURFACE ?? 'all',
     askProviders: buildAskProviders(vars),
+    embeddingModel: vars.EMBEDDING_MODEL,
   };
 }
 

@@ -1,0 +1,74 @@
+# Render Blueprint for the live hospital simulator (docs/decisions/0017-live-hospital-simulator.md).
+#
+# It declares two services: a background worker that runs services/simulator
+# around the clock, and a cron job that keeps the chatbot knowledge base in
+# step with the database. Nothing else in this repository is deployed by Render: the
+# web app and API stay on Vercel (docs/orbit/DEPLOYMENT.md).
+#
+# Values marked `sync: false` are asked for when the Blueprint is created and
+# are never stored in Git. Use strong passwords here, not the demo ones.
+#
+# Not verified against Render itself: see services/simulator/README.md.
+services:
+  - type: worker
+    name: orbit-simulator
+    runtime: node
+    # A worker is a paid instance type; check Render's current pricing.
+    plan: starter
+    # The nearest Render region to the Supabase project (ap-south-1, Mumbai).
+    region: singapore
+    # Install only the simulator's production dependencies (zod and the shared
+    # contracts): no TypeScript, test tooling or Supabase CLI. Node runs the
+    # TypeScript sources directly (Node 22.18 or newer).
+    buildCommand: npm ci --omit=dev --ignore-scripts --workspace=@orbit/simulator
+    startCommand: node services/simulator/src/main.ts
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: ERP_API_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SIM_ADMIN_EMAIL
+        sync: false
+      - key: SIM_ADMIN_PASSWORD
+        sync: false
+      # Optional: one desk account per hospital (see .env.example).
+      # - key: SIM_DESK_AVENHURST_EMAIL
+      #   sync: false
+      # - key: SIM_DESK_AVENHURST_PASSWORD
+      #   sync: false
+      - key: SIM_TICK_SECONDS
+        value: 60
+      # Optional day director keys (a language model picks each hour's mood).
+      # - key: SIM_GROQ_KEYS
+      #   sync: false
+      # - key: SIM_OPENROUTER_KEYS
+      #   sync: false
+      # - key: SIM_OPENROUTER_MODEL
+      #   sync: false
+
+  # Knowledge sync (docs/decisions/0019-attribute-based-knowledge-chatbot.md).
+  # Every ten minutes: rebuilds the chatbot's knowledge chunks from the database
+  # and embeds whatever changed. Unchanged chunks cost nothing. Without
+  # OPENROUTER_API_KEY it still builds the chunks, and the chatbot searches them
+  # by words only.
+  - type: cron
+    name: orbit-knowledge-sync
+    runtime: node
+    region: singapore
+    schedule: "*/10 * * * *"
+    buildCommand: npm ci --omit=dev --ignore-scripts --workspace=@orbit/api
+    startCommand: node services/api/src/knowledge-sync.ts
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      # The pooler string as orbit_app, the same value the API uses.
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: EMBEDDING_MODEL
+        value: openai/text-embedding-3-small

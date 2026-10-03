@@ -235,8 +235,11 @@
 
 .chatbot-panel__launcher {
   position: fixed;
-  right: calc(var(--orbit-space-6) + 3.75rem + var(--orbit-space-3));
-  bottom: var(--orbit-space-6);
+  /* Stacked above the Ask Orbit launcher (3rem tall, same corner), not beside it:
+     its width depends on its label, so a side-by-side offset overlapped it. */
+  right: var(--orbit-space-6);
+  bottom: calc(var(--orbit-space-6) + 3rem + var(--orbit-space-3));
+  min-height: 3rem;
   z-index: var(--orbit-z-overlay);
   display: inline-flex;
   align-items: center;
@@ -244,7 +247,8 @@
   border: 0;
   border-radius: 999px;
   padding: var(--orbit-space-2) var(--orbit-space-4);
-  background: var(--orbit-color-secondary);
+  /* The strong blue: white text on the lighter brand blue is 4.17:1, under WCAG AA's 4.5:1. */
+  background: var(--orbit-color-secondary-strong);
   color: var(--orbit-color-on-primary);
   font: inherit;
   font-size: var(--orbit-font-size-300);
@@ -255,7 +259,7 @@
 }
 
 .chatbot-panel__launcher:hover {
-  background: var(--orbit-color-secondary-strong);
+  filter: brightness(0.88);
 }
 
 .chatbot-panel__launcher:focus-visible {
@@ -264,6 +268,12 @@
 }
 
 @media (max-width: 47.99rem) {
+  /* Matches the Ask Orbit launcher, which moves to the smaller gutter here. */
+  .chatbot-panel__launcher {
+    right: var(--orbit-space-4);
+    bottom: calc(var(--orbit-space-4) + 3rem + var(--orbit-space-3));
+  }
+
   .chatbot-panel {
     right: 0;
     bottom: 0;

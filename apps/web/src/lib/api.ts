@@ -21,6 +21,7 @@ import {
   KpiDetailResponseSchema,
   KpiListResponseSchema,
   MeResponseSchema,
+  OperationsResponseSchema,
   PermittedAssigneesResponseSchema,
   TransitionActionRequestSchema,
   type AskRequest,
@@ -215,6 +216,11 @@ export function createApiClient(transport: ApiTransport) {
         KpiDetailResponseSchema,
       );
     },
+    operations: (days?: number) =>
+      call(
+        { method: "GET", path: "/api/operations", ...(days ? { query: new URLSearchParams({ days: String(days) }) } : {}) },
+        OperationsResponseSchema,
+      ),
     entities: () => call({ method: "GET", path: "/api/entities" }, EntityDirectoryResponseSchema),
     askPrompts: () => call({ method: "GET", path: "/api/ask/prompts" }, AskPromptsResponseSchema),
     askQuestion: async (question: string) =>

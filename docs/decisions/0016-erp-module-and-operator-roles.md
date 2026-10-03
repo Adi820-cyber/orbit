@@ -1,6 +1,6 @@
 # ADR 0016: Hospital operations (ERP) module and the `admin` / `hospital` operator roles
 
-- **Status:** Proposed — implemented (merged to `main` of `ghanshamrna27-source/Pragyan`) at the product owner's request, and verified locally (see "Verification"). It changes release-one scope (PRD §5.2: "a system-of-record replacement"), the membership model, and adds a schema, so it needs sign-off before merge: **Aditya** (scope, authorization, the two accounts), **Maruti** (migration, RLS, seed), **Ayas** (ERP screens).
+- **Status:** Accepted by the product owner on 2026-10-03, who chose to decide this directly instead of routing it through the named reviewers (a user instruction overriding the review rule in AGENTS.md). Implemented and merged to `main`. It changes release-one scope (PRD §5.2), the membership model and adds a schema; Aditya, Maruti and Ayas remain welcome to review it, but it is not waiting on them.
 - **Author:** Ghansham
 - **Date opened:** 2026-10-01
 - **Specification:** [docs/orbit/ERP_PLAN.md](../orbit/ERP_PLAN.md). This ADR records what was actually decided and built, including where it departs from the plan.

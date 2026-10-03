@@ -1,6 +1,7 @@
 import { FRAMEWORK_MANIFEST } from '@orbit/kpi-framework';
 import { ApiError } from '../plugins/errors.ts';
 import { ILLUSTRATIVE_DISCLOSURE } from './index.ts';
+import { DEFAULT_EMBEDDING_MODEL } from './chatbot/embedder.ts';
 import { pendingErpStore } from './erp/pending.ts';
 import type { ModuleDeps } from './ports.ts';
 
@@ -55,6 +56,11 @@ export function pendingModuleDeps(): ModuleDeps {
     },
     entities: { visible: async () => pending('entity_directory') },
     knowledge: { search: async () => pending('knowledge_store') },
+    embedding: { provider: undefined, model: DEFAULT_EMBEDDING_MODEL },
+    operations: {
+      snapshot: async () => pending('operations_store'),
+      daily: async () => pending('operations_store'),
+    },
     erp: pendingErpStore(() => pending('erp_store')),
     audit: {
       record: async () => pending('audit_store'),
