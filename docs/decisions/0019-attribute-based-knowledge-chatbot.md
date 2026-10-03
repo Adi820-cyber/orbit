@@ -66,9 +66,30 @@ A scheduled job (`npm run knowledge:sync`, a Render cron in `render.yaml`, every
 
 Search is exact rather than approximate. At this size it is fast and always right, and an approximate index filtered by row-level security could return almost nothing for a narrow role. Revisit with HNSW and iterative scans past roughly ten thousand chunks.
 
-### §5 Embeddings: OpenRouter, `openai/text-embedding-3-small`, 1536 dimensions
+### §5 Models: free on OpenRouter
 
-This was chosen by the product owner. It fits the existing column. Groq is never asked for embeddings, and a vector of the wrong length is refused.
+Revised 2026-10-03, after the product owner chose free models. Both were picked by testing on Orbit's own questions and sources, not from a list.
+
+**Embeddings: `liquid/lfm-2.5-embedding-350m:free`.**
+- Among the free models it separated a staffing question from unrelated finance text best.
+- It returns 1024 numbers per text, so the column is `vector(1024)` (migration `20261001000400`).
+- A vector of any other length is refused.
+- Its provider may keep free requests for training; acceptable because the knowledge base holds only fictional, aggregate text.
+
+**Answers: `nvidia/nemotron-3-super-120b-a12b:free`.**
+- It wrote correct, cited answers that passed the number guard in about 6 seconds.
+- `qwen/qwen3.8-27b:free` also passed, more slowly.
+- `google/gemma-4-31b-it:free` had no endpoint for structured replies.
+
+**The free tier allows about 50 requests a day, so:**
+- The text sent for embedding has its figures masked, and a chunk is re-embedded only when its meaning changes. Counts moving every ten minutes cost nothing.
+- Embedding runs in batches of 50; the first full pass of 888 chunks took 18 requests.
+- When the allowance runs out, the chatbot falls back to word search and a deterministic answer. It does not fail.
+
+**Verified on the dev project:**
+- **Legal head:** "How quickly do we close agreements?" found *Contract turnaround time* by meaning alone.
+- **North COO:** "Are beds being used well in my area?" found capacity utilisation.
+- **Chairman and CFO:** "Are our hospitals short of people today?" found staffing for the chairman and nothing for the CFO.
 
 ### §6 The answer is grounded, cited and guarded
 

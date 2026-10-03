@@ -9,7 +9,9 @@ import type { Database } from '../db/client.ts';
  *     It leaves unchanged chunks (and their embeddings) alone, so a run that
  *     finds nothing new costs no embedding calls.
  *  2. Chunks awaiting an embedding are fetched in batches, embedded, and stored
- *     only if their text is still the text that was embedded.
+ *     only if their text still means what was embedded. The embedded text has
+ *     its figures masked (orbit.knowledge_embed_text), so a count changing never
+ *     costs an embedding request: a free key allows about 50 requests a day.
  *
  * Both database functions are security definer and take no input that shapes
  * what is written, so this job needs no table access and no claims. If the
@@ -56,7 +58,7 @@ export async function syncKnowledge(options: SyncOptions): Promise<SyncResult> {
     const pending = (
       await db.transaction((tx) =>
         tx.query(
-          'select id::text as "id", content_hash as "contentHash", text_to_embed as "text" from orbit.knowledge_pending($1::integer)',
+          'select id::text as "id", embed_hash as "contentHash", text_to_embed as "text" from orbit.knowledge_pending($1::integer)',
           [batchSize],
         ),
       )

@@ -14,7 +14,7 @@ import { DEFAULT_EMBEDDING_MODEL, generateEmbeddings } from './modules/chatbot/e
  *   DATABASE_URL          the pooler string as orbit_app (same as the API)
  *   OPENROUTER_API_KEY    optional. Without it chunks are built and searched by
  *                         words only; with it they are embedded for meaning too.
- *   EMBEDDING_MODEL       optional, must produce 1536 dimensions
+ *   EMBEDDING_MODEL       optional, must produce 1024 dimensions
  */
 // A variable set but empty (an unset GitHub Actions secret, say) counts as not set.
 const unsetIfEmpty = (value: unknown) => (value === '' ? undefined : value);

@@ -77,7 +77,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          EMBEDDING_MODEL: openai/text-embedding-3-small
+          EMBEDDING_MODEL: liquid/lfm-2.5-embedding-350m:free
 
       - name: Not configured
         if: env.HAS_SIMULATOR != 'true' && env.HAS_KNOWLEDGE != 'true'

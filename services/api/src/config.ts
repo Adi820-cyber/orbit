@@ -36,7 +36,7 @@ const EnvSchema = z.object({
   GROQ_MODEL: z.string().min(1).default('openai/gpt-oss-20b'),
   OPENROUTER_API_KEY: optional(z.string().min(1)),
   OPENROUTER_MODEL: optional(z.string().min(1)),
-  /** Knowledge-base embeddings (ADR 0019). Must produce 1536 dimensions; uses the OpenRouter key. */
+  /** Knowledge-base embeddings (ADR 0019). Must produce 1024 dimensions; uses the OpenRouter key. */
   EMBEDDING_MODEL: z.string().min(1).default(DEFAULT_EMBEDDING_MODEL),
 });
 

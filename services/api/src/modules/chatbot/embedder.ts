@@ -7,7 +7,7 @@ import type { ModelProvider } from '../ask/narrator.ts';
  * One POST to an OpenAI-compatible /embeddings endpoint. Only OpenRouter is
  * used: Groq exposes no embeddings endpoint, so a Groq provider is never asked
  * (it used to be, with a chat model's name, which could not work). The stored
- * vectors are 1536-dimensional (orbit.knowledge_chunks.embedding), so a model
+ * vectors are 1024-dimensional (orbit.knowledge_chunks.embedding), so a model
  * that returns any other length is refused rather than truncated or padded.
  *
  * Returns null instead of throwing when the provider is unavailable, so the
@@ -15,11 +15,15 @@ import type { ModelProvider } from '../ask/narrator.ts';
  * on its next run.
  */
 
-/** The column is vector(1536). A different model needs a migration, not a config change. */
-export const EMBEDDING_DIMENSIONS = 1536;
+/** The column is vector(1024). A model of another size needs a migration, not a config change. */
+export const EMBEDDING_DIMENSIONS = 1024;
 
-/** Default model: 1536 dimensions, low cost. Override with `EMBEDDING_MODEL`. */
-export const DEFAULT_EMBEDDING_MODEL = 'openai/text-embedding-3-small';
+/**
+ * Default model: free on OpenRouter, 1024 dimensions, chosen after testing the
+ * free models on Orbit's own questions (ADR 0019 §5). Override with
+ * `EMBEDDING_MODEL` (it must also return 1024 numbers).
+ */
+export const DEFAULT_EMBEDDING_MODEL = 'liquid/lfm-2.5-embedding-350m:free';
 
 const EmbeddingResponseSchema = z.object({
   data: z.array(z.object({ index: z.number().int().min(0), embedding: z.array(z.number()) })).min(1),
