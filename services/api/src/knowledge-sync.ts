@@ -16,11 +16,13 @@ import { DEFAULT_EMBEDDING_MODEL, generateEmbeddings } from './modules/chatbot/e
  *                         words only; with it they are embedded for meaning too.
  *   EMBEDDING_MODEL       optional, must produce 1536 dimensions
  */
+// A variable set but empty (an unset GitHub Actions secret, say) counts as not set.
+const unsetIfEmpty = (value: unknown) => (value === '' ? undefined : value);
 const env = z
   .object({
     DATABASE_URL: z.string().min(1),
-    OPENROUTER_API_KEY: z.string().min(1).optional(),
-    EMBEDDING_MODEL: z.string().min(1).default(DEFAULT_EMBEDDING_MODEL),
+    OPENROUTER_API_KEY: z.preprocess(unsetIfEmpty, z.string().min(1).optional()),
+    EMBEDDING_MODEL: z.preprocess(unsetIfEmpty, z.string().min(1).default(DEFAULT_EMBEDDING_MODEL)),
   })
   .safeParse(process.env);
 

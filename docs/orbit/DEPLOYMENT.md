@@ -110,6 +110,8 @@ It changes this guide in two ways:
 
 Use dedicated accounts with strong passwords for it, held only in the host's secret settings.
 
+**Free alternative, in use: GitHub Actions.** Render needs a payment card for both services. [.github/workflows/live-hospital.yml](../../.github/workflows/live-hospital.yml) instead runs one simulator tick (`--once`) and one knowledge sync every ten minutes at no cost. The simulator back-dates anything it missed, so punches still land at their planned times; the trade-off is that activity appears in ten-minute steps and GitHub may start a run a few minutes late. Schedules only run from the default branch, so it starts once this is merged to `main`. Secrets (repository settings, Actions): `ERP_API_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SIM_ADMIN_EMAIL`, `SIM_ADMIN_PASSWORD` for the simulator; `DATABASE_URL` and optionally `OPENROUTER_API_KEY` for the knowledge sync. Each step is skipped until its secrets exist.
+
 ## 8. What was verified (2026-10-01, locally)
 
 - `npm run build` for the web app with each of `VITE_APP_SURFACE` = `leader`, `erp` and unset.
