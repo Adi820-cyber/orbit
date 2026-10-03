@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RoleIdSchema } from './roles.ts';
+import { OperatorRoleIdSchema, RoleIdSchema } from './roles.ts';
 
 /** Data grains an entitlement or scope can refer to (ARCH §8.2). */
 /**
@@ -52,8 +52,39 @@ export const MembershipClaimsSchema = z.strictObject({
 });
 export type MembershipClaims = z.infer<typeof MembershipClaimsSchema>;
 
-/** A membership row as loaded from the trusted membership store. */
-export const MembershipSchema = MembershipClaimsSchema.extend({
-  status: z.enum(['active', 'inactive']),
+/**
+ * Verified claims for an ERP operator membership (ADR 0016). A separate
+ * schema rather than an optional `role`, so leader code keeps a non-optional
+ * workbook role and an operator can never reach a leader module by type.
+ *
+ * Also the `orbit.membership` setting for ERP transactions: RLS reads
+ * `operatorRole`, and `orbit.current_role_id()` is null for an operator, so
+ * every leader policy matches nothing.
+ */
+export const OperatorClaimsSchema = z.strictObject({
+  membershipId: z.uuid(),
+  subject: z.uuid(),
+  organizationId: z.uuid(),
+  operatorRole: OperatorRoleIdSchema,
+  scopes: z.array(ScopeEntitySchema).min(1),
 });
+export type OperatorClaims = z.infer<typeof OperatorClaimsSchema>;
+
+const MembershipStatusSchema = z.enum(['active', 'inactive']);
+
+/**
+ * A membership row as loaded from the trusted membership store: either a
+ * leader (workbook role) or an operator (operator role), never both. The
+ * store returns the other column as null.
+ */
+export const MembershipSchema = z.union([
+  MembershipClaimsSchema.extend({
+    status: MembershipStatusSchema,
+    operatorRole: z.null().optional(),
+  }),
+  OperatorClaimsSchema.extend({
+    status: MembershipStatusSchema,
+    role: z.null().optional(),
+  }),
+]);
 export type Membership = z.infer<typeof MembershipSchema>;

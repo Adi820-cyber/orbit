@@ -45,7 +45,7 @@ describe('createDbMembershipSource', () => {
     const row = MEMBERSHIPS.find((membership) => membership.subject === SUBJECT.cooRegionA);
     const source = createDbMembershipSource(db, async () => (row ? [row] : []));
     const claims = await loadMembership(SUBJECT.cooRegionA, source);
-    expect(claims.role).toBe('regional-coo');
+    expect('role' in claims && claims.role).toBe('regional-coo');
   });
 
   it('feeds the existing auth checks: inactive and ambiguous rows are still denied', async () => {

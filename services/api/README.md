@@ -61,7 +61,7 @@ All `/api` routes require a verified token and exactly one active membership. Pa
 | Route | Contract | Notes |
 |---|---|---|
 | `GET /health` | `HealthResponse` | Only unauthenticated route |
-| `GET /api/me` | `MeResponse` | Role and scope, for display only |
+| `GET /api/me` | `MeResponse` or `OperatorMeResponse` | Role and scope, for display only. An ERP operator gets `operatorRole` instead of `role` (ADR 0016) |
 | `GET /api/brief` | `BriefResponse` | Current period; Act now / Monitor / On track / Data limitations |
 | `GET /api/inbox?cursor&limit` | `InboxResponse` | Source ordering, with its basis stated |
 | `GET /api/kpi` | `KpiListResponse` | The role's entitled assignments for the served framework version |
@@ -76,6 +76,30 @@ All `/api` routes require a verified token and exactly one active membership. Pa
 | `GET /api/entities` | `EntityDirectoryResponse` | Names of the regions, facilities, and COEs the caller can see, with parents (draft; for display) |
 | `GET /api/audit?cursor&limit` | `AuditListResponse` | Events for actions the caller created or is assigned, nothing else (ADR 0011 §7) |
 
+### Hospital operations (ERP) routes, ADR 0016
+
+Served only to ERP operator accounts (`admin`: group scope; `hospital`: one facility). A leader account gets `403 forbidden` on every `/api/erp/*` route, and an operator gets `403 forbidden` on every leader route. A hospital account naming another facility gets `403 out_of_scope`; a record id it cannot see is `404`. Every response carries `provenance: "illustrative"` and the ERP disclosure. Writes and their `orbit_erp.audit_events` row commit together; reading a patient or a visit records a `viewed` event.
+
+| Route | Who | Notes |
+|---|---|---|
+| `GET /api/erp/reference` | both | Facilities, departments, specialties, shift patterns, settings |
+| `GET /api/erp/summary?facilityId&date` | both | Today at one facility: attendance, visits, services, pending decisions |
+| `GET/POST /api/erp/staff`, `GET/PATCH /api/erp/staff/:staffId` | read both; write admin | Doctors are created through `/api/erp/doctors` |
+| `GET/POST /api/erp/doctors`, `GET/PATCH /api/erp/doctors/:staffId` | read both; write admin | Credential status derived from expiry, suspension and the warning window |
+| `POST /api/erp/doctors/:staffId/schedule`, `PATCH /api/erp/schedule-slots/:slotId` | admin | Slots are retired, never deleted |
+| `GET /api/erp/attendance/board?facilityId&date` | both | Derived on read from roster, punches, approved corrections and settings |
+| `POST /api/erp/attendance/punches` | both; back-dated `punchedAt` admin only | Idempotent: `201` new, `200` replay |
+| `GET /api/erp/attendance/staff/:staffId?month` | both | One person's month; missing punches never count as zero |
+| `GET/POST /api/erp/attendance/corrections` | both | Request a fix to in/out times |
+| `POST /api/erp/attendance/corrections/:correctionId/decision` | admin, never the requester | Four-eyes rule, enforced by the database too |
+| `GET/PUT /api/erp/rosters` | both; past dates admin only | One planned shift per person per day |
+| `GET/POST /api/erp/services`, `PATCH /api/erp/services/:serviceId` | read both; write admin | The catalogue |
+| `PUT /api/erp/facilities/:facilityId/services/:serviceId` | first offer admin; later switches both | Where each service is offered |
+| `GET/POST /api/erp/patients`, `GET/PATCH /api/erp/patients/:patientId` | both | Search only (`q` ≥ 2 characters); possible duplicates answered with `409` |
+| `GET/POST /api/erp/encounters`, `GET/PATCH /api/erp/encounters/:encounterId` | both | Visits: open, close, cancel, attending doctor |
+| `POST /api/erp/encounters/:encounterId/services`, `PATCH /api/erp/service-deliveries/:deliveryId` | both | Services delivered; idempotent; database checks availability, performer, credential and visit window |
+| `GET /api/erp/audit` | admin | Who viewed or changed which record; never the contents |
+
 Authorization checks, in order: token → membership → entitlement for the served framework version → grain → breakdown → entity inside the membership scope. Rows returned by a source are re-checked; a row outside the request fails the whole request (`500`) instead of being dropped.
 
 ## Live sources (`ORBIT_LIVE_SOURCES`)
@@ -89,6 +113,8 @@ Every source is fail-closed (`503 unavailable`) unless `ORBIT_LIVE_SOURCES` name
 | `scope` | RLS-visible `regions` / `facilities` / `coes` in the caller's organization; `group` needs an explicit group scope | Organization rows are seeded |
 | `entities` | Names from `organizations` / `regions` / `facilities` / `coes`, under the same RLS | Organization rows are seeded (already true since #28) |
 | `transitions` | `PROPOSED_TRANSITIONS` ([TRANSITIONS.md](TRANSITIONS.md)) | Aditya signs off the matrix |
+| `ORBIT_SURFACE` (not a source) | `leader`, `erp` or `all` (default): which routes this deployment registers and which kind of account it accepts | Running leadership and hospital operations as separate deployments ([DEPLOYMENT.md](../../docs/orbit/DEPLOYMENT.md)) |
+| `erp` | `orbit_erp` schema under operator claims (`db/erp.ts`, ADR 0016) | Migration 20261001000100 and seeds 0008–0010 are applied, and operator accounts are provisioned |
 
 Example: `ORBIT_LIVE_SOURCES=memberships,entitlements,scope`. The observation, exception, dataset, action, assignee, and audit stores have no tables yet, so they have no live option and stay fail-closed.
 

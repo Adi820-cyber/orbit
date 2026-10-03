@@ -21,6 +21,7 @@ buildApp({
   logger: true,
   allowedOrigins: config.allowedOrigins,
   modules: sources.modules,
+  surface: config.surface,
   auth: {
     getKey: createRemoteJWKSet(config.jwksUrl),
     issuer: config.issuer,

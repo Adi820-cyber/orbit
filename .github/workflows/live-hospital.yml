@@ -1,0 +1,84 @@
+name: Live hospital
+
+# Keeps the demonstration hospital alive at no hosting cost (ADR 0017, 0019),
+# instead of the paid Render services in render.yaml:
+#
+#   1. one simulator tick: staff punch in and out, patients arrive, visits run
+#      and services are recorded, through the ERP API as real accounts;
+#   2. one knowledge sync: the chatbot's knowledge is rebuilt from the
+#      database and whatever changed is embedded.
+#
+# The simulator keeps no schedule of its own. Each tick does whatever should
+# have happened by now, and back-dates (as the admin) anything later than a few
+# minutes, so running it every ten minutes still records punches at their
+# planned times. GitHub may start a scheduled run some minutes late, and only
+# runs schedules from the default branch.
+#
+# Each step runs only when its secrets are set (Settings -> Secrets and
+# variables -> Actions), so the workflow stays green until it is configured:
+#   simulator:  ERP_API_URL, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
+#               SIM_ADMIN_EMAIL, SIM_ADMIN_PASSWORD
+#   knowledge:  DATABASE_URL (the pooler string as orbit_app), and optionally
+#               OPENROUTER_API_KEY for embeddings (words-only search without it)
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# Never two ticks at once; a late run waits rather than overlapping.
+concurrency:
+  group: live-hospital
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      HAS_SIMULATOR: ${{ secrets.ERP_API_URL != '' && secrets.SIM_ADMIN_PASSWORD != '' }}
+      HAS_KNOWLEDGE: ${{ secrets.DATABASE_URL != '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # engines ">=22.18 <23": the services run their TypeScript directly.
+          node-version: '22'
+          cache: npm
+
+      # Production dependencies of the two services only: no TypeScript, tests or Supabase CLI.
+      - name: Install
+        run: npm ci --omit=dev --ignore-scripts --workspace=@orbit/simulator --workspace=@orbit/api
+
+      - name: Simulator tick
+        if: env.HAS_SIMULATOR == 'true'
+        run: node services/simulator/src/main.ts --once
+        env:
+          ERP_API_URL: ${{ secrets.ERP_API_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SIM_ADMIN_EMAIL: ${{ secrets.SIM_ADMIN_EMAIL }}
+          SIM_ADMIN_PASSWORD: ${{ secrets.SIM_ADMIN_PASSWORD }}
+          # One run covers ten minutes. Patient arrivals per run scale with this,
+          # so at the default 60 a run would bring a tenth of the expected patients.
+          SIM_TICK_SECONDS: '600'
+          # ...and a ten-minute run makes more writes than a one-minute tick.
+          SIM_MAX_WRITES_PER_TICK: '150'
+
+      - name: Knowledge sync
+        if: env.HAS_KNOWLEDGE == 'true' && !cancelled()
+        run: node services/api/src/knowledge-sync.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          EMBEDDING_MODEL: liquid/lfm-2.5-embedding-350m:free
+
+      - name: Not configured
+        if: env.HAS_SIMULATOR != 'true' && env.HAS_KNOWLEDGE != 'true'
+        run: echo "No secrets set yet; nothing to do. See the comment at the top of this workflow."

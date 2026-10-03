@@ -82,8 +82,42 @@ Open **Audit**: each creation and state change, by role, with the action named. 
 | Procurement Head | Inventory days rising across the group (consumable supply risk, from June 2026). |
 | HR Head | Performance-review completion at 88.6%, below the 93% demo target, labelled with Brackmoor's staffing-gap scenario (from April 2026). The People Executive is scoped to Avenhurst and does not see Brackmoor. |
 
+## Hospital operations (ERP)
+
+The hospital operations area ([ADR 0016](../decisions/0016-erp-module-and-operator-roles.md)) is for two accounts that are not leadership roles:
+
+| Account | Sign in as | Scope |
+|---|---|---|
+| Hospital operations desk | `hospital` (or `hospital@kestrion.demo`) | Kestrion Avenhurst Hospital |
+| Hospital operations admin | `admin` (or `admin@kestrion.demo`) | Whole group; chooses a facility in the sidebar |
+
+As with every demo account, passwords are shared separately by the demo owner and never written in the repository. Both accounts open on `/erp`. A leadership account sent to `/erp` goes back to its own workspace, and an ERP account never sees the leadership workspace.
+
+**Before a demo:**
+1. Apply migration `20261001000100_orbit_erp_operations.sql` and seeds `0008`–`0010` to the project.
+2. Put the two passwords in `supabase/.env.provisioning`, along with the variables listed in `packages/data-gen/scripts/provision-erp-accounts.ts`.
+3. Run `npm run provision:erp --workspace=@orbit/data-gen`.
+4. Apply the membership SQL it writes to `supabase/seed/local/`.
+5. Add `erp` to the API's `ORBIT_LIVE_SOURCES`.
+
+**Walkthrough (about 10 minutes):**
+1. **Today** (hospital account): who is rostered, on duty, late, missing a punch or absent, plus open visits and what needs a decision.
+2. **Attendance**: pick **28 September 2026** to see a full day of derived statuses, with in and out times and worked hours. A missing punch reads "Not complete", never zero.
+   - On today's board, press **In** for someone on the current shift.
+   - Press **In** for someone whose shift starts later: Orbit records it but says it does not count toward the shift.
+3. **Fix times** on a missing-punch row to request a correction.
+4. Sign in as **admin** and approve it under **Corrections**. The day re-derives as corrected. An admin cannot approve their own request.
+5. **Patients** (hospital account): search, then register a fictional patient. Registering the same name and birth year again is flagged as a possible duplicate, not merged.
+6. Start a visit, record a service, and close the visit. Services can only be recorded where offered, by staff at that facility, by doctors with a valid credential, and inside the visit's time.
+7. **Doctors** (admin, Dunmarrow): two credentials are expiring and one expired in September (labelled scenario).
+8. **Brackmoor attendance**: the last week of September shows a missing-punch cluster (labelled scenario).
+9. **Audit trail** (admin): every patient and visit opened, and every change, by role and time, never the contents.
+
+The ERP dataset's punches, visits and services end on **30 September 2026**. Rosters run to 31 October, so today's board shows scheduled and absent staff until the desk records punches. That is correct, not missing data.
+
 ## Known limitations to state up front
 
 - All data is synthetic and illustrative; targets are demo parameters, not approved targets.
 - Some KPIs share a workbook definition family, so a KPI titled e.g. "Claim submission turnaround time" shows its family's measure (first-pass acceptance). A per-KPI definition is Maruti's open item.
+- Hospital operations records (patients, staff, attendance, visits, services) are fictional. The module is a demonstration, not a hospital information or HR system, and holds no clinical content. Its ERP sign-ins use demo passwords: rotate them before any external audience.
 - The AI runs on free-tier model providers; under bursts of questions an answer can take several seconds or ask the user to try again. Guided questions never depend on the AI.

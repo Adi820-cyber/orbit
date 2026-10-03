@@ -1,0 +1,29 @@
+{
+  "name": "@orbit/simulator",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Live hospital simulator: signs in as ERP admin and desk accounts and does what staff would, through the ERP API (ADR 0017)",
+  "engines": {
+    "node": ">=22.18 <23"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "start:local": "node --env-file-if-exists=.env src/main.ts",
+    "tick": "node --env-file-if-exists=.env src/main.ts --once",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "oxlint --type-aware"
+  },
+  "dependencies": {
+    "@orbit/contracts": "*",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "oxlint": "^1.85.0",
+    "oxlint-tsgolint": "^7.0.2002",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}

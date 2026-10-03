@@ -91,7 +91,7 @@ export function SurfaceErrorBoundary() {
   return (
     <>
       <title>Unavailable | Orbit</title>
-      <SurfaceState kind={described.kind} title={described.title} message={described.message}>
+      <SurfaceState kind={described.kind} title={described.title} message={described.message} level={1}>
         <Link className="orbit-button" data-variant="secondary" to={path("/")}>
           Back to morning brief
         </Link>
@@ -109,7 +109,7 @@ export function WorkspaceErrorBoundary() {
     <main className="orbit-page workspace-failure">
       <title>Unavailable | Orbit</title>
       <OrbitBrand compact tagline="Healthcare performance platform" />
-      <SurfaceState kind={described.kind} title={described.title} message={described.message}>
+      <SurfaceState kind={described.kind} title={described.title} message={described.message} level={1}>
         <a className="orbit-button" data-variant="secondary" href="/login">
           Return to sign-in
         </a>

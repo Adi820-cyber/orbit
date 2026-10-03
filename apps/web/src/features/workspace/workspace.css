@@ -697,6 +697,7 @@
   border-top: 0.25rem solid var(--orbit-color-danger);
 }
 
+.workspace-state h1,
 .workspace-state h2 {
   margin: 0;
   color: var(--orbit-color-text);

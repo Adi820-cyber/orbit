@@ -1,4 +1,7 @@
-import type { Entitlement, Membership, MembershipClaims, ScopeEntity } from '@orbit/contracts';
+import type { Entitlement, MembershipClaims, ScopeEntity } from '@orbit/contracts';
+
+/** A leader membership row (the fixtures here are all leaders; ERP operators have their own). */
+type Membership = MembershipClaims & { status: 'active' | 'inactive' };
 import type { MembershipSource } from '../../src/plugins/auth.ts';
 import type { EntitlementSource, ScopeResolver } from '../../src/plugins/scope.ts';
 

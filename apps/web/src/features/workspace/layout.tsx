@@ -3,15 +3,20 @@ import {
   Form,
   NavLink,
   Outlet,
+  redirect,
   useLoaderData,
   useNavigate,
   useNavigation,
   useRevalidator,
   type LoaderFunctionArgs,
 } from "react-router";
+import { seesOperations, type RoleId } from "@orbit/contracts";
 import { OrbitBrand } from "@orbit/ui-kit";
+import { ApiRequestError } from "../../lib/api";
 import { onSessionEnded } from "../../lib/auth";
+import { APP_SURFACE, servesOperators } from "../../lib/surface";
 import { AskChat } from "../ask/chat";
+import { ChatbotPanel } from "../chatbot/panel";
 import { assignmentMap, humanize } from "../../lib/format";
 import { roleViewConfigFor } from "../../roles/config";
 import { Icon, type IconName } from "./components";
@@ -28,18 +33,27 @@ import {
 import { RoleViewUnavailableError } from "./states";
 import "./workspace.css";
 
-const SURFACES: readonly { path: string; label: string; short: string; icon: IconName }[] = [
+const SURFACES: readonly { path: string; label: string; short: string; icon: IconName; operationsOnly?: true }[] = [
   { path: "/", label: "Morning brief", short: "Brief", icon: "brief" },
   { path: "/inbox", label: "Priority inbox", short: "Inbox", icon: "inbox" },
   { path: "/explorer", label: "KPI explorer", short: "Explorer", icon: "explorer" },
   { path: "/actions", label: "Actions", short: "Actions", icon: "actions" },
+  { path: "/operations", label: "Hospital operations", short: "Operations", icon: "operations", operationsOnly: true },
   { path: "/audit", label: "Audit", short: "Audit", icon: "audit" },
 ];
 
 export function workspaceLoader(environment: WorkspaceEnvironment) {
   return async ({ request }: LoaderFunctionArgs): Promise<WorkspaceData> =>
     withClient(environment, request, async (client) => {
-      const membership = await client.me();
+      const membership = await client.identity();
+
+      // An ERP operator account has no leader workspace; its home is hospital operations (ADR 0016).
+      if ("operatorRole" in membership) {
+        if (!servesOperators(APP_SURFACE)) {
+          throw new ApiRequestError("forbidden", "This portal is for leadership accounts. Use the hospital operations portal.", 403);
+        }
+        throw redirect("/erp");
+      }
 
       // Role selects the view configuration, never the data scope (ARCH §5).
       if (!roleViewConfigFor(membership.role)) {
@@ -51,10 +65,10 @@ export function workspaceLoader(environment: WorkspaceEnvironment) {
     });
 }
 
-function Navigation({ environment, compact }: { environment: WorkspaceEnvironment; compact: boolean }) {
+function Navigation({ environment, role, compact }: { environment: WorkspaceEnvironment; role: RoleId; compact: boolean }) {
   return (
     <nav className="workspace-nav" aria-label={compact ? "Orbit workspace, compact" : "Orbit workspace"}>
-      {SURFACES.map((surface) => (
+      {SURFACES.filter((surface) => !surface.operationsOnly || seesOperations(role)).map((surface) => (
         <NavLink key={surface.path} end={surface.path === "/"} to={workspacePath(environment.basePath, surface.path)}>
           <Icon name={surface.icon} />
           <span>{compact ? surface.short : surface.label}</span>
@@ -162,7 +176,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
         </a>
         <aside className="workspace-sidebar">
           <OrbitBrand compact tagline="Healthcare performance platform" />
-          <Navigation environment={environment} compact={false} />
+          <Navigation environment={environment} role={data.membership.role} compact={false} />
           <div className="workspace-sidebar__scope">
             <span className="orbit-meta">Verified membership</span>
             <strong>{roleConfig.title}</strong>
@@ -185,7 +199,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
             <ExitControl environment={environment} />
           </header>
           <div className="workspace-mobile-nav">
-            <Navigation environment={environment} compact />
+            <Navigation environment={environment} role={data.membership.role} compact />
           </div>
           <div className="workspace-progress" data-active={navigation.state !== "idle"} aria-hidden="true" />
           <p className="orbit-visually-hidden" aria-live="polite">
@@ -201,6 +215,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
           </footer>
         </div>
         <AskChat />
+        <ChatbotPanel />
       </div>
     </WorkspaceContext.Provider>
   );

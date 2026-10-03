@@ -1,0 +1,44 @@
+.operations-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  gap: var(--orbit-space-3);
+  margin: var(--orbit-space-4) 0;
+}
+
+.operations-tile {
+  margin: 0;
+  padding: var(--orbit-space-3) var(--orbit-space-4);
+  border: 1px solid var(--orbit-color-border);
+  border-radius: var(--orbit-radius-card);
+  background: var(--orbit-color-surface);
+}
+
+.operations-tile dt {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-300);
+}
+
+.operations-tile dd {
+  margin: 0;
+  font-size: var(--orbit-font-size-600);
+  font-weight: 600;
+}
+
+.operations-tile dd.operations-tile__note {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-300);
+  font-weight: 400;
+}
+
+.operations-attendance {
+  max-width: var(--orbit-reading-width);
+  margin: 0 0 var(--orbit-space-4);
+}
+
+.operations-limitations {
+  max-width: var(--orbit-reading-width);
+  margin: var(--orbit-space-3) 0;
+  padding-left: var(--orbit-space-5);
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-300);
+}
