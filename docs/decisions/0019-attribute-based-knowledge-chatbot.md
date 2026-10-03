@@ -96,6 +96,18 @@ This was chosen by the product owner. It fits the existing column. Groq is never
 - **The API's search statement:** run as `orbit_app` including the vector cast, which failed before the `USAGE` grant.
 - **Unit tests:** routes (the grounded answer, each refusal, text-only fallback, a client cannot widen search, store failure), the embedder (order, dimension, provider choice) and the sync job (batching, nothing-changed, no provider, provider failure, per-run bound).
 
+**Question test, 2026-10-03 (migration `20261001000300`).** Fourteen real questions were asked as six roles on the dev project as `orbit_app`, and the answers were built with the chatbot's own responder. It found and fixed:
+
+- **A wrong figure.** Chunks were built from every KPI dataset. The project holds an older one, so the chatbot could say Group EBITDA was 103.8 percent while the brief said 82.6 percent. Chunks now come from the current dataset only.
+- **Ranking by a shared word.** "How many staff are on duty at my hospital?" ranked finance exceptions first, because they say "hospital". Results now rank by how many of the question's words they contain.
+- **Duplicates.** A KPI owned by two roles (Group EBITDA: chairman and CFO) appeared twice.
+- **Weak matches.** A CFO asking about staff got a finance item that only shared the word "late"; now a chunk must contain half the question's words. Exception titles name their hospital.
+
+After the fix:
+- Every answer comes from the caller's own area.
+- An organization-wide question gets the group total before each hospital.
+- The CFO and the legal head asking about staffing get "nothing available to your role".
+
 **Not verified:**
 - a real embedding run, because no OpenRouter key was available to this session, so every chunk is still unembedded and search is by words;
 - a real model answer;
