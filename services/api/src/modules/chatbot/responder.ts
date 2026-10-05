@@ -44,8 +44,8 @@ function systemPrompt(role: string): string {
     `You answer one question for a leader of a healthcare group whose role is "${roleName(role)}", using ONLY the numbered sources you are given.`,
     'Rules you must follow exactly:',
     '1. Use only facts stated in the sources. If they do not answer the question, say plainly that the knowledge available to this role does not cover it. Never guess.',
-    '2. Reuse every figure exactly as written. Do not round, convert, calculate, or introduce any number.',
-    '3. After each statement, cite the source it came from as [n]. Cite only numbers that appear in the source list.',
+    '2. Reuse every figure and date exactly as written. Do not round, convert, count, add, subtract, rewrite a date, or introduce any number.',
+    '3. After each statement, cite the source it came from in square brackets, for example [1] or [1][2]. Cite only numbers that appear in the source list.',
     '4. Say which hospital, region or the group each figure belongs to.',
     '5. Keep any caveat a source states: illustrative or simulated data, late or stale data, unreconciled data, no approved target.',
     '6. Where sources mark an exception "act now" or "monitor", mention act now first. Do not recommend actions the sources do not state.',
@@ -71,6 +71,16 @@ function deterministicAnswer(role: string, chunks: readonly KnowledgeChunk[]): s
 
 function noSourcesAnswer(role: string): string {
   return `Nothing available to your role (${roleName(role)}) and scope matches this question. It may fall outside what your role covers, or it may not have been recorded yet.`;
+}
+
+/**
+ * Rewrites the citation styles models use into `[1][2]`: `[1, 2]`, `[1,2]` and
+ * the full-width `【1】`. Only bracketed lists of source numbers are touched.
+ */
+export function normaliseCitations(answer: string): string {
+  return answer
+    .replaceAll(/【\s*(\d{1,3})\s*】/g, '[$1]')
+    .replaceAll(/\[(\d{1,3}(?:\s*,\s*\d{1,3})+)\]/g, (_, list: string) => list.split(',').map((n) => `[${n.trim()}]`).join(''));
 }
 
 /** `[n]` markers in an answer. A marker outside 1..count is an invented citation. */
@@ -156,41 +166,48 @@ export async function buildChatbotResponse(
     parse: ChatbotModelAnswerSchema,
     temperature: 0.1,
   };
-  const outcome = await completeJson(task, {
-    providers: deps.askNarration.providers,
-    timeoutMs: Math.max(deps.askNarration.timeoutMs, 12_000),
-    ...(deps.askNarration.fetchImpl ? { fetchImpl: deps.askNarration.fetchImpl } : {}),
-  });
-  if (outcome.status === 'declined') {
-    return { response: fallback, narration: { status: 'declined', reason: outcome.reason, ...(outcome.detail ? { detail: outcome.detail } : {}) } };
-  }
-
-  const answer = outcome.value.answer;
-  const { valid, invented } = citedIndices(answer, chunks.length);
-  if (invented) {
-    return { response: fallback, narration: { status: 'declined', reason: 'invented_citation' } };
-  }
-  // The citation markers are not figures; everything else must come from the sources or the question.
-  const introduced = introducedNumbers(answer.replaceAll(/\[\d{1,3}\]/g, ''), figuresText(chunks, question));
-  if (introduced.length > 0) {
+  // Each model in turn. An answer that fails a check is not shown; the next model
+  // is asked instead, and its answer meets the same checks. Only when every
+  // model fails is the deterministic answer served.
+  let last: ChatbotNarration = { status: 'declined', reason: 'not_configured' };
+  for (const provider of deps.askNarration.providers) {
+    // eslint-disable-next-line no-await-in-loop
+    const outcome = await completeJson(task, {
+      providers: [provider],
+      timeoutMs: Math.max(deps.askNarration.timeoutMs, 12_000),
+      ...(deps.askNarration.fetchImpl ? { fetchImpl: deps.askNarration.fetchImpl } : {}),
+    });
+    if (outcome.status === 'declined') {
+      last = { status: 'declined', reason: outcome.reason, ...(outcome.detail ? { detail: outcome.detail } : {}) };
+      continue;
+    }
+    const answer = normaliseCitations(outcome.value.answer);
+    const { valid, invented } = citedIndices(answer, chunks.length);
+    if (invented) {
+      last = { status: 'declined', reason: 'invented_citation', detail: provider.name };
+      continue;
+    }
+    // The citation markers are not figures; everything else must come from the sources or the question.
+    const introduced = introducedNumbers(answer.replaceAll(/\[\d{1,3}\]/g, ''), figuresText(chunks, question));
+    if (introduced.length > 0) {
+      last = { status: 'declined', reason: 'introduced_numbers', detail: `${provider.name} introduced ${introduced.join(', ')}` };
+      continue;
+    }
+    // An answer drawn from sources must say where from.
+    if (valid.size === 0) {
+      last = { status: 'declined', reason: 'no_citation', detail: provider.name };
+      continue;
+    }
     return {
-      response: fallback,
-      narration: { status: 'declined', reason: 'introduced_numbers', detail: `${outcome.provider} introduced ${introduced.join(', ')}` },
+      response: ChatbotResponseSchema.parse({
+        answer,
+        mode: 'assisted',
+        sources: sourcesFor(valid),
+        coverage: 'answered',
+        ...base,
+      }),
+      narration: { status: 'narrated', provider: outcome.provider },
     };
   }
-  // An answer drawn from sources must say where from.
-  if (valid.size === 0) {
-    return { response: fallback, narration: { status: 'declined', reason: 'no_citation' } };
-  }
-
-  return {
-    response: ChatbotResponseSchema.parse({
-      answer,
-      mode: 'assisted',
-      sources: sourcesFor(valid),
-      coverage: 'answered',
-      ...base,
-    }),
-    narration: { status: 'narrated', provider: outcome.provider },
-  };
+  return { response: fallback, narration: last };
 }

@@ -738,7 +738,7 @@ function buildChunks(input: ChunkInput): RefChunk[] {
     const byDept = counts(adm, (a) => deptLabel.get(a.dept) ?? a.dept);
     const byYear = counts(adm, (a) => shifted(a.row.admission_date!).slice(0, 4)).sort((a, b) => a[0].localeCompare(b[0]));
     push(`ref:admissions:${suffix}`, HOSPITAL_SOURCE, "reference-operations", ROLE.ops, scope.slug, `Admissions history ${where}`,
-      `${adm.length} hospital admissions ${where} from ${from} to ${to}. ${emergency} came in as emergencies (${pct(emergency, adm.length)}) and ${adm.length - emergency} were planned. Average length of stay ${stay.toFixed(1)} days. By department: ${listCounts(byDept, adm.length)}. By year: ${byYear.map(([y, n]) => `${y} ${n}`).join(", ")}. All were discharged. ${NOTE}`);
+      `${adm.length} patients were admitted to hospital ${where} from ${from} to ${to}. ${emergency} were emergency admissions, patients admitted as emergencies (${pct(emergency, adm.length)}), and ${adm.length - emergency} were planned admissions. Average length of stay ${stay.toFixed(1)} days. By department: ${listCounts(byDept, adm.length)}. By year: ${byYear.map(([y, n]) => `${y} ${n}`).join(", ")}. All were discharged. ${NOTE}`);
 
     // Diagnoses (clinical, as counts only)
     const dis = adm.map((a) => diseaseName.get(a.row.disease_id!));

@@ -4,6 +4,7 @@ import { membershipOf } from '../../plugins/auth.ts';
 import type { ModuleDeps } from '../ports.ts';
 import { auditRead, parseInput } from '../shared.ts';
 import { generateEmbedding } from './embedder.ts';
+import { focus } from './focus.ts';
 import { buildChatbotResponse } from './responder.ts';
 
 /*
@@ -34,7 +35,7 @@ export function registerChatbotRoutes(api: FastifyInstance, deps: ModuleDeps): v
 
     let chunks;
     try {
-      chunks = await deps.knowledge.search(membership, { text: message, embedding });
+      chunks = focus(await deps.knowledge.search(membership, { text: message, embedding }), message);
     } catch (error) {
       request.log.error({ err: error }, 'chatbot knowledge search failed');
       return {

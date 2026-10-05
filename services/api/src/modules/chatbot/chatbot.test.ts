@@ -30,7 +30,7 @@ const SAMPLE_CHUNKS: KnowledgeChunk[] = [
     content: 'Exception, act now, performance, for Fixture facility A1. Occupancy fell to 71 percent. Owner role: regional-coo.',
     source: 'auto:kpi-exception',
     domain: 'kpi-exceptions',
-    similarity: 0.61,
+    similarity: 0.8,
     matchedBy: 'text',
     updatedAt: BUILT_AT,
   },
@@ -151,6 +151,27 @@ describe('POST /api/chatbot', () => {
     expect(body.mode).toBe('deterministic');
     expect(body.answer).not.toContain('99');
     expect(body.sources.every((s) => !s.cited)).toBe(true);
+  });
+
+  it('asks the next model when the first answer fails a check, and keeps the checks for it', async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = new Request(input).url;
+      calls.push(url);
+      if (url.endsWith('/embeddings')) return Response.json({ data: [{ index: 0, embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.1) }] });
+      const answer = url.includes('groq') ? 'Facility A1 has 99 staff late [1].' : 'Facility A1 has 3 late of 40 rostered [1, 2].';
+      return Response.json({ choices: [{ message: { content: JSON.stringify({ answer }) } }] });
+    }) as typeof fetch;
+    const { call } = await setup(SAMPLE_CHUNKS, {
+      askNarration: { providers: [groqProvider('g'), provider], timeoutMs: 5000, fetchImpl },
+      embedding: { provider, model: 'embed-model', fetchImpl },
+    });
+    const body = await ask(call);
+    expect(calls.some((u) => u.includes('groq'))).toBe(true);
+    expect(body.mode).toBe('assisted');
+    expect(body.answer).toBe('Facility A1 has 3 late of 40 rostered [1][2].');
+    expect(body.answer).not.toContain('99');
+    expect(body.sources.map((s) => s.cited)).toEqual([true, true]);
   });
 
   it('refuses a model answer that cites a source that does not exist', async () => {
