@@ -2,12 +2,14 @@
 .chatbot-panel {
   position: fixed;
   right: var(--orbit-space-6);
-  bottom: calc(var(--orbit-space-6) + 3.75rem);
+  /* Opens above its own launcher, which is stacked above Ask Orbit's: lower, and
+     the launcher sat over the Send button and took its clicks. */
+  bottom: calc(var(--orbit-space-6) + 2 * (3rem + var(--orbit-space-3)));
   z-index: var(--orbit-z-overlay);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(30rem, calc(100vw - 2 * var(--orbit-space-6)));
-  height: min(42rem, calc(100vh - 8rem));
+  height: min(42rem, calc(100vh - 12rem));
   overflow: hidden;
   border: var(--orbit-border-width) solid var(--orbit-color-border);
   border-radius: var(--orbit-radius-card);
