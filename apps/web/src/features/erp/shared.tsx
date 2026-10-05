@@ -205,6 +205,7 @@ export function Field({ label: text, children, hint }: { label: string; children
 /** Route-level failure inside the ERP area: explicit, never a blank or partial page. */
 export function ErpErrorBoundary() {
   const error = useRouteError();
+  const href = useErpHref();
   const described =
     error instanceof ApiRequestError && error.code === "conflict"
       ? { kind: "invalid_request" as const, title: "That change could not be made.", message: error.message }
@@ -213,7 +214,7 @@ export function ErpErrorBoundary() {
     <>
       <title>Unavailable | Orbit hospital operations</title>
       <SurfaceState kind={described.kind} title={described.title} message={described.message} level={1}>
-        <Link className="orbit-button" data-variant="secondary" to="/erp">
+        <Link className="orbit-button" data-variant="secondary" to={href("/")}>
           Back to today
         </Link>
       </SurfaceState>

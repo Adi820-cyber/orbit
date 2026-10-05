@@ -14,6 +14,7 @@ import {
   getCurrentSession,
   signInWithPassword,
 } from "../../lib/auth";
+import { createApiClient, httpTransport } from "../../lib/api";
 import "./login.css";
 
 interface LoginFieldErrors {
@@ -150,7 +151,33 @@ export async function loginAction({ request }: ActionFunctionArgs) {
   }
 
   const returnTo = getSafeReturnPath(new URL(request.url).searchParams.get("returnTo"));
-  return redirect(returnTo);
+  return redirect(returnTo === "/" ? await landingPath() : returnTo);
+}
+
+/**
+ * The first page for whoever just signed in, when no page was requested.
+ *
+ * Leaders start on the brief (`/`). Hospital-operations accounts start in the
+ * ERP, and an admin with a hospital already chosen. Going there directly, rather
+ * than through `/`, keeps the first screen from requesting a page the account
+ * cannot use: the leaders' brief for an ERP account, or a hospital summary with
+ * no hospital chosen for an admin. Each answered with an error before the
+ * redirect, found in testing. Any failure here falls back to `/`, whose own
+ * checks then decide.
+ */
+async function landingPath(): Promise<string> {
+  try {
+    const session = await getCurrentSession();
+    if (!session) return "/";
+    const client = createApiClient(httpTransport(session.access_token));
+    const identity = await client.identity();
+    if (!("operatorRole" in identity)) return "/";
+    if (identity.operatorRole !== "admin") return "/erp";
+    const first = (await client.erp.reference()).facilities[0]?.facilityId;
+    return first ? `/erp?${new URLSearchParams({ facility: first }).toString()}` : "/erp";
+  } catch {
+    return "/";
+  }
 }
 
 function MailIcon() {
