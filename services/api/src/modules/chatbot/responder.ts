@@ -53,14 +53,23 @@ function systemPrompt(role: string): string {
   ].join('\n');
 }
 
-function sourceText(chunk: KnowledgeChunk): string {
-  const content = chunk.content.length > MAX_CHUNK_CHARS ? `${chunk.content.slice(0, MAX_CHUNK_CHARS)}…` : chunk.content;
-  return `${chunk.title} (${chunk.domain}, as of ${chunk.updatedAt.slice(0, 16).replace('T', ' ')} UTC): ${content}`;
+/** The as-of time exactly as the model is shown it. */
+function asOfText(chunk: KnowledgeChunk): string {
+  return `${chunk.updatedAt.slice(0, 16).replace('T', ' ')} UTC`;
 }
 
-/** The text whose numbers a model answer may reuse. Source indices are not part of it. */
+function sourceText(chunk: KnowledgeChunk): string {
+  const content = chunk.content.length > MAX_CHUNK_CHARS ? `${chunk.content.slice(0, MAX_CHUNK_CHARS)}…` : chunk.content;
+  return `${chunk.title} (${chunk.domain}, as of ${asOfText(chunk)}): ${content}`;
+}
+
+/**
+ * The text whose numbers a model answer may reuse: the question and each source
+ * as the model saw it, as-of time included (rule 2 tells it to reuse dates
+ * exactly, so repeating one is not inventing it). Source indices are not part of it.
+ */
 function figuresText(chunks: readonly KnowledgeChunk[], question: string): string {
-  return [question, ...chunks.map((chunk) => `${chunk.title} ${chunk.content}`)].join('\n');
+  return [question, ...chunks.map((chunk) => `${chunk.title} ${asOfText(chunk)} ${chunk.content}`)].join('\n');
 }
 
 /** Answer built without a model: the retrieved sources, in order, with their text. */
@@ -171,6 +180,12 @@ export async function buildChatbotResponse(
   // is asked instead, and its answer meets the same checks. Only when every
   // model fails is the deterministic answer served.
   let last: ChatbotNarration = { status: 'declined', reason: 'not_configured' };
+  // Every refusal, in order, so the log shows why each model was passed over.
+  const refusals: string[] = [];
+  const refuse = (narration: Extract<ChatbotNarration, { status: 'declined' }>, name: string) => {
+    refusals.push(`${name}: ${narration.reason}${narration.detail ? ` (${narration.detail})` : ''}`);
+    last = { ...narration, detail: refusals.join('; ') };
+  };
   for (const provider of deps.askNarration.providers) {
     // eslint-disable-next-line no-await-in-loop
     const outcome = await completeJson(task, {
@@ -179,24 +194,31 @@ export async function buildChatbotResponse(
       ...(deps.askNarration.fetchImpl ? { fetchImpl: deps.askNarration.fetchImpl } : {}),
     });
     if (outcome.status === 'declined') {
-      last = { status: 'declined', reason: outcome.reason, ...(outcome.detail ? { detail: outcome.detail } : {}) };
+      refuse({ status: 'declined', reason: outcome.reason, ...(outcome.detail ? { detail: outcome.detail } : {}) }, provider.name);
       continue;
     }
-    const answer = normaliseCitations(outcome.value.answer);
+    let answer = normaliseCitations(outcome.value.answer);
     const { valid, invented } = citedIndices(answer, chunks.length);
     if (invented) {
-      last = { status: 'declined', reason: 'invented_citation', detail: provider.name };
+      refuse({ status: 'declined', reason: 'invented_citation' }, provider.name);
       continue;
     }
     // The citation markers are not figures; everything else must come from the sources or the question.
     const introduced = introducedNumbers(answer.replaceAll(/\[\d{1,3}\]/g, ''), figuresText(chunks, question));
     if (introduced.length > 0) {
-      last = { status: 'declined', reason: 'introduced_numbers', detail: `${provider.name} introduced ${introduced.join(', ')}` };
+      refuse({ status: 'declined', reason: 'introduced_numbers', detail: `introduced ${introduced.join(', ')}` }, provider.name);
       continue;
     }
-    // An answer drawn from sources must say where from.
+    // An answer drawn from sources must say where from. With a single source there
+    // is only one place it can be from, and every figure has just been checked
+    // against it, so it is attributed to that source rather than thrown away.
+    // With several sources an uncited answer is refused: which one is unknown.
+    if (valid.size === 0 && chunks.length === 1) {
+      answer = `${answer} [1]`;
+      valid.add(1);
+    }
     if (valid.size === 0) {
-      last = { status: 'declined', reason: 'no_citation', detail: provider.name };
+      refuse({ status: 'declined', reason: 'no_citation' }, provider.name);
       continue;
     }
     return {

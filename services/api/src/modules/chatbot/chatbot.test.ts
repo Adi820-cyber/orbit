@@ -179,9 +179,29 @@ describe('POST /api/chatbot', () => {
     expect((await ask(call)).mode).toBe('deterministic');
   });
 
-  it('refuses a model answer that cites nothing', async () => {
+  it('refuses a model answer that cites nothing when it could be from either of several sources', async () => {
     const { call } = await setup(SAMPLE_CHUNKS, withModel('Some staff are late.'));
     expect((await ask(call)).mode).toBe('deterministic');
+  });
+
+  it('attributes an uncited answer to the only source, after checking its figures against it', async () => {
+    const { call } = await setup([SAMPLE_CHUNKS[0]!], withModel('Facility A1 has 3 late of 40 rostered.'));
+    const body = await ask(call);
+    expect(body.mode).toBe('assisted');
+    expect(body.answer).toBe('Facility A1 has 3 late of 40 rostered. [1]');
+    expect(body.sources.map((s) => s.cited)).toEqual([true]);
+
+    await close?.();
+    const invented = await setup([SAMPLE_CHUNKS[0]!], withModel('Facility A1 has 9 late.'));
+    expect((await ask(invented.call)).mode).toBe('deterministic');
+  });
+
+  it('lets an answer repeat the as-of time it was shown (live case: Groq quoting "as of 2026-10-03 08:00 UTC")', async () => {
+    const { call } = await setup(SAMPLE_CHUNKS, withModel('As of 2026‑10‑03 08:00 UTC, 3 staff are late at Facility A1 [1].'));
+    expect((await ask(call)).mode).toBe('assisted');
+    await close?.();
+    const otherDate = await setup(SAMPLE_CHUNKS, withModel('As of 2026-10-04 09:30 UTC, 3 staff are late [1].'));
+    expect((await ask(otherDate.call)).mode).toBe('deterministic');
   });
 
   it('serves the deterministic answer when the model is down', async () => {
