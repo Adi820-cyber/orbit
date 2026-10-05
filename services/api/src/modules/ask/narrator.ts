@@ -147,17 +147,18 @@ const TERMINAL_STATUS_REASON: Readonly<Record<number, DeclineReason>> = {
 /**
  * Numeric tokens in a string, normalised for comparison.
  *
- * Deliberately crude and therefore conservative. A maximal run of digits with
- * internal separators becomes one token with commas and spaces removed, so
- * `1,234.5` and `1234.5` compare equal while `45` and `45.2` do not. Rounding
+ * Deliberately strict. A comma joins digits only as a thousands separator
+ * (followed by exactly three digits), so `1,234.5` and `1234.5` compare equal
+ * while a list such as `2238, 5.1` stays two figures (merging it into
+ * `22385.1` was a false alarm seen live). `45` and `45.2` do not compare equal. Rounding
  * `45.2%` to `45%` is treated as introducing a number, which is the intended
  * strictness: the cost of a false positive is losing a narration, and the cost
  * of a false negative is publishing a figure nobody measured.
  */
 export function numericTokens(text: string): ReadonlySet<string> {
   const tokens = new Set<string>();
-  for (const match of text.matchAll(/\d[\d,\s]*(?:\.\d+)?/g)) {
-    const normalised = match[0].replaceAll(/[,\s]/g, '').replace(/\.$/, '');
+  for (const match of text.matchAll(/\d+(?:,\d{3})*(?:\.\d+)?/g)) {
+    const normalised = match[0].replaceAll(',', '');
     if (normalised.length > 0) {
       tokens.add(normalised);
     }

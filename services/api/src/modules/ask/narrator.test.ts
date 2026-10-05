@@ -74,6 +74,11 @@ describe('numericTokens', () => {
     expect(numericTokens('Net revenue 12,400 against a plan of 13,000')).toEqual(new Set(['12400', '13000']));
   });
 
+  it('keeps figures in a list apart instead of merging them into one number', () => {
+    expect(numericTokens('Sepsis 2238, 5.1 percent; Stroke 2226, 5.1 percent')).toEqual(new Set(['2238', '5.1', '2226']));
+    expect(introducedNumbers('Sepsis 2238, 5.1%', 'Sepsis 2238 (5.1 percent)')).toEqual([]);
+  });
+
   it('returns nothing for prose with no figures', () => {
     expect(numericTokens('capacity is below plan')).toEqual(new Set());
   });
