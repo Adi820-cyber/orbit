@@ -165,6 +165,7 @@ export async function buildChatbotResponse(
     jsonSchema: CHATBOT_JSON_SCHEMA,
     parse: ChatbotModelAnswerSchema,
     temperature: 0.1,
+    maxTokens: 2500,
   };
   // Each model in turn. An answer that fails a check is not shown; the next model
   // is asked instead, and its answer meets the same checks. Only when every

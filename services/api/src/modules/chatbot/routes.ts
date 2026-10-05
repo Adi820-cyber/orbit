@@ -35,7 +35,9 @@ export function registerChatbotRoutes(api: FastifyInstance, deps: ModuleDeps): v
 
     let chunks;
     try {
-      chunks = focus(await deps.knowledge.search(membership, { text: message, embedding }), message);
+      // Twelve candidates, so near-identical per-hospital copies cannot crowd out
+      // the group summary or another topic; at most six are used after focusing.
+      chunks = focus(await deps.knowledge.search(membership, { text: message, embedding }, { limit: 12 }), message).slice(0, 6);
     } catch (error) {
       request.log.error({ err: error }, 'chatbot knowledge search failed');
       return {

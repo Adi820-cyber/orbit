@@ -252,6 +252,12 @@ export interface JsonTask<T> {
   parse: z.ZodType<T>;
   /** Wording tasks want a little variety; classification tasks want none. */
   temperature: number;
+  /**
+   * Reply budget, reasoning included. Defaults to 1024, enough for one
+   * reworded sentence; a free-standing answer from several sources needs more,
+   * or a reasoning model runs out before writing it (seen live as empty replies).
+   */
+  maxTokens?: number;
 }
 
 /**
@@ -286,7 +292,7 @@ async function sendRequest<T>(
     temperature: task.temperature,
     // Headroom for reasoning models: their hidden reasoning shares this budget
     // with the answer. 400 was measured to run out before the JSON was written.
-    max_tokens: 1024,
+    max_tokens: task.maxTokens ?? 1024,
     messages: [
       { role: 'system', content: task.system },
       { role: 'user', content: task.user },
