@@ -15,7 +15,8 @@
     "test": "vitest run",
     "lint": "oxlint --type-aware",
     "generate:erp": "node scripts/generate-erp-seed.ts",
-    "provision:erp": "node scripts/provision-erp-accounts.ts"
+    "provision:erp": "node scripts/provision-erp-accounts.ts",
+    "load:reference": "node scripts/load-reference-datasets.ts"
   },
   "dependencies": {
     "@orbit/kpi-framework": "*",
