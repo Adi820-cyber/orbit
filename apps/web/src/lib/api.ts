@@ -9,15 +9,19 @@ import {
   AskResponseSchema,
   AuditListResponseSchema,
   BriefResponseSchema,
+  ChatbotRequestSchema,
+  ChatbotResponseSchema,
   CreateActionRequestSchema,
   DelegateActionRequestSchema,
   EntityDirectoryResponseSchema,
   ErrorEnvelopeSchema,
+  IdentityResponseSchema,
   InboxResponseSchema,
   KpiDetailQuerySchema,
   KpiDetailResponseSchema,
   KpiListResponseSchema,
   MeResponseSchema,
+  OperationsResponseSchema,
   PermittedAssigneesResponseSchema,
   TransitionActionRequestSchema,
   type AskRequest,
@@ -28,13 +32,14 @@ import {
   type KpiDetailQuery,
   type TransitionActionRequest,
 } from "@orbit/contracts";
+import { createErpClient } from "./erp-api";
 
-interface ContractParser<T> {
+export interface ContractParser<T> {
   safeParse(value: unknown): { success: true; data: T } | { success: false };
 }
 
 export interface ApiRequest {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PATCH" | "PUT";
   path: string;
   query?: URLSearchParams;
   body?: unknown;
@@ -140,7 +145,7 @@ function pageQuery(cursor?: string | null) {
 }
 
 /** Parses before sending, so the client never emits a payload the contract rejects. */
-function outgoing<T>(schema: ContractParser<T>, value: unknown): T {
+export function outgoing<T>(schema: ContractParser<T>, value: unknown): T {
   const parsed = schema.safeParse(value);
 
   if (!parsed.success) {
@@ -191,6 +196,9 @@ export function createApiClient(transport: ApiTransport) {
 
   return {
     me: () => call({ method: "GET", path: "/api/me" }, MeResponseSchema),
+    /** Either account kind: a leader (workbook role) or an ERP operator (ADR 0016). */
+    identity: () => call({ method: "GET", path: "/api/me" }, IdentityResponseSchema),
+    erp: createErpClient(call),
     brief: () => call({ method: "GET", path: "/api/brief" }, BriefResponseSchema),
     inbox: (cursor?: string | null) =>
       call({ method: "GET", path: "/api/inbox", query: pageQuery(cursor) }, InboxResponseSchema),
@@ -208,6 +216,11 @@ export function createApiClient(transport: ApiTransport) {
         KpiDetailResponseSchema,
       );
     },
+    operations: (days?: number) =>
+      call(
+        { method: "GET", path: "/api/operations", ...(days ? { query: new URLSearchParams({ days: String(days) }) } : {}) },
+        OperationsResponseSchema,
+      ),
     entities: () => call({ method: "GET", path: "/api/entities" }, EntityDirectoryResponseSchema),
     askPrompts: () => call({ method: "GET", path: "/api/ask/prompts" }, AskPromptsResponseSchema),
     askQuestion: async (question: string) =>
@@ -270,6 +283,11 @@ export function createApiClient(transport: ApiTransport) {
       ),
     audit: (cursor?: string | null) =>
       call({ method: "GET", path: "/api/audit", query: pageQuery(cursor) }, AuditListResponseSchema),
+    chatbot: async (message: string) =>
+      call(
+        { method: "POST", path: "/api/chatbot", body: outgoing(ChatbotRequestSchema, { message }) },
+        ChatbotResponseSchema,
+      ),
   };
 }
 

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { API_SURFACES, type ApiSurface } from './surface.ts';
+import { DEFAULT_EMBEDDING_MODEL } from './modules/chatbot/embedder.ts';
 import { groqProvider, openRouterProvider, type ModelProvider } from './modules/ask/narrator.ts';
 
 /**
@@ -19,6 +21,8 @@ const EnvSchema = z.object({
   DATABASE_URL: optional(z.string().min(1)),
   ALLOWED_ORIGINS: z.string().default(''),
   ORBIT_LIVE_SOURCES: z.string().default(''),
+  /** Which half of Orbit this deployment serves (src/surface.ts). Default `all`. */
+  ORBIT_SURFACE: optional(z.enum(API_SURFACES)),
   PORT: z.coerce.number().int().positive().default(3000),
   /*
    * Ask narration (ADR 0014). All optional: absent keys mean Ask stays fully
@@ -32,6 +36,8 @@ const EnvSchema = z.object({
   GROQ_MODEL: z.string().min(1).default('openai/gpt-oss-20b'),
   OPENROUTER_API_KEY: optional(z.string().min(1)),
   OPENROUTER_MODEL: optional(z.string().min(1)),
+  /** Knowledge-base embeddings (ADR 0019). Must produce 1024 dimensions; uses the OpenRouter key. */
+  EMBEDDING_MODEL: z.string().min(1).default(DEFAULT_EMBEDDING_MODEL),
 });
 
 export interface ApiConfig {
@@ -43,11 +49,15 @@ export interface ApiConfig {
   /** Sources switched from fail-closed to real by `ORBIT_LIVE_SOURCES`. Empty by default. */
   liveSources: ReadonlySet<LiveSource>;
   port: number;
+  /** Leader routes, ERP routes, or both (ADR 0016 §9). */
+  surface: ApiSurface;
   /**
    * Ask narration providers, in fallback order. Empty when no key is configured,
    * which leaves Ask fully deterministic (ADR 0014).
    */
   askProviders: readonly ModelProvider[];
+  /** Embedding model for the knowledge base (ADR 0019). */
+  embeddingModel: string;
 }
 
 /**
@@ -70,6 +80,8 @@ export const LIVE_SOURCES = [
   'dataset',
   'observations',
   'exceptions',
+  'erp',
+  'knowledge',
 ] as const;
 export type LiveSource = (typeof LIVE_SOURCES)[number];
 
@@ -85,6 +97,8 @@ export const DATABASE_SOURCES: readonly LiveSource[] = [
   'dataset',
   'observations',
   'exceptions',
+  'erp',
+  'knowledge',
 ];
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
@@ -110,7 +124,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     allowedOrigins: parseOrigins(vars.ALLOWED_ORIGINS),
     liveSources,
     port: vars.PORT,
+    surface: vars.ORBIT_SURFACE ?? 'all',
     askProviders: buildAskProviders(vars),
+    embeddingModel: vars.EMBEDDING_MODEL,
   };
 }
 

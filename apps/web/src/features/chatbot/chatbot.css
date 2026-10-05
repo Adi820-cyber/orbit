@@ -1,0 +1,291 @@
+/* RAG Chatbot panel. Reuses the design tokens from the existing Ask chat. */
+.chatbot-panel {
+  position: fixed;
+  right: var(--orbit-space-6);
+  /* Opens above its own launcher, which is stacked above Ask Orbit's: lower, and
+     the launcher sat over the Send button and took its clicks. */
+  bottom: calc(var(--orbit-space-6) + 2 * (3rem + var(--orbit-space-3)));
+  z-index: var(--orbit-z-overlay);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(30rem, calc(100vw - 2 * var(--orbit-space-6)));
+  height: min(42rem, calc(100vh - 12rem));
+  overflow: hidden;
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  border-radius: var(--orbit-radius-card);
+  background: var(--orbit-color-surface);
+  box-shadow: var(--orbit-shadow-raised);
+}
+
+.chatbot-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--orbit-space-3);
+  border-bottom: var(--orbit-border-width) solid var(--orbit-color-border);
+  padding: var(--orbit-space-3) var(--orbit-space-4);
+  background: var(--orbit-color-primary);
+  color: var(--orbit-color-on-primary);
+}
+
+.chatbot-panel__header h2 {
+  margin: 0;
+  font-size: var(--orbit-font-size-400);
+}
+
+.chatbot-panel__header p {
+  margin: var(--orbit-space-1) 0 0;
+  font-size: var(--orbit-font-size-100);
+  opacity: 0.85;
+}
+
+.chatbot-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--orbit-space-2);
+}
+
+.chatbot-panel__role-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: var(--orbit-space-1) var(--orbit-space-2);
+  background: rgba(255, 255, 255, 0.2);
+  font-size: var(--orbit-font-size-100);
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.chatbot-panel__close {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--orbit-color-on-primary);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chatbot-panel__close:hover {
+  background: var(--orbit-color-primary-strong);
+}
+
+.chatbot-panel__close:focus-visible {
+  outline: 3px solid var(--orbit-focus-ring);
+  outline-offset: 2px;
+}
+
+.chatbot-panel__log {
+  display: grid;
+  align-content: start;
+  gap: var(--orbit-space-4);
+  margin: 0;
+  overflow-y: auto;
+  padding: var(--orbit-space-4);
+  background: var(--orbit-color-surface-subtle);
+  list-style: none;
+}
+
+.chatbot-panel__exchange {
+  display: grid;
+  gap: var(--orbit-space-2);
+}
+
+.chatbot-panel__bubble {
+  max-width: 100%;
+  border-radius: var(--orbit-radius-card);
+  padding: var(--orbit-space-3);
+  font-size: var(--orbit-font-size-300);
+  line-height: 1.45;
+}
+
+.chatbot-panel__bubble p {
+  margin: 0;
+}
+
+.chatbot-panel__bubble p + p {
+  margin-top: var(--orbit-space-2);
+}
+
+.chatbot-panel__bubble--you {
+  justify-self: end;
+  max-width: 85%;
+  background: var(--orbit-color-primary);
+  color: var(--orbit-color-on-primary);
+}
+
+.chatbot-panel__bubble--bot {
+  display: grid;
+  gap: var(--orbit-space-2);
+  justify-self: stretch;
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  background: var(--orbit-color-surface);
+  color: var(--orbit-color-text);
+}
+
+.chatbot-panel__bubble--bot[data-tone="error"] {
+  border-color: var(--orbit-color-danger, var(--orbit-color-border));
+}
+
+.chatbot-panel__answer {
+  white-space: pre-line;
+}
+
+.chatbot-panel__sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chatbot-panel__source {
+  display: flex;
+  align-items: baseline;
+  gap: var(--orbit-space-2);
+  padding: var(--orbit-space-1) 0;
+  border-bottom: var(--orbit-border-width) solid var(--orbit-color-border);
+  font-size: var(--orbit-font-size-200);
+}
+
+.chatbot-panel__source:last-child {
+  border-bottom: 0;
+}
+
+.chatbot-panel__source-title {
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.chatbot-panel__source-score {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+  white-space: nowrap;
+}
+
+.chatbot-panel__mode {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+  font-style: italic;
+}
+
+.chatbot-panel__disclosure {
+  color: var(--orbit-color-text-muted);
+  font-size: var(--orbit-font-size-100);
+}
+
+.chatbot-panel__typing {
+  display: flex;
+  justify-self: start;
+  gap: var(--orbit-space-1);
+  padding: var(--orbit-space-3) var(--orbit-space-4);
+}
+
+.chatbot-panel__typing span[aria-hidden="true"] {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--orbit-color-text-muted);
+  animation: chatbot-pulse 1.2s infinite ease-in-out;
+}
+
+.chatbot-panel__typing span[aria-hidden="true"]:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.chatbot-panel__typing span[aria-hidden="true"]:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes chatbot-pulse {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chatbot-panel__typing span[aria-hidden="true"] {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.chatbot-panel__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--orbit-space-2);
+  border-top: var(--orbit-border-width) solid var(--orbit-color-border);
+  padding: var(--orbit-space-3);
+}
+
+.chatbot-panel__input {
+  flex: 1;
+  min-height: var(--orbit-control-height);
+  max-height: 7rem;
+  resize: vertical;
+  border: var(--orbit-border-width) solid var(--orbit-color-border);
+  border-radius: var(--orbit-radius-control);
+  padding: var(--orbit-space-2) var(--orbit-space-3);
+  background: var(--orbit-color-surface);
+  color: var(--orbit-color-text);
+  font: inherit;
+  font-size: var(--orbit-font-size-300);
+}
+
+.chatbot-panel__input:focus-visible {
+  outline: 3px solid var(--orbit-focus-ring);
+  outline-offset: 1px;
+}
+
+.chatbot-panel__launcher {
+  position: fixed;
+  /* Stacked above the Ask Orbit launcher (3rem tall, same corner), not beside it:
+     its width depends on its label, so a side-by-side offset overlapped it. */
+  right: var(--orbit-space-6);
+  bottom: calc(var(--orbit-space-6) + 3rem + var(--orbit-space-3));
+  min-height: 3rem;
+  z-index: var(--orbit-z-overlay);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--orbit-space-2);
+  border: 0;
+  border-radius: 999px;
+  padding: var(--orbit-space-2) var(--orbit-space-4);
+  /* The strong blue: white text on the lighter brand blue is 4.17:1, under WCAG AA's 4.5:1. */
+  background: var(--orbit-color-secondary-strong);
+  color: var(--orbit-color-on-primary);
+  font: inherit;
+  font-size: var(--orbit-font-size-300);
+  font-weight: var(--orbit-font-weight-semibold);
+  box-shadow: var(--orbit-shadow-raised);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.chatbot-panel__launcher:hover {
+  filter: brightness(0.88);
+}
+
+.chatbot-panel__launcher:focus-visible {
+  outline: 3px solid var(--orbit-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 47.99rem) {
+  /* Matches the Ask Orbit launcher, which moves to the smaller gutter here. */
+  .chatbot-panel__launcher {
+    right: var(--orbit-space-4);
+    bottom: calc(var(--orbit-space-4) + 3rem + var(--orbit-space-3));
+  }
+
+  .chatbot-panel {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: min(85vh, 100%);
+    border-radius: var(--orbit-radius-card) var(--orbit-radius-card) 0 0;
+  }
+
+  .chatbot-panel + .chatbot-panel__launcher {
+    display: none;
+  }
+}

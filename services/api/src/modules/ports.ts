@@ -12,6 +12,7 @@ import {
 } from '@orbit/contracts';
 import type { ScopeDeps } from '../plugins/scope.ts';
 import type { ModelProvider } from './ask/narrator.ts';
+import type { ErpStore } from './erp/ports.ts';
 
 /*
  * Ports between the API modules and the data they read or write.
@@ -167,6 +168,47 @@ export interface EntityDirectory {
   visible(membership: MembershipClaims): Promise<readonly unknown[]>;
 }
 
+/** Retrieved knowledge chunk (ADR 0019). */
+export interface KnowledgeChunk {
+  id: string;
+  title: string;
+  content: string;
+  source: string;
+  /** Kind of knowledge, which is what role grants are made on. */
+  domain: string;
+  similarity: number;
+  matchedBy: 'vector' | 'text' | 'hybrid';
+  /** ISO time the chunk text was last built from the data. */
+  updatedAt: string;
+}
+
+/** What to search for: the words always, and the question's vector when one could be made. */
+export interface KnowledgeQuery {
+  text: string;
+  embedding: number[] | null;
+}
+
+/**
+ * Knowledge search over `orbit.knowledge_chunks`: full-text always, vector when
+ * an embedding is given. What is searched is decided by the database from the
+ * caller's verified membership (organization, scope, role and domain grants),
+ * never by a field the client sent.
+ */
+export interface KnowledgeSource {
+  search(
+    membership: MembershipClaims,
+    query: KnowledgeQuery,
+    options?: { threshold?: number; limit?: number },
+  ): Promise<readonly KnowledgeChunk[]>;
+}
+
+/** How the question is embedded for vector search. Without a provider the chatbot uses text search only. */
+export interface EmbeddingConfig {
+  provider: ModelProvider | undefined;
+  model: string;
+  fetchImpl?: typeof fetch;
+}
+
 /**
  * Model narration for Ask answers (ADR 0014). No providers means every answer
  * stays deterministic, which is the default.
@@ -180,6 +222,18 @@ export interface AskNarration {
   fetchImpl?: typeof fetch;
 }
 
+/**
+ * Aggregates of the hospital operations (ERP) data for a leader's own
+ * hospitals (ADR 0018). Counts only: no person, patient or visit. The database
+ * functions behind it apply the caller's scope; the route re-checks the role.
+ */
+export interface OperationsSource {
+  /** Per hospital, right now. */
+  snapshot(membership: MembershipClaims): Promise<readonly unknown[]>;
+  /** Per hospital and finished day, for `days` days before today. */
+  daily(membership: MembershipClaims, days: number): Promise<readonly unknown[]>;
+}
+
 export interface ModuleDeps {
   scope: ScopeDeps;
   dataset: DatasetSource;
@@ -190,7 +244,14 @@ export interface ModuleDeps {
   transitions: TransitionPolicy;
   audit: AuditStore;
   entities: EntityDirectory;
+  /** Hospital operations (ADR 0016). Served only to ERP operator accounts. */
+  erp: ErpStore;
+  /** Leadership's aggregate view of the same data (ADR 0018). */
+  operations: OperationsSource;
   askNarration: AskNarration;
+  /** Knowledge retrieval for the chatbot. */
+  knowledge: KnowledgeSource;
+  embedding: EmbeddingConfig;
   /** The disclosure rendered on every number surface (PRD §8.4). */
   disclosure: string;
 }

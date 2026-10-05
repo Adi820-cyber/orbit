@@ -395,3 +395,28 @@ describe("actions and audit", () => {
     expect(markup).toContain("Action acknowledged");
   });
 });
+
+describe("hospital operations", () => {
+  it("shows the link and the live counts to a leader whose role includes them", async () => {
+    const markup = textOf(render(await open("/operations", createFixtureApi({ persona: "north" }).transport)));
+    expect(markup).toContain("Hospital operations");
+    expect(markup).toContain("Counts only: no person or patient is named here.");
+    expect(markup).toContain("On duty now");
+    expect(markup).toContain("Preview facility A1");
+    expect(markup).toContain("Illustrative");
+    expect(markup).toContain("Preview placeholder counts");
+  });
+
+  it("offers the navigation entry only to roles on the allow-list", async () => {
+    const allowed = textOf(render(await open("/", createFixtureApi({ persona: "chairman" }).transport)));
+    expect(allowed).toContain("Hospital operations");
+    const denied = textOf(render(await open("/", createFixtureApi({ persona: "billing-lead" }).transport)));
+    expect(denied).not.toContain("Hospital operations");
+  });
+
+  it("refuses a role outside the allow-list explicitly instead of showing an empty page", async () => {
+    const markup = textOf(render(await open("/operations", createFixtureApi({ persona: "billing-lead" }).transport)));
+    expect(markup).toContain("Not permitted");
+    expect(markup).not.toContain("On duty now");
+  });
+});

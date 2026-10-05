@@ -1,0 +1,28 @@
+{
+  "generatedBy": "packages/data-gen/scripts/load-reference-datasets.ts",
+  "provenance": "illustrative",
+  "checksum": "c57924fa4dcc41b5c43f34da2159a603a3362efffb861281d8e880cb69dd2af4",
+  "historyEnd": "2026-09-30",
+  "hospitalShiftDays": 259,
+  "clinicShiftDays": 1001,
+  "counts": {
+    "staff": 510,
+    "doctors": 108,
+    "patients": 30050,
+    "encounters": 43777,
+    "deliveries": 118157,
+    "availability": 75,
+    "knowledgeChunks": 57
+  },
+  "excluded": {
+    "admission before the patient's birth year": 1372,
+    "appointment still scheduled in the source (a booking, not a visit)": 51,
+    "treatment on a no-show or cancelled appointment": 103
+  },
+  "dropped": [
+    "patient names, phone numbers, addresses, cities, emails, blood groups and insurance numbers",
+    "employee and doctor names (replaced by fictional names), phone numbers and emails",
+    "diagnoses, test results and prescriptions as patient records (summarised as knowledge instead)",
+    "bill dates (not tied to their admissions in the source); amounts are summarised as knowledge"
+  ]
+}

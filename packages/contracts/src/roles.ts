@@ -26,3 +26,21 @@ export const ROLE_IDS = [
 
 export const RoleIdSchema = z.enum(ROLE_IDS);
 export type RoleId = z.infer<typeof RoleIdSchema>;
+
+/**
+ * ERP operator roles (ADR 0016). Deliberately NOT workbook roles: they carry no
+ * KPI assignments and never appear in `ROLE_IDS`, so the 14-role invariant and
+ * every leader entitlement stay exactly as they were.
+ *
+ * - `admin`: group scope. Maintains staff, doctors, the service catalogue and
+ *   settings, and decides attendance corrections, for the whole organization.
+ * - `hospital`: facility scope. Registers patients and visits, records services
+ *   delivered, rosters and punches staff, and requests corrections, for its own
+ *   facility only.
+ *
+ * Mirrors the `orbit.org_memberships.operator_role` CHECK constraint.
+ */
+export const OPERATOR_ROLE_IDS = ['admin', 'hospital'] as const;
+
+export const OperatorRoleIdSchema = z.enum(OPERATOR_ROLE_IDS);
+export type OperatorRoleId = z.infer<typeof OperatorRoleIdSchema>;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MembershipClaimsSchema, type MembershipClaims } from '@orbit/contracts';
+import { MembershipClaimsSchema, OperatorClaimsSchema, type MembershipClaims, type OperatorClaims } from '@orbit/contracts';
 import type { Database, Tx } from './client.ts';
 
 /** Postgres setting read by RLS policies: `current_setting('orbit.membership', true)::jsonb` (ARCH §8.3). */
@@ -32,6 +32,24 @@ export async function withMembershipTx<T>(
   fn: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   const claims = JSON.stringify(MembershipClaimsSchema.parse(membership));
+  return db.transaction(async (tx) => {
+    await tx.query(SET_LOCAL, [MEMBERSHIP_SETTING, claims]);
+    return fn(tx);
+  });
+}
+
+/**
+ * Runs `fn` in a transaction whose RLS claims are a verified ERP operator
+ * (ADR 0016). Same setting as `withMembershipTx`; the claims carry
+ * `operatorRole` and no workbook `role`, so `orbit_erp` policies match and
+ * every leader policy matches nothing.
+ */
+export async function withOperatorTx<T>(
+  db: Database,
+  operator: OperatorClaims,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  const claims = JSON.stringify(OperatorClaimsSchema.parse(operator));
   return db.transaction(async (tx) => {
     await tx.query(SET_LOCAL, [MEMBERSHIP_SETTING, claims]);
     return fn(tx);

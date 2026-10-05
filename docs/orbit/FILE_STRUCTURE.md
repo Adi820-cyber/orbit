@@ -51,6 +51,9 @@ orbit/
         lib/                    # api.ts is the ONLY place that calls fetch (ARCH §5)
         features/
           brief/  inbox/  explorer/  ask/  actions/  audit/
+          operations/           # leaders' live hospital-operations page (ADR 0018)
+          erp/                  # hospital operations app, operator accounts only (ADR 0016)
+          chatbot/              # knowledge chatbot panel (ADR 0019)
         roles/                  # one folder per role — view config only, not per-role apps
           chairman/  clinical-director/  regional-coo/  hospital-dho/
           people-executive/  bd-lead/  billing-lead/  coe-lead/
@@ -65,13 +68,18 @@ orbit/
           auth.ts  scope.ts  errors.ts
         modules/
           brief/  inbox/  kpi/  ask/  actions/  audit/
+          erp/  operations/  chatbot/   # ADR 0016, 0018, 0019
+        knowledge/              # knowledge sync job (ADR 0019)
+        knowledge-sync.ts       # its entry point: npm run knowledge:sync
         db/
           client.ts  rls.ts
+    simulator/                  # [Ghansham] live hospital simulator, runs on Render (ADR 0017)
   packages/
     contracts/                  # [Shared] see §4 below — nobody owns this alone
     ui-kit/                     # [Ayas] Recharts is imported ONLY here
     kpi-framework/              # [Maruti] generated from the workbook, never hand-edited
     data-gen/                   # [Maruti] deterministic generator + invariant checks
+  render.yaml                   # [Ghansham] Render Blueprint: simulator worker + knowledge sync cron
   supabase/
     migrations/                 # [Maruti] grants + RLS in the same migration as each table
     tests/                      # [Maruti] pgTAP allow/deny tests

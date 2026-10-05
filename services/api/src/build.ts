@@ -1,9 +1,10 @@
 import cors from '@fastify/cors';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { HealthResponseSchema, MeResponseSchema } from '@orbit/contracts';
-import { decorateMembership, membershipOf, requireAuth, type AuthOptions } from './plugins/auth.ts';
+import { HealthResponseSchema, MeResponseSchema, OperatorMeResponseSchema } from '@orbit/contracts';
+import { claimsOf, decorateMembership, isOperatorClaims, requireAuth, type AuthOptions } from './plugins/auth.ts';
 import { registerErrorHandling } from './plugins/errors.ts';
 import { registerModules, type ModuleDeps } from './modules/index.ts';
+import type { ApiSurface } from './surface.ts';
 
 export interface AppOptions {
   auth: AuthOptions;
@@ -12,6 +13,8 @@ export interface AppOptions {
   /** Data sources for the six modules; `pendingModuleDeps()` until the schema exists. */
   modules: ModuleDeps;
   logger?: boolean;
+  /** Which half of Orbit this deployment serves; default `all` (src/surface.ts). */
+  surface?: ApiSurface;
 }
 
 /**
@@ -23,12 +26,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     logger: options.logger ? { redact: ['req.headers.authorization', 'req.headers.cookie'] } : false,
   });
 
+  const surface = options.surface ?? 'all';
   registerErrorHandling(app);
   decorateMembership(app);
 
   await app.register(cors, {
     origin: [...options.allowedOrigins],
-    methods: ['GET', 'POST', 'PATCH'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT'],
     allowedHeaders: ['Authorization', 'Content-Type'],
     credentials: false,
   });
@@ -57,18 +61,25 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   await app.register(
     async (api) => {
-      requireAuth(api, options.auth);
+      requireAuth(api, { ...options.auth, surface });
 
       api.get('/me', async (request) => {
-        const membership = membershipOf(request);
+        const claims = claimsOf(request);
+        if (isOperatorClaims(claims)) {
+          return OperatorMeResponseSchema.parse({
+            operatorRole: claims.operatorRole,
+            organizationId: claims.organizationId,
+            scopes: claims.scopes,
+          });
+        }
         return MeResponseSchema.parse({
-          role: membership.role,
-          organizationId: membership.organizationId,
-          scopes: membership.scopes,
+          role: claims.role,
+          organizationId: claims.organizationId,
+          scopes: claims.scopes,
         });
       });
 
-      registerModules(api, options.modules);
+      registerModules(api, options.modules, surface);
     },
     { prefix: '/api' },
   );

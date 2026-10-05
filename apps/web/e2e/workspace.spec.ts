@@ -78,6 +78,7 @@ const SURFACES = [
   { path: "/ask", heading: "Ask about your authorized evidence" },
   { path: "/actions", heading: "Internal actions" },
   { path: "/audit", heading: "Audit trail" },
+  { path: "/operations", heading: "Hospital operations" },
 ];
 
 for (const surface of SURFACES) {
@@ -90,6 +91,16 @@ for (const surface of SURFACES) {
     await page.screenshot({ fullPage: true, path: testInfo.outputPath(`surface-${SURFACES.indexOf(surface)}.png`) });
   });
 }
+
+test("shows hospital operations only to roles that have it, and refuses the rest explicitly (ADR 0018)", async ({ page }) => {
+  await installApi(page, "billing-lead");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Hospital operations" })).toHaveCount(0);
+  await page.goto("/operations", { waitUntil: "domcontentloaded" });
+  await expect(page.getByText("Not permitted")).toBeVisible();
+  await expect(page.getByText("On duty now")).toHaveCount(0);
+});
 
 test("completes the Regional COO vertical slice from exception to audit (PRD §5.3 steps 1–6)", async ({ page }) => {
   await installApi(page);

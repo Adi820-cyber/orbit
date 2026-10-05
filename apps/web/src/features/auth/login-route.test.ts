@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSafeReturnPath, validateLoginInput } from "./login-route";
+import { DEMO_SIGN_IN_DOMAIN, getSafeReturnPath, signInEmail, validateLoginInput } from "./login-route";
 
 describe("getSafeReturnPath", () => {
   it("keeps a local Orbit path", () => {
@@ -38,20 +38,32 @@ describe("validateLoginInput", () => {
     expect(result).toEqual({
       email: "",
       errors: {
-        email: "Enter your work email.",
+        email: "Enter your work email or sign-in ID.",
         password: "Enter your password.",
       },
     });
   });
 
-  it("rejects an invalid email shape", () => {
+  it.each(["name@nowhere", "two words", "x", "9starts-with-digit"])("rejects %j as neither an email nor a sign-in ID", (value) => {
     const formData = new FormData();
-    formData.set("email", "not-an-email");
+    formData.set("email", value);
     formData.set("password", "provided");
 
     expect(validateLoginInput(formData)).toEqual({
-      email: "not-an-email",
-      errors: { email: "Enter a valid work email." },
+      email: value,
+      errors: { email: "Enter a valid work email or sign-in ID." },
     });
+  });
+
+  it("completes a short sign-in ID with the demo domain, and leaves emails alone", () => {
+    const formData = new FormData();
+    formData.set("email", " Hospital ");
+    formData.set("password", "checked-by-supabase-not-here");
+
+    expect(validateLoginInput(formData)).toEqual({
+      input: { email: `hospital@${DEMO_SIGN_IN_DOMAIN}`, password: "checked-by-supabase-not-here" },
+    });
+    expect(signInEmail("admin")).toBe("admin@kestrion.demo");
+    expect(signInEmail("leader@organization.org")).toBe("leader@organization.org");
   });
 });

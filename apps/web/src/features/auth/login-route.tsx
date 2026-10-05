@@ -14,6 +14,7 @@ import {
   getCurrentSession,
   signInWithPassword,
 } from "../../lib/auth";
+import { createApiClient, httpTransport } from "../../lib/api";
 import "./login.css";
 
 interface LoginFieldErrors {
@@ -34,6 +35,21 @@ interface LoginInput {
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * The fictional demo organization's sign-in domain (DEMO_RUNBOOK.md). A short
+ * sign-in ID such as `hospital` or `admin` is completed with it, so the demo
+ * accounts can be typed quickly. This only builds the email address: Supabase
+ * Auth still checks the password, and the API still derives role and scope from
+ * the verified membership. Not a secret.
+ */
+export const DEMO_SIGN_IN_DOMAIN = "kestrion.demo";
+const signInIdPattern = /^[a-z][a-z0-9._-]{1,39}$/i;
+
+/** An email stays as typed; a short sign-in ID becomes an address on the demo domain. */
+export function signInEmail(value: string) {
+  return !value.includes("@") && signInIdPattern.test(value) ? `${value.toLowerCase()}@${DEMO_SIGN_IN_DOMAIN}` : value;
+}
+
 export function getSafeReturnPath(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
     return "/";
@@ -53,14 +69,15 @@ export function validateLoginInput(formData: FormData):
   | { input?: never; errors: LoginFieldErrors; email: string } {
   const emailValue = formData.get("email");
   const passwordValue = formData.get("password");
-  const email = typeof emailValue === "string" ? emailValue.trim() : "";
+  const typed = typeof emailValue === "string" ? emailValue.trim() : "";
+  const email = signInEmail(typed);
   const password = typeof passwordValue === "string" ? passwordValue : "";
   const errors: LoginFieldErrors = {};
 
-  if (!email) {
-    errors.email = "Enter your work email.";
+  if (!typed) {
+    errors.email = "Enter your work email or sign-in ID.";
   } else if (!emailPattern.test(email)) {
-    errors.email = "Enter a valid work email.";
+    errors.email = "Enter a valid work email or sign-in ID.";
   }
 
   if (!password) {
@@ -68,7 +85,7 @@ export function validateLoginInput(formData: FormData):
   }
 
   if (Object.keys(errors).length > 0) {
-    return { email, errors };
+    return { email: typed, errors };
   }
 
   return { input: { email, password } };
@@ -111,7 +128,7 @@ export async function loginAction({ request }: ActionFunctionArgs) {
     if (!result.ok) {
       const message =
         result.reason === "invalid_credentials"
-          ? "We couldn't sign you in with those credentials. Check your email and password."
+          ? "We couldn't sign you in with those credentials. Check your email or sign-in ID and password."
           : "The sign-in service is unavailable right now. Please try again shortly.";
 
       return data<LoginActionData>(
@@ -134,7 +151,33 @@ export async function loginAction({ request }: ActionFunctionArgs) {
   }
 
   const returnTo = getSafeReturnPath(new URL(request.url).searchParams.get("returnTo"));
-  return redirect(returnTo);
+  return redirect(returnTo === "/" ? await landingPath() : returnTo);
+}
+
+/**
+ * The first page for whoever just signed in, when no page was requested.
+ *
+ * Leaders start on the brief (`/`). Hospital-operations accounts start in the
+ * ERP, and an admin with a hospital already chosen. Going there directly, rather
+ * than through `/`, keeps the first screen from requesting a page the account
+ * cannot use: the leaders' brief for an ERP account, or a hospital summary with
+ * no hospital chosen for an admin. Each answered with an error before the
+ * redirect, found in testing. Any failure here falls back to `/`, whose own
+ * checks then decide.
+ */
+async function landingPath(): Promise<string> {
+  try {
+    const session = await getCurrentSession();
+    if (!session) return "/";
+    const client = createApiClient(httpTransport(session.access_token));
+    const identity = await client.identity();
+    if (!("operatorRole" in identity)) return "/";
+    if (identity.operatorRole !== "admin") return "/erp";
+    const first = (await client.erp.reference()).facilities[0]?.facilityId;
+    return first ? `/erp?${new URLSearchParams({ facility: first }).toString()}` : "/erp";
+  } catch {
+    return "/";
+  }
 }
 
 function MailIcon() {
@@ -238,7 +281,7 @@ export function LoginRoute() {
 
           <Form className="login-form" method="post" noValidate>
             <div className="login-field">
-              <label htmlFor="email">Work email</label>
+              <label htmlFor="email">Work email or sign-in ID</label>
               <div className="login-control" data-invalid={Boolean(actionData?.errors?.email)}>
                 <span className="login-control__icon"><MailIcon /></span>
                 <input
@@ -247,11 +290,13 @@ export function LoginRoute() {
                   autoComplete="username"
                   defaultValue={actionData?.email}
                   id="email"
+                  autoCapitalize="none"
                   inputMode="email"
                   name="email"
                   placeholder="name@organization.org"
                   required
-                  type="email"
+                  spellCheck={false}
+                  type="text"
                 />
               </div>
               {actionData?.errors?.email ? (
