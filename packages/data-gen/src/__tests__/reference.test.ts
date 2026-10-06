@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildReference,
+  derivePrices,
   HISTORY_END,
   parseCsv,
   weeksShift,
@@ -166,5 +167,52 @@ describe("buildReference", () => {
 
   it("is the same every run", () => {
     expect(JSON.stringify(buildReference(hospital(), clinic()))).toBe(JSON.stringify(result));
+  });
+});
+
+describe("derivePrices", () => {
+  const tables = (overrides: Partial<HospitalTables>): HospitalTables => ({ ...hospital(), ...overrides });
+
+  it("prices tests from their standard cost, by the service they map to", () => {
+    const prices = derivePrices(
+      tables({
+        diagnostic_test: csv(`test_id,test_name,test_category,standard_cost,department_id
+1,X-Ray Chest,Radiology,1328,7
+2,Liver Function Test,Pathology,924,8
+3,Kidney Function Test,Pathology,4440,8
+4,Blood Sugar,Pathology,2770,8`),
+      }),
+    );
+    expect(prices.find((p) => p.serviceCode === "IMG-XRAY")).toMatchObject({ price: 1328, sample: 1 });
+    // Chemistry: median of 924, 2770, 4440.
+    expect(prices.find((p) => p.serviceCode === "LAB-CHEM")).toMatchObject({ price: 2770, sample: 3 });
+  });
+
+  it("prices a stay per day from Room charges over the length of stay, ICU apart", () => {
+    const prices = derivePrices(
+      tables({
+        admission: csv(`admission_id,admission_date,discharge_date,admission_type,admission_status,patient_id,department_id,ward_id,bed_id,disease_id
+1,2025-12-01,2025-12-05,Emergency,Discharged,1,3,1,1,1
+2,2025-12-01,2025-12-03,Emergency,Discharged,1,3,2,1,1`),
+        ward: csv(`ward_id,ward_name,ward_type,total_beds,department_id
+1,Ward A,General,10,3
+2,ICU 1,ICU,4,6`),
+        billing: csv(`bill_id,bill_date,total_amount,insurance_covered_amount,patient_payable_amount,payment_status,payment_mode,admission_id
+1,2025-12-05,8000,0,8000,Paid,Cash,1
+2,2025-12-03,9000,0,9000,Paid,Cash,2`),
+        billing_detail: csv(`billing_detail_id,charge_type,reference_id,amount,bill_id
+1,Room,1,8000,1
+2,Room,2,9000,2`),
+      }),
+    );
+    expect(prices.find((p) => p.serviceCode === "WARD-DAY")).toMatchObject({ price: 2000 });
+    expect(prices.find((p) => p.serviceCode === "ICU-DAY")).toMatchObject({ price: 4500 });
+  });
+
+  it("leaves services the data never prices unpriced, rather than inventing a price", () => {
+    const codes = derivePrices(hospital()).map((p) => p.serviceCode);
+    for (const code of ["CON-GEN", "CON-SPEC", "EMR-TRIAGE", "CARD-ECG", "CARD-ANGIO", "ONCO-DAY", "REHAB-SESS"]) {
+      expect(codes).not.toContain(code);
+    }
   });
 });

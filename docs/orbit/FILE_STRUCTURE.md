@@ -52,7 +52,8 @@ orbit/
         features/
           brief/  inbox/  explorer/  ask/  actions/  audit/
           operations/           # leaders' live hospital-operations page (ADR 0018)
-          erp/                  # hospital operations app, operator accounts only (ADR 0016)
+          erp/                  # hospital operations app, operator accounts only (ADR 0016); billing.tsx = bills, payments, revenue (ADR 0022)
+          revenue/              # leaders' hospital revenue page (ADR 0022)
           chatbot/              # the Assistant's typed-question action: knowledge search, Ask fallback (ADRs 0019, 0021)
         roles/                  # one folder per role — view config only, not per-role apps
           chairman/  clinical-director/  regional-coo/  hospital-dho/
@@ -68,7 +69,7 @@ orbit/
           auth.ts  scope.ts  errors.ts
         modules/
           brief/  inbox/  kpi/  ask/  actions/  audit/
-          erp/  operations/  chatbot/   # ADR 0016, 0018, 0019
+          erp/  operations/  chatbot/  revenue/   # ADR 0016, 0018, 0019, 0022 (erp/billing-routes.ts)
         knowledge/              # knowledge sync job (ADR 0019)
         knowledge-sync.ts       # its entry point: npm run knowledge:sync
         db/

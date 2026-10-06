@@ -30,10 +30,17 @@ export interface TickStats {
   services: number;
   closed: number;
   hires: number;
+  bills: number;
+  payments: number;
+  /** Closed visits not billed because a service on them has no price yet (an admin sets prices). */
+  unbillable: number;
 }
 
 export function emptyStats(): TickStats {
-  return { writes: 0, skippedWrites: 0, failures: 0, punches: 0, corrections: 0, decisions: 0, rosters: 0, patients: 0, visits: 0, services: 0, closed: 0, hires: 0 };
+  return {
+    writes: 0, skippedWrites: 0, failures: 0, punches: 0, corrections: 0, decisions: 0, rosters: 0, patients: 0, visits: 0,
+    services: 0, closed: 0, hires: 0, bills: 0, payments: 0, unbillable: 0,
+  };
 }
 
 /** Everything one tick of the simulator works with. */
@@ -64,8 +71,15 @@ export type WriteResult<T> =
  * A refused write is an expected event (a rule said no), so it is logged and
  * counted, never thrown: one bad record must not stop the rest of the hospital.
  * `counted: false` skips the per-tick budget (used for filling a whole roster day).
+ * `expected` marks a refusal the caller anticipates (e.g. a visit with an unpriced
+ * service cannot be billed yet): it is returned, not logged or counted as a failure.
  */
-export async function write<T>(ctx: Ctx, label: string, run: () => Promise<T>, options: { counted?: boolean } = {}): Promise<WriteResult<T>> {
+export async function write<T>(
+  ctx: Ctx,
+  label: string,
+  run: () => Promise<T>,
+  options: { counted?: boolean; expected?: (error: unknown) => boolean } = {},
+): Promise<WriteResult<T>> {
   const counted = options.counted ?? true;
   if (ctx.cfg.paused || (counted && ctx.budget.remaining <= 0)) {
     ctx.stats.skippedWrites += 1;
@@ -77,8 +91,10 @@ export async function write<T>(ctx: Ctx, label: string, run: () => Promise<T>, o
     ctx.stats.writes += 1;
     return { status: 'ok', value };
   } catch (error: unknown) {
-    ctx.stats.failures += 1;
-    logFailure(ctx.log, label, error);
+    if (!options.expected?.(error)) {
+      ctx.stats.failures += 1;
+      logFailure(ctx.log, label, error);
+    }
     return { status: 'failed', error, permanent: isPermanentRefusal(error) };
   }
 }

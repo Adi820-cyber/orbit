@@ -1,6 +1,7 @@
 import { decideCorrections, renewCredentials } from './admin.ts';
 import { runAttendance } from './attendance.ts';
 import { bootstrapCatalogue, bootstrapStaff } from './bootstrap.ts';
+import { runBilling } from './billing.ts';
 import { runCare } from './care.ts';
 import { addDays, localParts, type Clock } from './clock.ts';
 import type { SimConfig } from './config.ts';
@@ -124,6 +125,7 @@ export function createSimulator(deps: SimDeps): { state: SimState; tick(): Promi
           if (staffed) await ensureRosters(ctx, state, hospital, parts.date);
           const boards = await runAttendance(ctx, state, hospital, parts.date);
           await runCare(ctx, state, hospital, boards);
+          await runBilling(ctx, hospital);
         } catch (error: unknown) {
           ctx.stats.failures += 1;
           logFailure(deps.log, `hospital ${hospital.key}`, error);

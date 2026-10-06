@@ -8,6 +8,7 @@ import {
   KpiDetailQuerySchema,
   PageQuerySchema,
   seesOperations,
+  seesRevenue,
   TransitionActionRequestSchema,
   type Action,
   type ActionEvent,
@@ -1456,6 +1457,16 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
     }
 
     if (method === "GET" && resource === "operations" && !id) return { status: 200, body: operationsFor() };
+
+    // Billing lives in the ERP, which the preview does not model: an honest empty feed, no invented amounts.
+    if (method === "GET" && resource === "revenue" && !id) {
+      if (!seesRevenue(membership.role)) throw new FixtureError("forbidden", "Your role does not include hospital revenue.");
+      const zero = { bills: 0, gross: 0, insurance: 0, patient: 0, collected: 0, grossToday: 0, collectedToday: 0, openBills: 0, outstandingPatient: 0, outstandingInsurer: 0 };
+      return {
+        status: 200,
+        body: { days: 30, currency: "INR", asOf: new Date().toISOString(), totals: zero, hospitals: [], provenance: "illustrative", disclosure: PREVIEW_DISCLOSURE },
+      };
+    }
 
     if (method === "GET" && resource === "entities" && !id) return { status: 200, body: { entities: visibleEntities() } };
 

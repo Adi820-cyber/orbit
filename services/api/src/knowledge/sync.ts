@@ -48,6 +48,10 @@ export async function syncKnowledge(options: SyncOptions): Promise<SyncResult> {
 
   const refreshed = await db.transaction((tx) => tx.query('select kind, chunks from orbit.knowledge_refresh()'));
   const built = refreshed.map((row) => RefreshRowSchema.parse(row));
+  // Billing summaries (ADR 0022): their own source ('erp:billing'), so the
+  // refresh above never removes them; this rebuilds them from the ERP's bills.
+  const [billing] = await db.transaction((tx) => tx.query('select orbit.knowledge_refresh_billing() as chunks'));
+  built.push({ kind: 'billing', chunks: z.number().int().parse(billing?.['chunks'] ?? 0) });
 
   let embedded = 0;
   let embeddingAvailable = Boolean(embed);

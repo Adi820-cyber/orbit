@@ -1,7 +1,11 @@
 import type { OperatorClaims } from '@orbit/contracts';
-import type { ErpPageRows, ErpStore, ErpWrite } from '../modules/erp/ports.ts';
+import type { ErpStore } from '../modules/erp/ports.ts';
 import { ApiError } from '../plugins/errors.ts';
-import type { Database, SqlParam, Tx } from './client.ts';
+import type { Database, Tx } from './client.ts';
+import { audit, day, hhmm, iso, likePattern, one, page, staleOrMissing } from './erp-sql.ts';
+
+export { likePattern } from './erp-sql.ts';
+import { createBillingMethods } from './erp-billing.ts';
 import { withOperatorTx } from './rls.ts';
 
 /*
@@ -17,21 +21,7 @@ import { withOperatorTx } from './rls.ts';
  * `mapDbError`, never surfaced as a 500.
  */
 
-// ---------------------------------------------------------------------------
-// Formatting helpers: instants as UTC ISO strings, dates as YYYY-MM-DD.
-// ---------------------------------------------------------------------------
-const iso = (column: string) => `to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
-const day = (column: string) => `to_char(${column}, 'YYYY-MM-DD')`;
-const hhmm = (column: string) => `to_char(${column}, 'HH24:MI')`;
 
-/** Escapes LIKE wildcards in user text, so a search for `50%` is literal. */
-export function likePattern(text: string): string {
-  return `%${text.replace(/[\\%_]/g, (match) => `\\${match}`)}%`;
-}
-
-function offset(page: number, pageSize: number): number {
-  return (page - 1) * pageSize;
-}
 
 // ---------------------------------------------------------------------------
 // Database errors -> typed API errors
@@ -54,7 +44,23 @@ const RULE_MESSAGES: Record<string, string> = {
   schedule_overlap: 'This slot overlaps another active slot for the same doctor and day.',
   staff_is_not_a_doctor: 'That person is not a doctor.',
   doctor_has_profile: 'A doctor with a doctor profile cannot change staff type.',
+  // Billing (migration 20261006000200)
+  price_admin_only: 'Only an admin account can change a price.',
+  delivery_billed: 'This service is on a bill. Cancel the bill before cancelling the service.',
+  bill_cancelled: 'This bill is cancelled.',
+  bill_immutable: "A bill's amounts cannot change once it is issued.",
+  bill_has_payments: 'A bill with a payment cannot be cancelled.',
+  bill_not_at_facility: 'That bill is not at this facility.',
+  payment_before_bill: 'A payment cannot be dated before its bill.',
+  payment_exceeds_balance: 'That is more than this payer still owes on the bill.',
+  bill_needs_closed_visit: 'Close the visit before billing it.',
+  nothing_to_bill: 'Every service on this visit is already billed.',
+  price_missing: 'No price is set for some services on this visit. An admin sets prices on the Services page.',
+  revenue_range_invalid: 'Choose a period of 1 to 92 days.',
 };
+
+/** Rules that refuse the caller rather than conflict with the data. */
+const FORBIDDEN_RULES = new Set(['price_admin_only']);
 
 /** Unique constraints whose violation is an ordinary, explainable conflict. */
 const UNIQUE_MESSAGES: Record<string, string> = {
@@ -89,8 +95,12 @@ export function mapDbError(error: unknown): unknown {
   const constraint = typeof pg.constraint_name === 'string' ? pg.constraint_name : '';
 
   if (code === 'P0001' && message.startsWith('erp:')) {
-    const rule = message.slice('erp:'.length);
-    return new ApiError('conflict', RULE_MESSAGES[rule] ?? 'That change breaks a hospital operations rule.', `erp_rule:${rule}`);
+    // A rule may carry a detail after a second colon (`erp:price_missing:General consultation`).
+    const [rule = '', ...rest] = message.slice('erp:'.length).split(':');
+    const detail = rest.join(':').trim();
+    const text = RULE_MESSAGES[rule] ?? 'That change breaks a hospital operations rule.';
+    const full = rule === 'price_missing' && detail ? `No price is set for: ${detail}. An admin sets prices on the Services page.` : text;
+    return new ApiError(FORBIDDEN_RULES.has(rule) ? 'forbidden' : 'conflict', full, `erp_rule:${rule}`);
   }
   if (code === '23505') {
     return new ApiError('conflict', UNIQUE_MESSAGES[constraint] ?? 'That record already exists.', `unique:${constraint}`);
@@ -270,36 +280,6 @@ join orbit_erp.services sv on sv.id = sd.service_id
 left join orbit_erp.staff pf on pf.id = sd.performed_by_staff_id
 left join orbit_erp.facility_services fs on fs.facility_id = sd.facility_id and fs.service_id = sd.service_id`;
 
-const AUDIT_SQL = `insert into orbit_erp.audit_events (action, target_type, target_id, request_id) values ($1, $2, $3::uuid, $4)`;
-
-type AuditAction = 'viewed' | 'created' | 'updated' | 'punched' | 'decided';
-
-async function audit(tx: Tx, action: AuditAction, targetType: string, targetId: string, requestId: string) {
-  await tx.query(AUDIT_SQL, [action, targetType, targetId, requestId]);
-}
-
-async function one(tx: Tx, text: string, params: SqlParam[] = []): Promise<Record<string, unknown> | null> {
-  const [row] = await tx.query(text, params);
-  return row ?? null;
-}
-
-async function page(
-  tx: Tx,
-  countSql: string,
-  pageSql: string,
-  params: SqlParam[],
-  paging: { page: number; pageSize: number },
-): Promise<ErpPageRows> {
-  const total = Number((await one(tx, countSql, params))?.['total'] ?? 0);
-  const items = await tx.query(pageSql, [...params, paging.pageSize, offset(paging.page, paging.pageSize)]);
-  return { items, total };
-}
-
-/** Distinguishes a stale version from a record the caller cannot see. */
-async function staleOrMissing(tx: Tx, table: string, idColumn: string, id: string): Promise<ErpWrite> {
-  const row = await one(tx, `select 1 as found from ${table} where ${idColumn} = $1::uuid`, [id]);
-  return row ? { status: 'stale' } : { status: 'not_found' };
-}
 
 // ---------------------------------------------------------------------------
 // The store
@@ -358,6 +338,7 @@ export function createDbErpStore(db: Database): ErpStore {
     );
 
   return {
+    ...createBillingMethods(run),
     reference: (operator) =>
       run(operator, async (tx) => {
         const [facilities, departments, specialties, shiftTemplates, settings] = await Promise.all([

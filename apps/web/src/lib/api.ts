@@ -22,6 +22,7 @@ import {
   KpiListResponseSchema,
   MeResponseSchema,
   OperationsResponseSchema,
+  RevenueFeedResponseSchema,
   PermittedAssigneesResponseSchema,
   TransitionActionRequestSchema,
   type AskRequest,
@@ -220,6 +221,11 @@ export function createApiClient(transport: ApiTransport) {
       call(
         { method: "GET", path: "/api/operations", ...(days ? { query: new URLSearchParams({ days: String(days) }) } : {}) },
         OperationsResponseSchema,
+      ),
+    revenue: (days?: number) =>
+      call(
+        { method: "GET", path: "/api/revenue", ...(days ? { query: new URLSearchParams({ days: String(days) }) } : {}) },
+        RevenueFeedResponseSchema,
       ),
     entities: () => call({ method: "GET", path: "/api/entities" }, EntityDirectoryResponseSchema),
     askPrompts: () => call({ method: "GET", path: "/api/ask/prompts" }, AskPromptsResponseSchema),

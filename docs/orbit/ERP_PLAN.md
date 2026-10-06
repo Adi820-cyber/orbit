@@ -55,7 +55,7 @@ The current specifications explicitly exclude this kind of data. The plan must n
 | D4 | Attendance rules: shift definitions, grace period, "late"/"early exit"/"overtime" thresholds, overnight-shift attribution. | Maruti (values), Aditya (sign-off) | Configurable per organization. Demo values labelled illustrative. **No threshold is invented in code** (§5.3.4). | Phase 2 |
 | D5 | Service catalogue: categories, and whether tariffs (prices) are shown at all. | Maruti, Aditya | Categories as in §5.4. Tariffs optional and labelled illustrative, or omitted. | Phase 4 |
 | D6 | Must ERP facts reconcile with the KPI observations already seeded (13,800 rows), or does the ERP use its own dataset? | Maruti | Reconcile. ERP facts become the source that KPIs are re-derived from (§8.3). This is the largest data-design risk. | Phase 6 |
-| D7 | Is leave management, payroll, billing/invoicing, pharmacy, or inventory in scope? | Aditya | **No** for this plan. Attendance records a `leave` status only. | — |
+| D7 | Is leave management, payroll, billing/invoicing, pharmacy, or inventory in scope? | Aditya | **No** for this plan. Attendance records a `leave` status only. **Billing added on 2026-10-06 by ADR 0022** (prices, bills, insurance cover, payments, revenue); the rest stays out. | — |
 | D8 | Does Ask Orbit get access to ERP data? | Aditya | Aggregates only, through the existing typed catalogue. **Never** individual patient or staff records. | Phase 6 |
 
 ### 2.2 Scope options for D1

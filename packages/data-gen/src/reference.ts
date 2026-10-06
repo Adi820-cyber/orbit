@@ -879,6 +879,82 @@ function buildChunks(input: ChunkInput): RefChunk[] {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Prices (ADR 0022 §2)
+// ---------------------------------------------------------------------------
+
+/** A service price derived from the reference hospital dataset, in rupees. */
+export interface RefPrice {
+  serviceCode: string;
+  /** Whole rupees: the median of the matching amounts, rounded. */
+  price: number;
+  /** How many dataset amounts the median was taken over. */
+  sample: number;
+  basis: string;
+}
+
+function median(values: readonly number[]): number | null {
+  const finite = values.filter((value) => Number.isFinite(value) && value > 0).toSorted((a, b) => a - b);
+  if (finite.length === 0) return null;
+  const middle = Math.floor(finite.length / 2);
+  return finite.length % 2 === 1 ? finite[middle]! : (finite[middle - 1]! + finite[middle]!) / 2;
+}
+
+/**
+ * The prices the dataset itself supports, one per ERP service:
+ * - tests and imaging: the median `standard_cost` of the dataset's tests mapped
+ *   to that service (the same map the loader uses for test deliveries);
+ * - ward and critical-care days: each Room charge divided by its admission's
+ *   length of stay, median by ward type (ICU or not);
+ * - procedures: the median Procedure charge, by the admission's department
+ *   (Surgery, Orthopedics, other), the same split the loader uses.
+ *
+ * A service with no matching amounts gets no price: consultation, emergency
+ * assessment, ECG, cardiac catheter, oncology day-care and rehabilitation are
+ * not priced anywhere in the data, so an admin sets them (none are invented).
+ */
+export function derivePrices(hospital: HospitalTables): RefPrice[] {
+  const prices: RefPrice[] = [];
+  const add = (serviceCode: string, values: readonly number[], basis: string) => {
+    const value = median(values);
+    if (value !== null) prices.push({ serviceCode, price: Math.round(value), sample: values.length, basis });
+  };
+
+  const testsByService = new Map<string, number[]>();
+  for (const test of hospital.diagnostic_test) {
+    const service = TEST_SERVICE[test.test_name ?? ""];
+    if (service) testsByService.set(service, [...(testsByService.get(service) ?? []), Number(test.standard_cost)]);
+  }
+  for (const [service, costs] of [...testsByService].toSorted(([a], [b]) => a.localeCompare(b))) {
+    add(service, costs, "median standard cost of the dataset's tests of this kind");
+  }
+
+  const admission = new Map(hospital.admission.map((a) => [a.admission_id!, a]));
+  const wardType = new Map(hospital.ward.map((w) => [w.ward_id!, w.ward_type!]));
+  const deptName = new Map(hospital.department.map((d) => [d.department_id!, d.department_name!]));
+  const billAdmission = new Map(hospital.billing.map((b) => [b.bill_id!, b.admission_id!]));
+  const perDay = { ward: [] as number[], icu: [] as number[] };
+  const procedures = { SURG: [] as number[], ORTH: [] as number[], other: [] as number[] };
+  for (const line of hospital.billing_detail) {
+    const stay = admission.get(billAdmission.get(line.bill_id!) ?? "");
+    if (!stay) continue;
+    const amount = Number(line.amount);
+    if (line.charge_type === "Room") {
+      const days = Math.max(1, daysBetween(stay.admission_date!, stay.discharge_date!));
+      (wardType.get(stay.ward_id!) === "ICU" ? perDay.icu : perDay.ward).push(amount / days);
+    } else if (line.charge_type === "Procedure") {
+      const dept = HOSPITAL_DEPARTMENT[deptName.get(stay.department_id!) ?? ""];
+      (dept === "SURG" ? procedures.SURG : dept === "ORTH" ? procedures.ORTH : procedures.other).push(amount);
+    }
+  }
+  add("ICU-DAY", perDay.icu, "median Room charge per day of stay, ICU wards");
+  add("ORTH-PROC", procedures.ORTH, "median Procedure charge, Orthopedics admissions");
+  add("PROC-MINOR", procedures.other, "median Procedure charge, admissions outside Surgery and Orthopedics");
+  add("SURG-PROC", procedures.SURG, "median Procedure charge, Surgery admissions");
+  add("WARD-DAY", perDay.ward, "median Room charge per day of stay, non-ICU wards");
+  return prices.toSorted((a, b) => a.serviceCode.localeCompare(b.serviceCode));
+}
+
 /** Stable checksum of a result, for the manifest. */
 export function checksumOf(result: ReferenceResult): string {
   return createHash("sha256").update(JSON.stringify(result)).digest("hex");

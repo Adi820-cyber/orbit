@@ -9,6 +9,7 @@ import { createDbErpStore } from './db/erp.ts';
 import { DEFAULT_EMBEDDING_MODEL, embeddingProvider } from './modules/chatbot/embedder.ts';
 import { createDbKnowledgeSource } from './db/knowledge.ts';
 import { createDbOperationsSource } from './db/operations.ts';
+import { createDbRevenueSource } from './db/revenue.ts';
 import { createDbEntitlementSource, createDbEntityDirectory, createDbScopeResolver, membershipQuery } from './db/sources.ts';
 import { createMatrixTransitionPolicy, PROPOSED_TRANSITIONS } from './modules/actions/transitions.ts';
 import type { ModuleDeps } from './modules/index.ts';
@@ -88,6 +89,7 @@ export function wireSources(
     modules.erp = createDbErpStore(database());
     // The leadership view reads the same ERP data, as aggregates (ADR 0018).
     modules.operations = createDbOperationsSource(database());
+    modules.revenue = createDbRevenueSource(database());
   }
   if (live.has('transitions')) {
     modules.transitions = createMatrixTransitionPolicy(PROPOSED_TRANSITIONS);

@@ -18,6 +18,7 @@
  *   supabase/seed/local/reference/0204_visits.sql      visits
  *   supabase/seed/local/reference/0205_services.sql    services delivered
  *   supabase/seed/local/reference/0206_knowledge.sql   chatbot knowledge (summaries only)
+ *   supabase/seed/local/reference/0207_prices.sql      service prices derived from the dataset (ADR 0022)
  * and, committed, counts only:
  *   data/snapshots/reference-manifest.json
  *
@@ -31,6 +32,7 @@ import { stableUuid } from "../src/erp.ts";
 import {
   buildReference,
   checksumOf,
+  derivePrices,
   CLINIC_TABLES,
   HOSPITAL_TABLES,
   NEW_DEPARTMENTS,
@@ -233,6 +235,29 @@ where k.content_hash is distinct from excluded.content_hash;`,
   ...footer,
 ];
 
+// Prices: the dataset's own amounts (derivePrices). Each hospital's price list
+// is filled only where no price is set yet, so an admin's price is never
+// overwritten. Run as the database owner: the admin-only price rule binds the
+// API's role (migration 20261006000200).
+const derivedPrices = derivePrices(hospital);
+const prices = [
+  ...header("Service prices in rupees, derived from the reference hospital dataset (ADR 0022)."),
+  ...valuesInsert(
+    derivedPrices,
+    "service_code, price",
+    (p) => [p.serviceCode, p.price],
+    (values) => `update orbit_erp.facility_services fs
+   set illustrative_tariff = v.price::numeric, version = fs.version + 1, updated_at = now()
+  from ${values}
+  join orbit_erp.services s on s.service_code = v.service_code
+  join orbit.organizations o on o.id = s.organization_id and o.slug = 'kestrion'
+ where fs.service_id = s.id
+   and fs.illustrative_tariff is null;`,
+  ),
+  ...footer,
+];
+result.manifest.counts["pricedServices"] = derivedPrices.length;
+
 mkdirSync(outDir, { recursive: true });
 const files: [string, string[]][] = [
   ["0201_catalogue.sql", catalogue],
@@ -241,6 +266,7 @@ const files: [string, string[]][] = [
   ["0204_visits.sql", visits],
   ["0205_services.sql", services],
   ["0206_knowledge.sql", knowledge],
+  ["0207_prices.sql", prices],
 ];
 for (const [name, lines] of files) writeFileSync(resolve(outDir, name), lines.join("\n"));
 

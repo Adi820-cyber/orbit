@@ -10,6 +10,8 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import type {
+  BillListResponse,
+  CoverageResponse,
   DoctorListResponse,
   EncounterDetailResponse,
   EncounterListResponse,
@@ -24,6 +26,7 @@ import { ScrollRegion, SurfaceHeading } from "../workspace/components";
 import { mutate, withClient, type WorkspaceEnvironment } from "../workspace/environment";
 import { erpMutation, type ErpActionResult } from "./home";
 import { ErpBack } from "./back";
+import { CoveragePanel, VisitBilling } from "./billing";
 import {
   day,
   ErpDisclosure,
@@ -32,6 +35,7 @@ import {
   FormMessage,
   instantFromLocal,
   label,
+  money,
   Pager,
   useErp,
   useErpHref,
@@ -176,16 +180,18 @@ export function PatientsRoute() {
 export interface PatientPageData {
   detail: PatientDetailResponse;
   doctors: DoctorListResponse;
+  coverage: CoverageResponse;
 }
 
 export function patientDetailLoader(environment: WorkspaceEnvironment) {
   return async ({ request, params }: LoaderFunctionArgs): Promise<PatientPageData> =>
     withClient(environment, request, async (client) => {
-      const [detail, doctors] = await Promise.all([
+      const [detail, doctors, coverage] = await Promise.all([
         client.erp.patient(params["patientId"] ?? ""),
         client.erp.doctors({ facilityId: facilityFromUrl(request), credentialStatus: undefined, pageSize: 100 }),
+        client.erp.coverage(params["patientId"] ?? ""),
       ]);
-      return { detail, doctors };
+      return { detail, doctors, coverage };
     });
 }
 
@@ -206,6 +212,23 @@ export function patientDetailAction(environment: WorkspaceEnvironment) {
       if (!result.ok) return result;
       return redirect(`/erp/visits/${encodeURIComponent(result.value.encounter.encounterId)}${facilityParam(request)}`);
     }
+    if (formText(form, "intent") === "coverage") {
+      const payerType = formText(form, "payerType");
+      const version = formText(form, "version");
+      const payerName = formText(form, "payerName").trim();
+      return erpMutation(
+        environment,
+        request,
+        (client) =>
+          client.erp.setCoverage(params["patientId"] ?? "", {
+            payerType,
+            coveragePercent: payerType === "self-pay" ? 0 : Number(formText(form, "coveragePercent")),
+            ...(payerType !== "self-pay" && payerName ? { payerName } : {}),
+            ...(version ? { version: Number(version) } : {}),
+          }),
+        "Insurance cover saved.",
+      );
+    }
     return erpMutation(
       environment,
       request,
@@ -221,7 +244,7 @@ export function patientDetailAction(environment: WorkspaceEnvironment) {
 }
 
 export function PatientDetailRoute() {
-  const { detail, doctors } = useLoaderData<PatientPageData>();
+  const { detail, doctors, coverage } = useLoaderData<PatientPageData>();
   const result = useActionData<ErpActionResult>();
   const { facilityName, facilityId, departmentName, reference } = useErp();
   const href = useErpHref();
@@ -287,6 +310,8 @@ export function PatientDetailRoute() {
           </Form>
         </section>
       </div>
+
+      <CoveragePanel coverage={coverage.coverage} />
 
       <section className="workspace-section" aria-labelledby="visits-heading">
         <div className="workspace-section__heading">
@@ -434,6 +459,7 @@ export function VisitsRoute() {
 
 export interface VisitPageData {
   detail: EncounterDetailResponse;
+  bills: BillListResponse;
   services: ServiceCatalogueResponse;
   staff: StaffListResponse;
   doctors: DoctorListResponse;
@@ -444,17 +470,18 @@ export function visitDetailLoader(environment: WorkspaceEnvironment) {
     withClient(environment, request, async (client) => {
       const detail = await client.erp.encounter(params["encounterId"] ?? "");
       const facilityId = detail.encounter.facilityId;
-      const [services, staff, doctors] = await Promise.all([
+      const [services, staff, doctors, bills] = await Promise.all([
         client.erp.services({ facilityId }),
         client.erp.staff({ facilityId, employmentStatus: "active", pageSize: 100 }),
         client.erp.doctors({ facilityId, pageSize: 100 }),
+        client.erp.bills({ encounterId: detail.encounter.encounterId, pageSize: 100 }),
       ]);
-      return { detail, services, staff, doctors };
+      return { detail, services, staff, doctors, bills };
     });
 }
 
 export function visitDetailAction(environment: WorkspaceEnvironment) {
-  return async ({ request, params }: ActionFunctionArgs): Promise<ErpActionResult> => {
+  return async ({ request, params }: ActionFunctionArgs): Promise<ErpActionResult | Response> => {
     const form = await request.formData();
     const encounterId = params["encounterId"] ?? "";
     switch (formText(form, "intent")) {
@@ -496,6 +523,13 @@ export function visitDetailAction(environment: WorkspaceEnvironment) {
           formText(form, "intent") === "close" ? "Visit closed." : "Visit cancelled.",
         );
       }
+      case "issue-bill": {
+        const issued = await mutate(environment, request, (client) =>
+          client.erp.issueBill(encounterId, { idempotencyKey: formText(form, "idempotencyKey") }),
+        );
+        if (!issued.ok) return issued;
+        return redirect(`/erp/billing/${encodeURIComponent(issued.value.bill.billId)}${facilityParam(request)}`);
+      }
       case "assign-doctor":
         return erpMutation(
           environment,
@@ -514,7 +548,7 @@ export function visitDetailAction(environment: WorkspaceEnvironment) {
 }
 
 export function VisitDetailRoute() {
-  const { detail, services, staff, doctors } = useLoaderData<VisitPageData>();
+  const { detail, services, staff, doctors, bills } = useLoaderData<VisitPageData>();
   const result = useActionData<ErpActionResult>();
   const { facilityName, departmentName } = useErp();
   const href = useErpHref();
@@ -547,7 +581,7 @@ export function VisitDetailRoute() {
       <section className="workspace-section" aria-labelledby="services-heading">
         <div className="workspace-section__heading">
           <h2 id="services-heading">Services delivered</h2>
-          <p>{completed.length} recorded. Amounts appear only where an illustrative tariff is configured; none is a real charge.</p>
+          <p>{completed.length} recorded. Amounts come from this hospital's price list; every amount is illustrative, none is a real charge.</p>
         </div>
         {deliveries.length ? (
           <ScrollRegion label="Services delivered">
@@ -558,7 +592,7 @@ export function VisitDetailRoute() {
                   <th scope="col">Performed by</th>
                   <th scope="col">When</th>
                   <th scope="col">Qty</th>
-                  <th scope="col">Illustrative amount</th>
+                  <th scope="col" data-numeric="true">Amount</th>
                   <th scope="col">Status</th>
                 </tr>
               </thead>
@@ -572,7 +606,7 @@ export function VisitDetailRoute() {
                     <td>{delivery.performedByName}</td>
                     <td>{when(delivery.performedAt)}</td>
                     <td>{delivery.quantity} {label(delivery.unit).toLowerCase()}</td>
-                    <td>{delivery.illustrativeAmount === null ? "Not configured" : <span className="is-illustrative">{delivery.illustrativeAmount.toFixed(2)}</span>}</td>
+                    <td data-numeric="true">{delivery.illustrativeAmount === null ? "No price set" : <span className="is-illustrative">{money(delivery.illustrativeAmount, bills.currency)}</span>}</td>
                     <td>
                       {delivery.status === "completed" ? (
                         <Form method="post" className="erp-inline-form">
@@ -595,6 +629,8 @@ export function VisitDetailRoute() {
           <p className="workspace-empty">No services recorded yet.</p>
         )}
       </section>
+
+      <VisitBilling bills={bills} visitStatus={encounter.status} completedServices={completed.length} />
 
       {encounter.status !== "cancelled" ? (
         <section className="workspace-panel" aria-labelledby="add-service-heading">
@@ -714,6 +750,20 @@ export function servicesAction(environment: WorkspaceEnvironment) {
           formText(form, "isAvailable") === "true" ? "Service offered here." : "Service withdrawn here.",
         );
       }
+      case "price": {
+        const price = formText(form, "price").trim();
+        return erpMutation(
+          environment,
+          request,
+          (client) =>
+            client.erp.setAvailability(formText(form, "facilityId"), formText(form, "serviceId"), {
+              isAvailable: formText(form, "isAvailable") === "true",
+              illustrativeTariff: price === "" ? null : Math.round(Number(price) * 100) / 100,
+              version: Number(formText(form, "version")),
+            }),
+          price === "" ? "Price removed." : "Price saved.",
+        );
+      }
       case "active":
         return erpMutation(
           environment,
@@ -743,7 +793,7 @@ export function ServicesRoute() {
       <SurfaceHeading
         eyebrow={facilityName(facilityId)}
         title="Services"
-        description="The organization's service catalogue and which services this facility offers. A service can be recorded in a visit only where it is offered. No real tariffs are held."
+        description={`The organization's service catalogue, which services this facility offers, and their prices in ${catalogue.currency}. A service can be recorded in a visit only where it is offered, and billed only once it has a price. Prices are illustrative.`}
       />
       <ErpDisclosure />
       <FormMessage result={result} />
@@ -803,6 +853,7 @@ export function ServicesRoute() {
               <th scope="col">Department</th>
               <th scope="col">Unit</th>
               <th scope="col">At {facilityName(facilityId)}</th>
+              <th scope="col">Price ({catalogue.currency})</th>
               {isAdmin ? <th scope="col">Catalogue</th> : null}
             </tr>
           </thead>
@@ -833,6 +884,36 @@ export function ServicesRoute() {
                       <button className="orbit-button" data-variant="quiet" name="isAvailable" value="true" type="submit">Offer here</button>
                     ) : null}
                   </Form>
+                </td>
+                <td>
+                  {availability && isAdmin ? (
+                    <Form method="post" className="erp-inline-form">
+                      <input type="hidden" name="intent" value="price" />
+                      <input type="hidden" name="facilityId" value={facilityId} />
+                      <input type="hidden" name="serviceId" value={service.serviceId} />
+                      <input type="hidden" name="version" value={availability.version} />
+                      <input type="hidden" name="isAvailable" value={availability.isAvailable ? "true" : "false"} />
+                      <label className="orbit-visually-hidden" htmlFor={`price-${service.serviceId}`}>Price of {service.name}</label>
+                      <input
+                        id={`price-${service.serviceId}`}
+                        className="orbit-input erp-price-input"
+                        type="number"
+                        name="price"
+                        min={0}
+                        max={10000000}
+                        step="0.01"
+                        defaultValue={availability.illustrativeTariff ?? ""}
+                        placeholder="Not set"
+                      />
+                      <button className="orbit-button" data-variant="quiet" type="submit" aria-label={`Save price of ${service.name}`}>
+                        <span aria-hidden="true">Save</span>
+                      </button>
+                    </Form>
+                  ) : availability === null || availability.illustrativeTariff === null ? (
+                    <span className="erp-sub">{availability ? "Not set" : "—"}</span>
+                  ) : (
+                    <span className="is-illustrative">{money(availability.illustrativeTariff, catalogue.currency)}</span>
+                  )}
                 </td>
                 {isAdmin ? (
                   <td>

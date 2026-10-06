@@ -1,5 +1,13 @@
 import {
   AddScheduleSlotRequestSchema,
+  BillListResponseSchema,
+  BillResponseSchema,
+  CancelBillRequestSchema,
+  CoverageResponseSchema,
+  IssueBillRequestSchema,
+  RecordPaymentRequestSchema,
+  RevenueResponseSchema,
+  SetCoverageRequestSchema,
   AttendanceBoardResponseSchema,
   AvailabilityResponseSchema,
   CorrectionListResponseSchema,
@@ -129,6 +137,20 @@ export function createErpClient(call: Call) {
       send("POST", `/api/erp/encounters/${id(encounterId)}/services`, RecordDeliveryRequestSchema, body, DeliveryResponseSchema),
     updateDelivery: (deliveryId: string, body: unknown) =>
       send("PATCH", `/api/erp/service-deliveries/${id(deliveryId)}`, UpdateDeliveryRequestSchema, body, DeliveryResponseSchema),
+
+    // Billing (ADR 0022)
+    coverage: (patientId: string) => get(`/api/erp/patients/${id(patientId)}/coverage`, CoverageResponseSchema),
+    setCoverage: (patientId: string, body: unknown) =>
+      send("PUT", `/api/erp/patients/${id(patientId)}/coverage`, SetCoverageRequestSchema, body, CoverageResponseSchema),
+    issueBill: (encounterId: string, body: unknown) =>
+      send("POST", `/api/erp/encounters/${id(encounterId)}/bills`, IssueBillRequestSchema, body, BillResponseSchema),
+    bills: (query: Query) => get("/api/erp/bills", BillListResponseSchema, query),
+    bill: (billId: string) => get(`/api/erp/bills/${id(billId)}`, BillResponseSchema),
+    recordPayment: (billId: string, body: unknown) =>
+      send("POST", `/api/erp/bills/${id(billId)}/payments`, RecordPaymentRequestSchema, body, BillResponseSchema),
+    cancelBill: (billId: string, body: unknown) =>
+      send("POST", `/api/erp/bills/${id(billId)}/cancel`, CancelBillRequestSchema, body, BillResponseSchema),
+    revenue: (query: Query) => get("/api/erp/revenue", RevenueResponseSchema, query),
   };
 }
 

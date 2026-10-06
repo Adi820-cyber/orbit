@@ -14,5 +14,7 @@ export * from './erp-people.ts';
 export * from './erp-attendance.ts';
 export * from './erp-services.ts';
 export * from './erp-patients.ts';
+export * from './erp-billing.ts';
+export * from './revenue.ts';
 export * from './chatbot.ts';
 export * from './operations.ts';
