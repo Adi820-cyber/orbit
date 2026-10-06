@@ -45,8 +45,9 @@ describe('normaliseCitations', () => {
   });
 });
 
+const source = (title: string, content: string): KnowledgeChunk => ({ ...chunk(title, 0.8), content });
+
 describe('attributeCitations', () => {
-  const source = (title: string, content: string): KnowledgeChunk => ({ ...chunk(title, 0.8), content });
   const insurance = source('Insurance cover', '21617 policies; average coverage 70.1 percent.');
   const billing = source('Billing', 'Insurance covered 945762937 (58.0 percent) of 1631617426 billed.');
 

@@ -50,11 +50,16 @@ Choose **Review evidence**. The KPI page shows the 24-month trend, the demo targ
 
 ### 3. Ask in plain words
 
-Open **Ask Orbit** (bottom right). Try:
+Open the **Assistant** (bottom right). Its header names the signed-in role; every answer uses only what that role may read.
+
+- Choose a **suggested question**, e.g. "Summarize my open exceptions": a typed evidence card with its table, and **Record an action from this**.
+- Type "Show me the south region revenue" (as the North COO): **Out of scope**. Nothing is searched and no North figure is offered in its place.
+- Type a question about the hospital data, e.g. "How many patients were admitted as emergencies?" (chairman) or "Which medicines are running low?" (procurement head): a cited answer. Open **sources** to see where each figure came from.
+
+For comparisons in plain words, use **Open Ask** in the Assistant's header (the full Ask page):
 
 - "Which hospital is worst on EBITDA?" — a table of the three hospitals, lowest and highest named.
 - "Did revenue go up or down since July?" — two months side by side, change in percentage points.
-- "Show me the south region revenue" — refused: outside this COO's scope. Nothing from the South is used.
 
 Open **How Orbit answered** under an answer: the reasoning, the KPI definition it used, and the scope. The AI only chooses from the user's own KPIs and rewords the sentence; every figure comes from Orbit.
 

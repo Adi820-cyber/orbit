@@ -15,8 +15,7 @@ import { OrbitBrand } from "@orbit/ui-kit";
 import { ApiRequestError } from "../../lib/api";
 import { onSessionEnded } from "../../lib/auth";
 import { APP_SURFACE, servesOperators } from "../../lib/surface";
-import { AskChat } from "../ask/chat";
-import { ChatbotPanel } from "../chatbot/panel";
+import { OrbitAssistant } from "../ask/chat";
 import { assignmentMap, humanize } from "../../lib/format";
 import { roleViewConfigFor } from "../../roles/config";
 import { Icon, type IconName } from "./components";
@@ -214,8 +213,7 @@ export function WorkspaceLayout({ environment }: { environment: WorkspaceEnviron
             <span>Role and scope are derived from the verified membership boundary; filters only narrow what you are authorized to see.</span>
           </footer>
         </div>
-        <AskChat />
-        <ChatbotPanel />
+        <OrbitAssistant />
       </div>
     </WorkspaceContext.Provider>
   );

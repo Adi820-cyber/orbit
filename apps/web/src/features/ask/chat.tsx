@@ -1,26 +1,34 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import type { AskResponse, GuidedPrompt, MeasureValue as MeasureValueContract, Target } from "@orbit/contracts";
+import type { AskResponse, ChatbotResponse, GuidedPrompt, MeasureValue as MeasureValueContract, Target } from "@orbit/contracts";
 import { Link, useFetcher } from "react-router";
-import { assignmentLabel, formatNumber, humanize, periodLabel, roleLabel } from "../../lib/format";
+import { assignmentLabel, formatDateTime, formatNumber, humanize, periodLabel, roleLabel } from "../../lib/format";
+import type { ChatbotActionData } from "../chatbot/action";
 import { Icon, MeasureValue } from "../workspace/components";
 import { useEntityLabel, useWorkspace, useWorkspacePath } from "../workspace/environment";
 import { newActionHref } from "../workspace/links";
+import { roleViewConfigFor } from "../../roles/config";
 import type { AskActionData, AskLoaderData } from "./route";
 import "./chat.css";
 
 /*
- * Ask Orbit as a small chat panel, available on every workspace page.
+ * The Orbit Assistant: one chat panel on every workspace page.
  *
- * It posts to the same /ask route action as the full Ask page, so every
- * question is re-authorized on the server and every answer is the same
- * evidence-backed card, rendered here as a message with proper tables.
- * Nothing about scope or data changes; only the presentation does.
+ * - A suggested question (the caller's own guided prompts) posts to the /ask
+ *   route action, the same as the full Ask page: a typed, evidence-backed card.
+ * - A question in the caller's own words posts to the /chatbot route action:
+ *   the knowledge search first, then Ask's KPI interpretation when the search
+ *   finds nothing (see ../chatbot/action.ts).
+ *
+ * Every question is re-authorized on the server against the verified role and
+ * scope; this component only chooses where to send it and how to show it.
  */
+
+type Reply = AskActionData | ChatbotActionData;
 
 interface Exchange {
   id: number;
   question: string;
-  result: AskActionData | null;
+  result: Reply | null;
 }
 
 const OUTCOME_LABEL: Record<AskResponse["outcome"], { label: string; state: string }> = {
@@ -205,6 +213,72 @@ function Answer({ result }: { result: AskActionData }) {
   );
 }
 
+const MATCHED_BY: Record<ChatbotResponse["sources"][number]["matchedBy"], string> = {
+  hybrid: "meaning and words",
+  vector: "meaning",
+  text: "words",
+};
+
+/** An answer from the knowledge search: the text, its numbered sources, and the disclosure. */
+const COVERAGE: Record<ChatbotResponse["coverage"], { label: string; state: string }> = {
+  answered: { label: "Answered", state: "ready" },
+  no_sources: { label: "Nothing found for your role", state: "missing" },
+  out_of_scope: { label: "Out of scope", state: "out_of_scope" },
+};
+
+function KnowledgeAnswer({ response }: { response: ChatbotResponse }) {
+  const coverage = COVERAGE[response.coverage];
+  return (
+    <div className="ask-chat__bubble ask-chat__bubble--orbit">
+      <div className="ask-chat__chips">
+        <span className="orbit-status" data-state={coverage.state}>
+          {coverage.label}
+        </span>
+        <span className="chip-illustrative">Illustrative</span>
+      </div>
+      <p className="ask-chat__answer ask-chat__answer--text">{response.answer}</p>
+      {response.sources.length > 0 ? (
+        <details className="ask-chat__details">
+          <summary>
+            {response.sources.length} source{response.sources.length === 1 ? "" : "s"} your role may read
+          </summary>
+          <ol className="ask-chat__sources">
+            {response.sources.map((source) => (
+              <li key={source.chunkId}>
+                <span className="ask-chat__source-title">
+                  {source.title}
+                  {source.cited ? <span className="ask-chat__cited"> · cited</span> : null}
+                </span>
+                <span className="ask-chat__muted">
+                  {humanize(source.domain)} · as of {formatDateTime(source.asOf)} · matched by {MATCHED_BY[source.matchedBy]}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+      {response.mode === "assisted" ? (
+        <p className="ask-chat__muted">AI-assisted wording. Every figure is checked against the sources listed.</p>
+      ) : null}
+      <p className="ask-chat__disclosure">{response.disclosure}</p>
+    </div>
+  );
+}
+
+/** Shows a reply from either route: an Ask evidence card or a knowledge answer. */
+function ReplyView({ result }: { result: Reply }) {
+  if (result.ok && "value" in result) return <KnowledgeAnswer response={result.value} />;
+  if (result.ok && "ask" in result) return <Answer result={result.ask} />;
+  if (!result.ok) {
+    return (
+      <div className="ask-chat__bubble ask-chat__bubble--orbit" data-tone="error">
+        <p>{result.message}</p>
+      </div>
+    );
+  }
+  return <Answer result={result} />;
+}
+
 /** Enter sends; Shift+Enter adds a new line. */
 function sendOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
   if (event.key === "Enter" && !event.shiftKey) {
@@ -213,13 +287,14 @@ function sendOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
   }
 }
 
-export function AskChat() {
+export function OrbitAssistant() {
   const path = useWorkspacePath();
   const panelId = useId();
   const [open, setOpen] = useState(false);
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [draft, setDraft] = useState("");
-  const askFetcher = useFetcher<AskActionData>();
+  const { membership } = useWorkspace();
+  const askFetcher = useFetcher<Reply>();
   const promptsFetcher = useFetcher<AskLoaderData>();
   const launcherRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -232,7 +307,6 @@ export function AskChat() {
   const pendingId = useRef<number | null>(null);
   const busy = askFetcher.state !== "idle";
   const prompts: readonly GuidedPrompt[] = promptsFetcher.data?.prompts.prompts ?? [];
-  const assisted = promptsFetcher.data?.prompts.mode === "assisted";
 
   // Load the caller's guided questions the first time the panel opens.
   useEffect(() => {
@@ -279,12 +353,13 @@ export function AskChat() {
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
-  function send(question: string, fields: Record<string, string>) {
+  /** A suggested question goes to Ask; a typed one to the knowledge search (with Ask as fallback). */
+  function send(question: string, fields: Record<string, string>, route: "/ask" | "/chatbot") {
     if (busy) return;
     const id = nextId.current++;
     pendingId.current = id;
     setExchanges((current) => [...current, { id, question, result: null }]);
-    void askFetcher.submit(fields, { method: "post", action: path("/ask") });
+    void askFetcher.submit(fields, { method: "post", action: path(route) });
   }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -292,7 +367,7 @@ export function AskChat() {
     const question = draft.trim();
     if (question.length < 3) return;
     setDraft("");
-    send(question, { question });
+    send(question, { message: question }, "/chatbot");
   }
 
   function close() {
@@ -303,17 +378,19 @@ export function AskChat() {
   return (
     <>
       {open ? (
-        <section id={panelId} ref={panelRef} className="ask-chat" aria-label="Ask Orbit">
+        <section id={panelId} ref={panelRef} className="ask-chat" aria-label="Orbit Assistant">
           <header className="ask-chat__header">
             <div>
-              <h2>Ask Orbit</h2>
-              <p>Answers only from data you are authorized to see.</p>
+              <h2>Orbit Assistant</h2>
+              <p>
+                Answering as <span className="ask-chat__role">{roleViewConfigFor(membership.role)?.title ?? roleLabel(membership.role)}</span>, from data your role may see.
+              </p>
             </div>
             <div className="ask-chat__header-actions">
               <Link className="ask-chat__link" to={path("/ask")} onClick={() => setOpen(false)}>
-                Full page
+                Open Ask
               </Link>
-              <button className="ask-chat__close" type="button" onClick={close} aria-label="Close Ask Orbit">
+              <button className="ask-chat__close" type="button" onClick={close} aria-label="Close Orbit Assistant">
                 <span aria-hidden="true">×</span>
               </button>
             </div>
@@ -324,15 +401,14 @@ export function AskChat() {
               <li className="ask-chat__welcome">
                 <div className="ask-chat__bubble ask-chat__bubble--orbit">
                   <p>
-                    Ask about your KPIs in plain words, for example{" "}
-                    <em>&ldquo;How did revenue compare with last month?&rdquo;</em>, or pick a question below.
+                    Ask about your area in plain words, for example{" "}
+                    <em>&ldquo;What needs my attention this month?&rdquo;</em>, or choose a suggested question for a
+                    full evidence card.
                   </p>
-                  {promptsFetcher.data && !assisted ? (
-                    <p className="ask-chat__muted">
-                      Questions in your own words need the AI assistant, which is not configured here. The suggested
-                      questions always work.
-                    </p>
-                  ) : null}
+                  <p className="ask-chat__muted">
+                    Every answer is limited to your role and scope, cites where it came from, and never invents a
+                    figure.
+                  </p>
                 </div>
               </li>
             ) : null}
@@ -342,10 +418,10 @@ export function AskChat() {
                   <p>{exchange.question}</p>
                 </div>
                 {exchange.result ? (
-                  <Answer result={exchange.result} />
+                  <ReplyView result={exchange.result} />
                 ) : (
                   <div className="ask-chat__bubble ask-chat__bubble--orbit ask-chat__typing">
-                    <span className="orbit-visually-hidden">Orbit is checking your scope and preparing the evidence.</span>
+                    <span className="orbit-visually-hidden">Orbit is checking your scope and preparing the answer.</span>
                     <span aria-hidden="true" />
                     <span aria-hidden="true" />
                     <span aria-hidden="true" />
@@ -364,7 +440,7 @@ export function AskChat() {
                   className="ask-chat__suggestion"
                   type="button"
                   disabled={busy}
-                  onClick={() => send(prompt.label, { guided: JSON.stringify(prompt.request) })}
+                  onClick={() => send(prompt.label, { guided: JSON.stringify(prompt.request) }, "/ask")}
                 >
                   {prompt.label}
                 </button>
@@ -381,9 +457,9 @@ export function AskChat() {
               ref={inputRef}
               className="ask-chat__input"
               rows={1}
-              maxLength={500}
+              maxLength={1000}
               value={draft}
-              placeholder="Ask about your KPIs…"
+              placeholder="Ask about your area…"
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={sendOnEnter}
             />
@@ -403,7 +479,7 @@ export function AskChat() {
         onClick={() => (open ? close() : setOpen(true))}
       >
         <Icon name="ask" />
-        <span>{open ? "Close" : "Ask Orbit"}</span>
+        <span>{open ? "Close" : "Assistant"}</span>
       </button>
     </>
   );

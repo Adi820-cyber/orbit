@@ -44,10 +44,12 @@ export const ChatbotResponseSchema = z.strictObject({
   sources: z.array(ChatbotSourceSchema),
   /**
    * `answered`: sources were found for this role and scope. `no_sources`:
-   * nothing in what this role may read matches. It never says whether
+   * nothing in what this role may read matches. `out_of_scope`: the question
+   * names a place outside the caller's scope, so nothing was searched and no
+   * narrower answer is offered in its place. None of them says whether
    * something exists outside the role.
    */
-  coverage: z.enum(['answered', 'no_sources']),
+  coverage: z.enum(['answered', 'no_sources', 'out_of_scope']),
   role: RoleIdSchema,
   /** The caller's verified scope, so the answer says who it was written for. Display only. */
   scope: z.array(ScopeEntitySchema),

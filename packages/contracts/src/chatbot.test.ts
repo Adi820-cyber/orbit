@@ -67,6 +67,10 @@ describe('ChatbotResponseSchema', () => {
     expect(ChatbotResponseSchema.safeParse({ ...validResponse, coverage: 'partial' }).success).toBe(false);
   });
 
+  it('accepts an explicit out_of_scope answer with no sources', () => {
+    expect(ChatbotResponseSchema.safeParse({ ...validResponse, coverage: 'out_of_scope', sources: [] }).success).toBe(true);
+  });
+
   it('rejects an invalid role in response', () => {
     const invalidRole = { ...validResponse, role: 'super-admin' };
     expect(ChatbotResponseSchema.safeParse(invalidRole).success).toBe(false);

@@ -1,10 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { ChatbotRequestSchema } from '@orbit/contracts';
+import { ChatbotRequestSchema, ChatbotResponseSchema, EntityDirectoryEntrySchema } from '@orbit/contracts';
 import { membershipOf } from '../../plugins/auth.ts';
 import type { ModuleDeps } from '../ports.ts';
-import { auditRead, parseInput } from '../shared.ts';
+import { auditRead, parseInput, parseRows } from '../shared.ts';
 import { generateEmbedding } from './embedder.ts';
 import { focus } from './focus.ts';
+import { placesOutsideScope } from './places.ts';
 import { buildChatbotResponse } from './responder.ts';
 
 /*
@@ -20,6 +21,11 @@ import { buildChatbotResponse } from './responder.ts';
  * 4. The answer is written from what came back (see responder.ts): a grounded
  *    model answer with citations, or a deterministic one.
  *
+ * Before any of that, a question that names a place outside the caller's
+ * scope ("the south region" asked by the North COO) gets an explicit
+ * out_of_scope answer and nothing is searched (see places.ts): search would
+ * otherwise answer with similar-looking data from inside the scope.
+ *
  * If search fails the answer says so; it is never invented.
  */
 
@@ -27,6 +33,30 @@ export function registerChatbotRoutes(api: FastifyInstance, deps: ModuleDeps): v
   api.post('/chatbot', async (request) => {
     const membership = membershipOf(request);
     const { message } = parseInput(ChatbotRequestSchema, request.body);
+
+    const visible = parseRows(EntityDirectoryEntrySchema, await deps.entities.visible(membership), 'entity_row_failed_contract');
+    const outside = placesOutsideScope(message, visible.map((entry) => entry.label));
+    if (outside.length > 0) {
+      await auditRead(deps, request, membership, {
+        kind: 'ask_answered',
+        target: { type: 'ask', id: 'chatbot' },
+        outcome: 'out_of_scope',
+      });
+      const inScope = visible.filter((entry) => membership.scopes.some((scope) => scope.entityId === entry.entityId)).map((entry) => entry.label);
+      return ChatbotResponseSchema.parse({
+        answer:
+          `Your question names ${outside.map((word) => `"${word}"`).join(', ')}, which is outside your scope. ` +
+          `Your scope covers ${inScope.length > 0 ? inScope.join(', ') : 'only what your membership grants'}. ` +
+          'Nothing outside your scope was searched, and no narrower answer is given in its place.',
+        mode: 'deterministic',
+        sources: [],
+        coverage: 'out_of_scope',
+        role: membership.role,
+        scope: membership.scopes,
+        provenance: 'illustrative',
+        disclosure: deps.disclosure,
+      });
+    }
 
     const { provider, model, fetchImpl } = deps.embedding;
     const embedding = provider
