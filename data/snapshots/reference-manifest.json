@@ -1,7 +1,7 @@
 {
   "generatedBy": "packages/data-gen/scripts/load-reference-datasets.ts",
   "provenance": "illustrative",
-  "checksum": "c57924fa4dcc41b5c43f34da2159a603a3362efffb861281d8e880cb69dd2af4",
+  "checksum": "107507d4d4e2ff7b4a4f22300914ab04e888e5a571efbf3d1e4a11feaa7160de",
   "historyEnd": "2026-09-30",
   "hospitalShiftDays": 259,
   "clinicShiftDays": 1001,

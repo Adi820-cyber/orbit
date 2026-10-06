@@ -397,8 +397,8 @@ on conflict (framework_version_id, outcome) do nothing;
 insert into orbit.organizations
   (slug, name, kind, currency, fiscal_year_start_month, timezone)
 values
-  ('kestrion', 'Kestrion Health Group', 'demo', 'USD', 1, 'UTC'),
-  ('halveston-test-fixture', 'Halveston Care Group (test fixture)', 'test-fixture', 'USD', 1, 'UTC')
+  ('kestrion', 'Kestrion Health Group', 'demo', 'INR', 1, 'UTC'),
+  ('halveston-test-fixture', 'Halveston Care Group (test fixture)', 'test-fixture', 'INR', 1, 'UTC')
 on conflict (slug) do nothing;
 
 -- Regions ---------------------------------------------------------------

@@ -772,7 +772,7 @@ function buildChunks(input: ChunkInput): RefChunk[] {
       return `${type} ${money(amount)} (${pct(amount, detailTotal)})`;
     });
     push(`ref:billing:${suffix}`, HOSPITAL_SOURCE, "reference-finance", ROLE.billing, scope.slug, `Billing and collections ${where}`,
-      `${bills.length} admission bills ${where} totalling ${money(total)}, in the source dataset's own currency units (not converted to USD). Insurance covered ${money(covered)} (${pct(covered, total)}); patients owed ${money(payable)}. Payment status: ${bills.length - pending.length} bills paid and ${pending.length} still unpaid, marked pending (${pct(pending.length, bills.length)}); ${money(pendingAmount)} of billing is still outstanding. Payment modes: ${listCounts(byMode, bills.length)}. Charges by type: ${byCharge.join(", ")}. ${NOTE}`);
+      `${bills.length} admission bills ${where} totalling ${money(total)}, in rupees (INR), as the source dataset records them. Insurance covered ${money(covered)} (${pct(covered, total)}); patients owed ${money(payable)}. Payment status: ${bills.length - pending.length} bills paid and ${pending.length} still unpaid, marked pending (${pct(pending.length, bills.length)}); ${money(pendingAmount)} of billing is still outstanding. Payment modes: ${listCounts(byMode, bills.length)}. Charges by type: ${byCharge.join(", ")}. ${NOTE}`);
 
     // Medicines prescribed
     const rx = adm.flatMap((a) => rxByAdmission.get(a.row.admission_id!) ?? []);

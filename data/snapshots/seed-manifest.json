@@ -8,7 +8,7 @@
   "provenance": "illustrative",
   "disclosure": "Fictional demonstration company. All figures and targets are illustrative; not validated clinical or financial guidance.",
   "seedFile": "supabase/seed/0001_framework_and_org.sql",
-  "seedChecksum": "540fbb598d5bc353f50e64a94cccae3af7846e5bf8e7d11142ea7e914aef9b0f",
+  "seedChecksum": "2b6fcbb08d38dec232a2401742f2c9051fafd13f498c7a573d315e6ef6b914c3",
   "rowCounts": {
     "frameworkVersions": 1,
     "roleIds": 14,
