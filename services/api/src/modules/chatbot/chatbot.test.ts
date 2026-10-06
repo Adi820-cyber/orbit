@@ -188,12 +188,28 @@ describe('POST /api/chatbot', () => {
     const { call } = await setup([SAMPLE_CHUNKS[0]!], withModel('Facility A1 has 3 late of 40 rostered.'));
     const body = await ask(call);
     expect(body.mode).toBe('assisted');
-    expect(body.answer).toBe('Facility A1 has 3 late of 40 rostered. [1]');
+    expect(body.answer).toBe('Facility A1 has 3 late of 40 rostered [1].');
     expect(body.sources.map((s) => s.cited)).toEqual([true]);
 
     await close?.();
     const invented = await setup([SAMPLE_CHUNKS[0]!], withModel('Facility A1 has 9 late.'));
     expect((await ask(invented.call)).mode).toBe('deterministic');
+  });
+
+  it('cites each uncited sentence from the source holding its figures (live case: Groq left out [n])', async () => {
+    const { call } = await setup(
+      SAMPLE_CHUNKS,
+      withModel('Facility A1 has 52 active staff and 40 rostered today. Occupancy fell to 71 percent, an act now exception.'),
+    );
+    const body = await ask(call);
+    expect(body.mode).toBe('assisted');
+    expect(body.answer).toBe('Facility A1 has 52 active staff and 40 rostered today [1]. Occupancy fell to 71 percent, an act now exception [2].');
+    expect(body.sources.map((s) => s.cited)).toEqual([true, true]);
+  });
+
+  it('still refuses an uncited answer with several sources when no sentence states a figure to trace', async () => {
+    const { call } = await setup(SAMPLE_CHUNKS, withModel('Things look broadly fine across the group.'));
+    expect((await ask(call)).mode).toBe('deterministic');
   });
 
   it('lets an answer repeat the as-of time it was shown (live case: Groq quoting "as of 2026-10-03 08:00 UTC")', async () => {

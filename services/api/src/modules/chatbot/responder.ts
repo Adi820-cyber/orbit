@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ChatbotResponseSchema, type ChatbotResponse, type MembershipClaims } from '@orbit/contracts';
 import type { KnowledgeChunk, ModuleDeps } from '../ports.ts';
-import { completeJson, introducedNumbers, type DeclineReason, type JsonTask } from '../ask/narrator.ts';
+import { completeJson, introducedNumbers, numericTokens, type DeclineReason, type JsonTask } from '../ask/narrator.ts';
 
 /*
  * Chatbot responder (ADR 0019).
@@ -90,6 +90,34 @@ export function normaliseCitations(answer: string): string {
   return answer
     .replaceAll(/【\s*(\d{1,3})\s*】/g, '[$1]')
     .replaceAll(/\[(\d{1,3}(?:\s*,\s*\d{1,3})+)\]/g, (_, list: string) => list.split(',').map((n) => `[${n.trim()}]`).join(''));
+}
+
+/**
+ * Cites each uncited sentence that states a figure: it gets the first source
+ * (the best ranked) containing all of that sentence's figures, or, when no one
+ * source holds them all, every source that holds one. A sentence that already
+ * cites, or states no figure, is left as it is. Run only after the answer's
+ * figures have been checked against the sources, so the attribution is a lookup,
+ * not a guess.
+ */
+export function attributeCitations(answer: string, chunks: readonly KnowledgeChunk[]): string {
+  const held = chunks.map((chunk) => numericTokens(`${chunk.title} ${asOfText(chunk)} ${chunk.content}`));
+  return answer
+    .split(/(?<=[.!?])(\s+)/)
+    .map((sentence) => {
+      if (/\[\d{1,3}\]/.test(sentence)) return sentence;
+      const figures = [...numericTokens(sentence)];
+      if (figures.length === 0) return sentence;
+      const whole = held.findIndex((tokens) => figures.every((figure) => tokens.has(figure)));
+      // Otherwise the first source holding each figure, in source order.
+      const firstHolders = new Set(figures.map((figure) => held.findIndex((tokens) => tokens.has(figure))));
+      const indices = whole >= 0 ? [whole] : held.map((_, i) => i).filter((i) => firstHolders.has(i));
+      if (indices.length === 0) return sentence;
+      const markers = indices.map((i) => `[${i + 1}]`).join('');
+      const end = /[.!?]$/.exec(sentence);
+      return end ? `${sentence.slice(0, -1)} ${markers}${end[0]}` : `${sentence} ${markers}`;
+    })
+    .join('');
 }
 
 /** `[n]` markers in an answer. A marker outside 1..count is an invented citation. */
@@ -209,14 +237,16 @@ export async function buildChatbotResponse(
       refuse({ status: 'declined', reason: 'introduced_numbers', detail: `introduced ${introduced.join(', ')}` }, provider.name);
       continue;
     }
-    // An answer drawn from sources must say where from. With a single source there
-    // is only one place it can be from, and every figure has just been checked
-    // against it, so it is attributed to that source rather than thrown away.
-    // With several sources an uncited answer is refused: which one is unknown.
-    if (valid.size === 0 && chunks.length === 1) {
+    // An answer drawn from sources must say where from. A sentence the model left
+    // uncited is attributed to the source holding its figures (they have just been
+    // checked to come from the sources). With a single source there is only one
+    // place the answer can be from. Otherwise an answer with no traceable source
+    // is refused.
+    answer = attributeCitations(answer, chunks);
+    if (citedIndices(answer, chunks.length).valid.size === 0 && chunks.length === 1) {
       answer = `${answer} [1]`;
-      valid.add(1);
     }
+    for (const index of citedIndices(answer, chunks.length).valid) valid.add(index);
     if (valid.size === 0) {
       refuse({ status: 'declined', reason: 'no_citation' }, provider.name);
       continue;

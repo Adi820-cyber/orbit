@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KnowledgeChunk } from '../ports.ts';
 import { focus } from './focus.ts';
-import { normaliseCitations } from './responder.ts';
+import { attributeCitations, normaliseCitations } from './responder.ts';
 
 const chunk = (title: string, similarity: number, matchedBy: KnowledgeChunk['matchedBy'] = 'hybrid'): KnowledgeChunk => ({
   id: title, title, content: 'x', source: 's', domain: 'd', similarity, matchedBy, updatedAt: '2026-10-05T00:00:00.000Z',
@@ -42,5 +42,24 @@ describe('normaliseCitations', () => {
   });
   it('leaves ordinary bracketed text alone', () => {
     expect(normaliseCitations('Figures [illustrative] and [1].')).toBe('Figures [illustrative] and [1].');
+  });
+});
+
+describe('attributeCitations', () => {
+  const source = (title: string, content: string): KnowledgeChunk => ({ ...chunk(title, 0.8), content });
+  const insurance = source('Insurance cover', '21617 policies; average coverage 70.1 percent.');
+  const billing = source('Billing', 'Insurance covered 945762937 (58.0 percent) of 1631617426 billed.');
+
+  it('reads "58.0" as a figure, not a sentence end, and cites the source holding it', () => {
+    expect(attributeCitations('Insurance covered 945762937, 58.0 percent of bills. There are 21617 policies.', [insurance, billing]))
+      .toBe('Insurance covered 945762937, 58.0 percent of bills [2]. There are 21617 policies [1].');
+  });
+  it('cites every source that holds a figure when no one source holds them all', () => {
+    expect(attributeCitations('Of 21617 policies, 58.0 percent of value was covered.', [insurance, billing]))
+      .toBe('Of 21617 policies, 58.0 percent of value was covered [1][2].');
+  });
+  it('leaves cited sentences, sentences without figures, and untraceable figures alone', () => {
+    expect(attributeCitations('Covered 945762937 [2]. Coverage is broad. About 12 insurers.', [insurance, billing]))
+      .toBe('Covered 945762937 [2]. Coverage is broad. About 12 insurers.');
   });
 });
