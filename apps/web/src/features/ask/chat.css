@@ -46,6 +46,7 @@
 .ask-chat__link {
   color: var(--orbit-color-on-primary);
   font-size: var(--orbit-font-size-200);
+  white-space: nowrap;
 }
 
 .ask-chat__close {
@@ -197,6 +198,39 @@
   padding-left: var(--orbit-space-5);
   color: var(--orbit-color-text-muted);
   font-size: var(--orbit-font-size-200);
+}
+
+/* The caller's verified role, named in the header. */
+.ask-chat__role {
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+/* A knowledge answer may list items on their own lines. */
+.ask-chat__answer--text {
+  font-weight: var(--orbit-font-weight-regular);
+  white-space: pre-line;
+}
+
+/* Numbered so an answer's [1], [2] markers point at them. */
+.ask-chat__sources {
+  display: grid;
+  gap: var(--orbit-space-2);
+  margin: var(--orbit-space-2) 0 0;
+}
+
+.ask-chat__sources li {
+  display: grid;
+  gap: 2px;
+}
+
+.ask-chat__source-title {
+  color: var(--orbit-color-text);
+  font-weight: var(--orbit-font-weight-semibold);
+}
+
+.ask-chat__cited {
+  color: var(--orbit-color-secondary-strong);
+  font-weight: var(--orbit-font-weight-regular);
 }
 
 .ask-chat__details {

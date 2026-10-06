@@ -59,10 +59,13 @@ describe("workspace shell", () => {
     for (const label of ["Morning brief", "Priority inbox", "KPI explorer", "Actions", "Audit"]) {
       expect(markup).toContain(label);
     }
-    // The launcher is a button that opens the Ask Orbit chat panel in place.
+    // One launcher opens the Orbit Assistant in place; there is no second chat button.
     expect(markup).toContain('class="workspace-ask-launcher"');
     expect(markup).toContain('aria-expanded="false"');
-    expect(markup).toContain("Ask Orbit");
+    expect(markup).toContain("Assistant");
+    expect(markup.match(/aria-expanded=/g)).toHaveLength(1);
+    expect(markup).not.toContain("Ask Orbit");
+    expect(markup).not.toContain("chatbot-panel");
     // The verified scope is shown by name from GET /api/entities, not by raw id.
     expect(markup).toContain("Region · Preview North region");
     expect(markup).toContain("Developer preview");

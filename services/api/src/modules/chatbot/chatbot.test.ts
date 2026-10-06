@@ -105,6 +105,28 @@ describe('POST /api/chatbot', () => {
     expect(body.answer).not.toMatch(/restricted|forbidden|exists/i);
   });
 
+  it('answers out_of_scope, and searches nothing, when the question names a place outside the scope', async () => {
+    const calls: string[] = [];
+    const { call, searches } = await setup(SAMPLE_CHUNKS, withModel('Revenue was 52 [1].', calls));
+    const body = await ask(call, 'Show me the south region revenue');
+    expect(body.coverage).toBe('out_of_scope');
+    expect(body.mode).toBe('deterministic');
+    expect(body.sources).toEqual([]);
+    expect(body.answer).toContain('"south"');
+    expect(body.answer).toContain('Fixture region A');
+    expect(body.answer).toContain('no narrower answer');
+    // Neither search nor the model ran: nothing from inside the scope stands in for the South.
+    expect(searches).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('still answers questions that name a place inside the scope, or no place', async () => {
+    const { call, searches } = await setup(SAMPLE_CHUNKS);
+    expect((await ask(call, 'How is Fixture region A doing?')).coverage).toBe('answered');
+    expect((await ask(call, 'Which hospital is worst on EBITDA?')).coverage).toBe('answered');
+    expect(searches).toHaveLength(2);
+  });
+
   it('sends only the words and a vector to search: no entity, role or filter chosen by the client', async () => {
     const { call, searches } = await setup(SAMPLE_CHUNKS);
     const response = await call(SUBJECT.cooRegionA, 'POST', '/api/chatbot', {

@@ -53,7 +53,7 @@ orbit/
           brief/  inbox/  explorer/  ask/  actions/  audit/
           operations/           # leaders' live hospital-operations page (ADR 0018)
           erp/                  # hospital operations app, operator accounts only (ADR 0016)
-          chatbot/              # knowledge chatbot panel (ADR 0019)
+          chatbot/              # the Assistant's typed-question action: knowledge search, Ask fallback (ADRs 0019, 0021)
         roles/                  # one folder per role — view config only, not per-role apps
           chairman/  clinical-director/  regional-coo/  hospital-dho/
           people-executive/  bd-lead/  billing-lead/  coe-lead/
