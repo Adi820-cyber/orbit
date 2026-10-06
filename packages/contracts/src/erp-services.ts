@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ErpDisclosureFields, ErpVersionSchema } from './erp-common.ts';
+import { CurrencyCodeSchema, ErpDisclosureFields, ErpVersionSchema } from './erp-common.ts';
 
 /*
  * The services a hospital provides (ERP_PLAN §5.4): one organization-wide
@@ -65,6 +65,8 @@ export const ServiceCatalogueResponseSchema = z.strictObject({
       availability: ServiceAvailabilitySchema.nullable(),
     }),
   ),
+  /** The organization currency of `illustrativeTariff` (ADR 0022). */
+  currency: CurrencyCodeSchema,
   ...ErpDisclosureFields,
 });
 export type ServiceCatalogueResponse = z.infer<typeof ServiceCatalogueResponseSchema>;

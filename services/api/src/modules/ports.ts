@@ -234,6 +234,20 @@ export interface OperationsSource {
   daily(membership: MembershipClaims, days: number): Promise<readonly unknown[]>;
 }
 
+/**
+ * Revenue AGGREGATES from the ERP's bills and payments for a leader's own
+ * hospitals (ADR 0022 §5). Amounts only: no patient, bill or visit. The
+ * database functions apply the caller's scope; the route re-checks the role.
+ */
+export interface RevenueSource {
+  /** Per hospital: the last `days` days, today, and what is still owed. */
+  summary(membership: MembershipClaims, days: number): Promise<readonly unknown[]>;
+  /** Per hospital and day: billed and collected. */
+  daily(membership: MembershipClaims, days: number): Promise<readonly unknown[]>;
+  /** The organization's currency code. */
+  currency(membership: MembershipClaims): Promise<string>;
+}
+
 export interface ModuleDeps {
   scope: ScopeDeps;
   dataset: DatasetSource;
@@ -248,6 +262,8 @@ export interface ModuleDeps {
   erp: ErpStore;
   /** Leadership's aggregate view of the same data (ADR 0018). */
   operations: OperationsSource;
+  /** Leadership's revenue view of the ERP's billing (ADR 0022). */
+  revenue: RevenueSource;
   askNarration: AskNarration;
   /** Knowledge retrieval for the chatbot. */
   knowledge: KnowledgeSource;

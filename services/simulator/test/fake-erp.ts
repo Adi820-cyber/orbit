@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import type {
   AttendanceBoardResponseSchema,
+  BillListResponseSchema,
+  BillResponseSchema,
+  CoverageResponseSchema,
   CorrectionListResponseSchema,
   CorrectionResponseSchema,
   DeliveryResponseSchema,
@@ -100,6 +103,25 @@ interface StoredEncounter {
   version: number;
 }
 
+/** A bill, in the shape the simulator reads (ADR 0022). */
+export interface StoredBill {
+  billId: string;
+  key: string;
+  encounterId: string;
+  patientId: string;
+  facilityId: string;
+  deliveryIds: string[];
+  gross: number;
+  insurance: number;
+  patient: number;
+  coverage: { payerType: 'self-pay' | 'government' | 'private'; coveragePercent: number };
+  issuedAt: string;
+  payments: { key: string; payer: 'patient' | 'insurer'; method: string; amount: number; at: string }[];
+}
+
+/** Price of a service at every hospital, unless a test lists it in `unpriced`. */
+export const FAKE_PRICE = 1000;
+
 interface StoredDelivery {
   deliveryId: string;
   encounterId: string;
@@ -133,6 +155,10 @@ export class FakeErp implements ErpApi {
   readonly patientRecords: { patientId: string; name: string; facilityId: string; status: 'active' }[] = [];
   readonly serviceRecords: { serviceId: string; code: string; category: 'consultation' | 'diagnostics-lab' | 'emergency' | 'inpatient-stay' | 'day-care' | 'therapy' | 'procedure' | 'diagnostics-imaging'; active: boolean; offeredAt: Set<string> }[] = [];
   readonly slots: { staffId: string; weekday: number }[] = [];
+  readonly coverRecords = new Map<string, { payerType: 'self-pay' | 'government' | 'private'; coveragePercent: number }>();
+  readonly billRecords: StoredBill[] = [];
+  /** Service codes with no price: a visit using one cannot be billed. */
+  readonly unpriced = new Set<string>();
   readonly facilities = [
     { facilityId: ORG_FACILITY_A, name: 'Kestrion Avenhurst Hospital' },
     { facilityId: ORG_FACILITY_B, name: 'Kestrion Brackmoor Hospital' },
@@ -417,8 +443,12 @@ export class FakeErp implements ErpApi {
       facilityId,
       items: this.db.serviceRecords.map((service) => ({
         service: { serviceId: service.serviceId, serviceCode: service.code, name: service.code, category: service.category, departmentId: DEPT.OPD, unit: 'per-visit' as const, isActive: service.active, version: 1 },
-        availability: facilityId && service.offeredAt.has(facilityId) ? { facilityId, isAvailable: true, illustrativeTariff: null, version: 1 } : null,
+        availability:
+          facilityId && service.offeredAt.has(facilityId)
+            ? { facilityId, isAvailable: true, illustrativeTariff: this.db.unpriced.has(service.code) ? null : FAKE_PRICE, version: 1 }
+            : null,
       })),
+      currency: 'INR',
       ...disclosure,
     };
   }
@@ -512,6 +542,91 @@ export class FakeErp implements ErpApi {
       replayed: existing !== undefined,
       ...disclosure,
     };
+  }
+
+  // --- Billing -------------------------------------------------------------------------------------------------------
+  private billOut(bill: StoredBill) {
+    const paidByPatient = bill.payments.filter((p) => p.payer === 'patient').reduce((sum, p) => sum + p.amount, 0);
+    const paidByInsurer = bill.payments.filter((p) => p.payer === 'insurer').reduce((sum, p) => sum + p.amount, 0);
+    const paid = paidByPatient + paidByInsurer;
+    const round = (value: number) => Math.round(value * 100) / 100;
+    return {
+      billId: bill.billId,
+      billNumber: `DEMO-BILL-${String(100001 + this.db.billRecords.indexOf(bill))}`,
+      facilityId: bill.facilityId,
+      encounterId: bill.encounterId,
+      patientId: bill.patientId,
+      patientName: 'Fake Patient',
+      mrn: 'DEMO-MRN-100001',
+      status: 'issued' as const,
+      paymentState: paid >= bill.gross ? ('paid' as const) : paid > 0 ? ('part-paid' as const) : ('unpaid' as const),
+      payerType: bill.coverage.payerType,
+      payerName: null,
+      coveragePercent: bill.coverage.coveragePercent,
+      grossAmount: bill.gross,
+      insuranceAmount: bill.insurance,
+      patientAmount: bill.patient,
+      paidByPatient: round(paidByPatient),
+      paidByInsurer: round(paidByInsurer),
+      balance: round(bill.gross - paid),
+      issuedAt: bill.issuedAt,
+      cancelledAt: null,
+      version: 1,
+    };
+  }
+
+  async setCoverage(patientId: string, body: { payerType: 'self-pay' | 'government' | 'private'; coveragePercent: number }): Promise<Out<typeof CoverageResponseSchema>> {
+    this.log('setCoverage', patientId, body);
+    this.db.coverRecords.set(patientId, { payerType: body.payerType, coveragePercent: body.coveragePercent });
+    return { coverage: { patientId, payerType: body.payerType, payerName: null, coveragePercent: body.coveragePercent, version: 1 }, ...disclosure };
+  }
+
+  async issueBill(encounterId: string, body: { idempotencyKey: string }): Promise<Out<typeof BillResponseSchema>> {
+    this.log('issueBill', encounterId, body);
+    const db = this.db;
+    const replay = db.billRecords.find((b) => b.key === body.idempotencyKey);
+    const detail = (bill: StoredBill) => ({ bill: { ...this.billOut(bill), cancelReason: null, lines: [], payments: [] }, currency: 'INR', ...disclosure });
+    if (replay) return detail(replay);
+    const encounter = db.encounterRecords.find((e) => e.encounterId === encounterId);
+    if (!encounter) throw new SimApiError('not found', 404, 'not_found', null);
+    if (encounter.status !== 'closed') throw new SimApiError('Close the visit before billing it.', 409, 'conflict', null);
+    const billed = new Set(db.billRecords.flatMap((b) => b.deliveryIds));
+    const lines = db.deliveries.filter((d) => d.encounterId === encounterId && !billed.has(d.deliveryId));
+    const missing = lines.map((d) => db.serviceRecords.find((s) => s.serviceId === d.serviceId)).filter((s) => s && db.unpriced.has(s.code));
+    if (missing.length) throw new SimApiError(`No price is set for: ${missing.map((s) => s?.code).join(', ')}. An admin sets prices on the Services page.`, 409, 'conflict', null);
+    if (!lines.length) throw new SimApiError('Every service on this visit is already billed.', 409, 'conflict', null);
+    const coverage = db.coverRecords.get(encounter.patientId) ?? { payerType: 'self-pay' as const, coveragePercent: 0 };
+    const gross = lines.reduce((sum, d) => sum + d.quantity * FAKE_PRICE, 0);
+    const insurance = Math.round((gross * coverage.coveragePercent) / 100 * 100) / 100;
+    const bill: StoredBill = {
+      billId: randomUUID(), key: body.idempotencyKey, encounterId, patientId: encounter.patientId, facilityId: encounter.facilityId,
+      deliveryIds: lines.map((d) => d.deliveryId), gross, insurance, patient: gross - insurance, coverage, issuedAt: this.clock.now().toISOString(), payments: [],
+    };
+    db.billRecords.push(bill);
+    return detail(bill);
+  }
+
+  async bills(query: Query): Promise<Out<typeof BillListResponseSchema>> {
+    this.log('bills', query);
+    const facilityId = typeof query['facilityId'] === 'string' ? query['facilityId'] : null;
+    const items = this.db.billRecords
+      .filter((b) => !facilityId || b.facilityId === facilityId)
+      .map((b) => this.billOut(b))
+      .filter((b) => query['state'] !== 'open' || b.paymentState === 'unpaid' || b.paymentState === 'part-paid');
+    return { items, page: { page: 1, pageSize: 100, total: items.length }, currency: 'INR', ...disclosure };
+  }
+
+  async recordPayment(billId: string, body: { payer: 'patient' | 'insurer'; method: string; amount: number; idempotencyKey: string }): Promise<Out<typeof BillResponseSchema>> {
+    this.log('recordPayment', billId, body);
+    const bill = this.db.billRecords.find((b) => b.billId === billId);
+    if (!bill) throw new SimApiError('not found', 404, 'not_found', null);
+    if (!bill.payments.some((p) => p.key === body.idempotencyKey)) {
+      const due = body.payer === 'patient' ? bill.patient : bill.insurance;
+      const paid = bill.payments.filter((p) => p.payer === body.payer).reduce((sum, p) => sum + p.amount, 0);
+      if (body.amount > due - paid + 0.001) throw new SimApiError('That is more than this payer still owes on the bill.', 409, 'conflict', null);
+      bill.payments.push({ key: body.idempotencyKey, payer: body.payer, method: body.method, amount: body.amount, at: this.clock.now().toISOString() });
+    }
+    return { bill: { ...this.billOut(bill), cancelReason: null, lines: [], payments: [] }, currency: 'INR', ...disclosure };
   }
 
   async staff(query: Query): Promise<Out<typeof StaffListResponseSchema>> {

@@ -3,6 +3,15 @@ import type { ErpStore } from './ports.ts';
 /** Fail-closed ERP store: every call answers `unavailable` until `ORBIT_LIVE_SOURCES` includes `erp`. */
 export function pendingErpStore(fail: () => never): ErpStore {
   return {
+    currency: async () => fail(),
+    getCoverage: async () => fail(),
+    setCoverage: async () => fail(),
+    issueBill: async () => fail(),
+    listBills: async () => fail(),
+    getBill: async () => fail(),
+    recordPayment: async () => fail(),
+    cancelBill: async () => fail(),
+    revenue: async () => fail(),
     reference: async () => fail(),
     facility: async () => fail(),
     today: async () => fail(),

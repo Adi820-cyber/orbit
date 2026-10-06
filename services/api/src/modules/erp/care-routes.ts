@@ -42,13 +42,19 @@ export function registerErpCareRoutes(api: FastifyInstance, deps: ModuleDeps): v
   api.get('/erp/services', async (request) => {
     const operator = operatorOf(request);
     const query = parseInput(ServiceCatalogueQuerySchema, request.query);
-    const facilityId = (await facilityFilter(store, operator, query.facilityId)) ?? null;
+    // A hospital account sees its own hospital's offer and prices by default; an admin
+    // names a facility, or reads the catalogue alone.
+    const facilityId =
+      operator.operatorRole === 'hospital'
+        ? await resolveFacility(store, operator, query.facilityId)
+        : ((await facilityFilter(store, operator, query.facilityId)) ?? null);
     const items = await store.catalogue(operator, {
       facilityId,
       category: query.category ?? null,
       includeInactive: query.includeInactive ?? false,
     });
-    return respond(ServiceCatalogueResponseSchema, { facilityId, items }, 'erp_catalogue_failed_contract');
+    const currency = await store.currency(operator);
+    return respond(ServiceCatalogueResponseSchema, { facilityId, items, currency }, 'erp_catalogue_failed_contract');
   });
 
   api.post('/erp/services', async (request, reply) => {

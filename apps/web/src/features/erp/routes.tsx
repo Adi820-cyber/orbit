@@ -9,6 +9,7 @@ import { ErpErrorBoundary } from "./shared";
 const attendance = () => import("./attendance");
 const people = () => import("./people");
 const care = () => import("./care");
+const billing = () => import("./billing");
 
 function UnknownErpPage() {
   return <SurfaceState kind="not_found" title="This page does not exist." message="Use the hospital operations navigation." />;
@@ -131,6 +132,30 @@ export function erpRoutes(environment: WorkspaceEnvironment): RouteObject {
         lazy: async () => {
           const m = await care();
           return { loader: m.servicesLoader(environment), action: m.servicesAction(environment), Component: m.ServicesRoute };
+        },
+      },
+      {
+        path: "billing",
+        ...page,
+        lazy: async () => {
+          const m = await billing();
+          return { loader: m.billsLoader(environment), Component: m.BillsRoute };
+        },
+      },
+      {
+        path: "billing/:billId",
+        ...page,
+        lazy: async () => {
+          const m = await billing();
+          return { loader: m.billDetailLoader(environment), action: m.billDetailAction(environment), Component: m.BillDetailRoute };
+        },
+      },
+      {
+        path: "revenue",
+        ...page,
+        lazy: async () => {
+          const m = await billing();
+          return { loader: m.revenueLoader(environment), Component: m.RevenueRoute };
         },
       },
       {

@@ -6,7 +6,8 @@ import { silentLogger } from '../src/log.ts';
 import { MINIMUM_STAFF } from '../src/bootstrap.ts';
 import { addDays } from '../src/clock.ts';
 import { approves, attendancePlan, CORRECTION_REASONS, decisionDelayMinutes, rosterPlan, visitPlan } from '../src/plan.ts';
-import { FakeErp, ORG_FACILITY_A, ORG_FACILITY_B, SHIFT_AFTERNOON, SHIFT_GENERAL, SHIFT_MORNING, type FakeStaff } from './fake-erp.ts';
+import { coverFor } from '../src/billing.ts';
+import { FAKE_PRICE, FakeErp, ORG_FACILITY_A, ORG_FACILITY_B, SHIFT_AFTERNOON, SHIFT_GENERAL, SHIFT_MORNING, type FakeStaff } from './fake-erp.ts';
 
 const DATE = '2026-10-01';
 const A = ORG_FACILITY_A;
@@ -33,6 +34,7 @@ const BASE_ENV = {
 const WRITE_METHODS = [
   'punch', 'setRoster', 'registerPatient', 'openEncounter', 'updateEncounter', 'recordDelivery', 'requestCorrection',
   'decideCorrection', 'updateDoctor', 'createStaff', 'createDoctor', 'createService', 'setAvailability', 'addScheduleSlot',
+  'setCoverage', 'issueBill', 'recordPayment',
 ];
 
 function world(env: Record<string, string> = {}, options: { desk?: boolean; moods?: Mood[]; start?: string } = {}) {
@@ -455,6 +457,68 @@ describe('visits', () => {
     const busy = await patients(2.5);
     const quiet = await patients(0.4);
     expect(busy).toBeGreaterThan(quiet);
+  });
+});
+
+describe('billing', () => {
+  async function closedVisit(env: Record<string, string> = {}) {
+    const w = world(env, { start: `${DATE}T10:00:00Z` });
+    for (const [type, name] of [['doctor', 'Doctor'], ['nurse', 'Nurse'], ['technician', 'Technician']] as const) {
+      await putOnDuty(w, w.admin.addStaff(A, type, name), SHIFT_GENERAL);
+    }
+    for (const category of ALL_CATEGORIES) w.admin.addService(`SVC-${category}`, category);
+    const visit = w.admin.seedEncounter(A, 'outpatient', `${DATE}T09:30:00.000Z`);
+    const plan = visitPlan(w.cfg.seed, visit.encounterId, 'outpatient');
+    w.setNow(at(visit.startedAt) + (plan.lengthMinutes + 1) * MINUTE);
+    return { w, visit };
+  }
+
+  it('gives new patients the dataset\'s mix of cover: 60% insured, mostly government, 50-90% covered', () => {
+    const covers = Array.from({ length: 4000 }, (_, i) => coverFor('seed', `patient-${i}`));
+    const insured = covers.filter((cover) => cover.payerType !== 'self-pay');
+    expect(insured.length / covers.length).toBeGreaterThan(0.56);
+    expect(insured.length / covers.length).toBeLessThan(0.64);
+    expect(insured.filter((cover) => cover.payerType === 'government').length / insured.length).toBeGreaterThan(0.55);
+    expect(new Set(insured.map((cover) => cover.coveragePercent))).toEqual(new Set([50, 60, 70, 80, 90]));
+    expect(covers.filter((cover) => cover.payerType === 'self-pay').every((cover) => cover.coveragePercent === 0)).toBe(true);
+    expect(coverFor('seed', 'patient-7')).toEqual(coverFor('seed', 'patient-7'));
+  });
+
+  it('bills a visit once when it closes, split by the patient\'s cover, and replays rather than re-bills', async () => {
+    const { w, visit } = await closedVisit();
+    w.admin.coverRecords.set(visit.patientId, { payerType: 'private', coveragePercent: 60 });
+    const summary = await w.sim.tick();
+    expect(visit.status).toBe('closed');
+    expect(w.admin.billRecords).toHaveLength(1);
+    const [bill] = w.admin.billRecords;
+    const quantity = w.admin.deliveries.reduce((sum, delivery) => sum + delivery.quantity, 0);
+    expect(bill).toMatchObject({ encounterId: visit.encounterId, gross: quantity * FAKE_PRICE, insurance: quantity * FAKE_PRICE * 0.6 });
+    expect(summary.stats).toMatchObject({ bills: 1, failures: 0 });
+    await w.sim.tick();
+    expect(w.admin.billRecords).toHaveLength(1);
+  });
+
+  it('collects the patient\'s share and settles the insurer\'s later, never more than is owed', async () => {
+    const { w, visit } = await closedVisit();
+    w.admin.coverRecords.set(visit.patientId, { payerType: 'government', coveragePercent: 70 });
+    await w.sim.tick();
+    w.advance(11 * 24 * 60 * MINUTE); // past every patient and insurer delay
+    await w.sim.tick();
+    const [bill] = w.admin.billRecords;
+    if (!bill) throw new Error('the visit should have been billed');
+    const paid = (payer: 'patient' | 'insurer') => bill.payments.filter((p) => p.payer === payer).reduce((sum, p) => sum + p.amount, 0);
+    expect(paid('insurer')).toBe(bill.insurance);
+    // A few patients leave their share owed; everyone else has paid it in full, exactly once.
+    expect([0, bill.patient]).toContain(paid('patient'));
+    expect(bill.payments.filter((p) => p.payer === 'patient').length).toBeLessThanOrEqual(1);
+  });
+
+  it('counts a visit with an unpriced service as unbillable, not as a failure', async () => {
+    const { w } = await closedVisit();
+    for (const category of ALL_CATEGORIES) w.admin.unpriced.add(`SVC-${category}`);
+    const summary = await w.sim.tick();
+    expect(w.admin.billRecords).toHaveLength(0);
+    expect(summary.stats).toMatchObject({ bills: 0, unbillable: 1, failures: 0 });
   });
 });
 

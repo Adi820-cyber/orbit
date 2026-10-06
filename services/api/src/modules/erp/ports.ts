@@ -1,5 +1,9 @@
 import type {
   AddScheduleSlotRequest,
+  BillListQuery,
+  CancelBillRequest,
+  RecordPaymentRequest,
+  SetCoverageRequest,
   CorrectionListQuery,
   CreateDoctorRequest,
   CreateServiceRequest,
@@ -67,7 +71,27 @@ export interface NewPunch {
   punchedAt: string | null;
 }
 
-export interface ErpStore {
+/**
+ * Billing (ADR 0022). Same rules as the rest of the port: RLS decides what the
+ * operator sees; a bill or patient the caller cannot see is `null`.
+ */
+export interface BillingStore {
+  /** The organization's currency code, e.g. INR. */
+  currency(operator: OperatorClaims): Promise<string>;
+  /** The patient's cover (self-pay with a null version when none is set); null when the patient is not visible. */
+  getCoverage(operator: OperatorClaims, patientId: string): Promise<unknown>;
+  setCoverage(operator: OperatorClaims, patientId: string, input: SetCoverageRequest, requestId: string): Promise<ErpWrite>;
+  /** null when the visit is not visible. */
+  issueBill(operator: OperatorClaims, encounterId: string, idempotencyKey: string, requestId: string): Promise<{ bill: unknown; replayed: boolean } | null>;
+  listBills(operator: OperatorClaims, query: BillListQuery): Promise<ErpPageRows>;
+  getBill(operator: OperatorClaims, billId: string, requestId: string): Promise<unknown>;
+  /** null when the bill is not visible. */
+  recordPayment(operator: OperatorClaims, billId: string, input: RecordPaymentRequest, requestId: string): Promise<{ bill: unknown; replayed: boolean } | null>;
+  cancelBill(operator: OperatorClaims, billId: string, input: CancelBillRequest, requestId: string): Promise<ErpWrite>;
+  revenue(operator: OperatorClaims, range: { facilityId: string | null; from: string; to: string }): Promise<unknown>;
+}
+
+export interface ErpStore extends BillingStore {
   reference(operator: OperatorClaims): Promise<ReferenceRows>;
   /** The facility, when it exists in the caller's organization and is visible; else null. */
   facility(operator: OperatorClaims, facilityId: string): Promise<unknown>;

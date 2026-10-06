@@ -320,6 +320,145 @@ describe.skipIf(!ownerUrl)('ERP store against Postgres (integration)', { timeout
     expect(await store().updateEncounter(claims.hospital1, encounter, { version, status: 'closed' }, 'req-z')).toEqual({ status: 'stale' });
   });
 
+  // ---- Billing (migration 20261006000200, ADR 0022) ----------------------
+  let bill = '';
+  const pay = (claimsOf: OperatorClaims, payer: 'patient' | 'insurer', amount: number, key = randomUUID()) =>
+    store().recordPayment(
+      claimsOf,
+      bill,
+      { payer, method: payer === 'insurer' ? 'insurance-settlement' : 'upi', amount, idempotencyKey: key },
+      'req-pay',
+    );
+
+  it('lets only an admin change a price, at the database', async () => {
+    const offered = (await store().catalogue(claims.hospital1, { facilityId: ids.facility1, category: null, includeInactive: false })) as {
+      serviceId: string;
+      availability: { version: number } | null;
+    }[];
+    const version = offered.find((row) => row.serviceId === service)?.availability?.version ?? 1;
+    await expect(
+      store().setAvailability(claims.hospital1, { facilityId: ids.facility1, serviceId: service }, { isAvailable: true, illustrativeTariff: 50, version }, 'req-pr1'),
+    ).rejects.toMatchObject({ code: 'forbidden', message: 'Only an admin account can change a price.' });
+    // Switching availability without touching the price is still the hospital's call.
+    expect(
+      (await store().setAvailability(claims.hospital1, { facilityId: ids.facility1, serviceId: service }, { isAvailable: true, illustrativeTariff: 40, version }, 'req-pr2')).status,
+    ).toBe('ok');
+  });
+
+  it('keeps insurance cover with the patient, inside the facility', async () => {
+    expect(await store().getCoverage(claims.hospital1, patient)).toMatchObject({ payerType: 'self-pay', coveragePercent: 0, version: null });
+    const set = await store().setCoverage(claims.hospital1, patient, { payerType: 'private', payerName: 'Fixture Health Cover', coveragePercent: 60 }, 'req-c1');
+    expect(set).toMatchObject({ status: 'ok', row: { payerType: 'private', coveragePercent: 60, version: 1 } });
+    expect(await store().getCoverage(claims.hospital2, patient)).toBeNull();
+  });
+
+  it('issues a bill from the price list, split by cover, and replays it by key', async () => {
+    const key = randomUUID();
+    const issued = await store().issueBill(claims.hospital1, encounter, key, 'req-b1');
+    expect(issued?.replayed).toBe(false);
+    expect(issued?.bill).toMatchObject({
+      status: 'issued',
+      paymentState: 'unpaid',
+      payerType: 'private',
+      coveragePercent: 60,
+      grossAmount: 40,
+      insuranceAmount: 24,
+      patientAmount: 16,
+      balance: 40,
+      lines: [{ description: 'General consultation', quantity: 1, unitPrice: 40, lineAmount: 40 }],
+    });
+    if (!issued) throw new Error('the visit must be billable by its own hospital');
+    bill = (issued.bill as { billId: string }).billId;
+    expect((await store().issueBill(claims.hospital1, encounter, key, 'req-b2'))?.replayed).toBe(true);
+    await expect(store().issueBill(claims.hospital1, encounter, randomUUID(), 'req-b3')).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Every service on this visit is already billed.',
+    });
+    // Another hospital sees neither the visit nor the bill.
+    expect(await store().issueBill(claims.hospital2, encounter, randomUUID(), 'req-b4')).toBeNull();
+    expect(await store().getBill(claims.hospital2, bill, 'req-b5')).toBeNull();
+    expect(await pay(claims.hospital2, 'patient', 1)).toBeNull();
+  });
+
+  it('takes payments up to what each payer owes, and no more', async () => {
+    expect((await pay(claims.hospital1, 'patient', 10))?.bill).toMatchObject({ paymentState: 'part-paid', paidByPatient: 10, balance: 30 });
+    await expect(pay(claims.hospital1, 'patient', 7)).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'That is more than this payer still owes on the bill.',
+    });
+    await pay(claims.hospital1, 'insurer', 24);
+    const settled = await pay(claims.hospital1, 'patient', 6);
+    expect(settled?.bill).toMatchObject({ paymentState: 'paid', paidByPatient: 16, paidByInsurer: 24, balance: 0 });
+  });
+
+  it('refuses to cancel a paid bill, or a billed service, and keeps cancelling for admins', async () => {
+    const current = (await store().getBill(claims.admin, bill, 'req-x1')) as { version: number; lines: { serviceDeliveryId: string }[] };
+    expect((await store().cancelBill(claims.hospital1, bill, { version: current.version, reason: 'Raised in error' }, 'req-x2')).status).not.toBe('ok');
+    await expect(store().cancelBill(claims.admin, bill, { version: current.version, reason: 'Raised in error' }, 'req-x3')).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'A bill with a payment cannot be cancelled.',
+    });
+    const [line] = current.lines;
+    await expect(store().updateDelivery(claims.hospital1, String(line?.serviceDeliveryId), { version: 1, status: 'cancelled' }, 'req-x4')).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'This service is on a bill. Cancel the bill before cancelling the service.',
+    });
+  });
+
+  it('names the services that have no price instead of billing them at nothing', async () => {
+    const unpriced = String(
+      ((await store().createService(
+        claims.admin,
+        { serviceCode: `LAB-${suffix.slice(0, 4).toUpperCase()}`, name: 'Unpriced test', category: 'diagnostics-lab', departmentId: ids.department, unit: 'per-test' },
+        'req-u1',
+      )) as Record<string, unknown>)['serviceId'],
+    );
+    await store().setAvailability(claims.admin, { facilityId: ids.facility1, serviceId: unpriced }, { isAvailable: true }, 'req-u2');
+    const visit = String(
+      ((await store().openEncounter(
+        claims.hospital1,
+        { patientId: patient, facilityId: ids.facility1, departmentId: ids.department, encounterType: 'outpatient' },
+        'req-u3',
+      )) as Record<string, unknown>)['encounterId'],
+    );
+    await store().recordDelivery(claims.hospital1, visit, { serviceId: unpriced, performedByStaffId: nurse, quantity: 1, idempotencyKey: randomUUID() }, 'req-u4');
+    await expect(store().issueBill(claims.hospital1, visit, randomUUID(), 'req-u5')).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Close the visit before billing it.',
+    });
+    await store().updateEncounter(claims.hospital1, visit, { version: 1, status: 'closed' }, 'req-u6');
+    await expect(store().issueBill(claims.hospital1, visit, randomUUID(), 'req-u7')).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'No price is set for: Unpriced test. An admin sets prices on the Services page.',
+    });
+  });
+
+  it('reports revenue to the hospital, and only aggregates to a leader in scope', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const report = (await store().revenue(claims.hospital1, { facilityId: ids.facility1, from: utcDate(1), to: today })) as {
+      totals: Record<string, number>;
+      unpricedServices: { name: string }[];
+    };
+    expect(report.totals).toMatchObject({ bills: 1, gross: 40, insurance: 24, patient: 16, collected: 40, outstandingPatient: 0, outstandingInsurer: 0, openBills: 0 });
+    expect(report.unpricedServices.map((row) => row.name)).toContain('Unpriced test');
+
+    const feed = await sql.begin(async (tx) => {
+      await tx.unsafe('set local role orbit_app');
+      await tx.unsafe(`select set_config('orbit.membership', $1, true)`, [
+        JSON.stringify({ membershipId: randomUUID(), subject: randomUUID(), organizationId: ids.org, role: 'chairman', scopes: [{ grain: 'group', entityId: ids.org }] }),
+      ]);
+      return tx.unsafe(`select facility_id::text as facility, gross_period::float8 as gross, collected_period::float8 as collected from orbit_erp.revenue_feed(30) order by 1`);
+    });
+    expect(feed.find((row) => row['facility'] === ids.facility1)).toMatchObject({ gross: 40, collected: 40 });
+    // An operator's claims get nothing from the leader feed.
+    const asOperator = await sql.begin(async (tx) => {
+      await tx.unsafe('set local role orbit_app');
+      await tx.unsafe(`select set_config('orbit.membership', $1, true)`, [JSON.stringify({ ...claims.admin, role: null })]);
+      return tx.unsafe(`select count(*)::int as n from orbit_erp.revenue_feed(30)`);
+    });
+    expect(asOperator[0]?.['n']).toBe(0);
+  });
+
   it('shows a leader transaction no ERP rows at all', async () => {
     const counts = await sql.begin(async (tx) => {
       await tx.unsafe('set local role orbit_app');

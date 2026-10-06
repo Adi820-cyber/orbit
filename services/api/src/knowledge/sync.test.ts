@@ -16,6 +16,10 @@ function fakeDb(pending: Pending[]) {
   const calls: string[] = [];
   const tx: Tx = {
     async query(text: string, params: SqlParam[] = []) {
+      if (text.includes('knowledge_refresh_billing')) {
+        calls.push('billing');
+        return [{ chunks: 4 }];
+      }
       calls.push(text.includes('knowledge_refresh') ? 'refresh' : text.includes('knowledge_pending') ? 'pending' : 'set');
       if (text.includes('knowledge_refresh')) {
         return [{ kind: 'kpi-definition', chunks: 2 }, { kind: 'operations', chunks: 9 }];
@@ -46,7 +50,7 @@ describe('syncKnowledge', () => {
       batchSize: 2,
       embed: async (texts) => texts.map((_, i) => [i, 0.5]),
     });
-    expect(result.built).toEqual([{ kind: 'kpi-definition', chunks: 2 }, { kind: 'operations', chunks: 9 }]);
+    expect(result.built).toEqual([{ kind: 'kpi-definition', chunks: 2 }, { kind: 'operations', chunks: 9 }, { kind: 'billing', chunks: 4 }]);
     expect(result.embedded).toBe(3);
     expect(result.complete).toBe(true);
     expect(stored.map((row) => [row.id, row.hash, row.model])).toEqual([
@@ -68,7 +72,7 @@ describe('syncKnowledge', () => {
   it('only builds chunks when there is no embedding provider', async () => {
     const { db, calls } = fakeDb(chunks(2));
     const result = await syncKnowledge({ db, model: 'm' });
-    expect(calls).toEqual(['refresh']);
+    expect(calls).toEqual(['refresh', 'billing']);
     expect(result).toMatchObject({ embedded: 0, embeddingAvailable: false, complete: false });
   });
 

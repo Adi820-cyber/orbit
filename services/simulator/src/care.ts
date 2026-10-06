@@ -1,4 +1,5 @@
 import type { DoctorListResponse, EncounterListResponse, ServiceCatalogueResponse, ServiceCategory, StaffType } from '@orbit/contracts';
+import { billClosedVisit, recordCover } from './billing.ts';
 import { localParts } from './clock.ts';
 import { read, write, type Ctx, type FacilityRef } from './ctx.ts';
 import type { Boards } from './attendance.ts';
@@ -151,7 +152,10 @@ async function progressVisits(ctx: Ctx, state: SimState, facility: FacilityRef, 
           ...(overdue ? { endedAt: new Date(Math.min(endedAtMs, nowMs)).toISOString() } : {}),
         }),
       );
-      if (result.status === 'ok') ctx.stats.closed += 1;
+      if (result.status === 'ok') {
+        ctx.stats.closed += 1;
+        await billClosedVisit(ctx, facility, encounter.encounterId);
+      }
     }
   }
 
@@ -207,6 +211,7 @@ async function receiveArrivals(ctx: Ctx, state: SimState, facility: FacilityRef,
       if (registered.status !== 'ok') continue;
       patientId = registered.value.patient.patientId;
       ctx.stats.patients += 1;
+      await recordCover(ctx, facility, patientId);
     }
 
     const resolvedPatientId: string = patientId;

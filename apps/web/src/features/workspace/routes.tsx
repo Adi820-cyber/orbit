@@ -11,6 +11,7 @@ import { ExplorerDetailRoute, explorerDetailLoader } from "../explorer/detail-ro
 import { ExplorerIndexRoute } from "../explorer/index-route";
 import { InboxRoute, inboxLoader } from "../inbox/route";
 import { OperationsRoute, operationsLoader } from "../operations/route";
+import { RevenueRoute, revenueLoader } from "../revenue/route";
 import { SurfaceState } from "./components";
 import type { WorkspaceEnvironment } from "./environment";
 import { WorkspaceLayout, workspaceLoader } from "./layout";
@@ -52,6 +53,7 @@ export function workspaceRoutes(environment: WorkspaceEnvironment): RouteObject 
       { path: "explorer", Component: ExplorerIndexRoute, ...surface },
       { path: "explorer/:assignmentId", loader: explorerDetailLoader(environment), Component: ExplorerDetailRoute, ...surface },
       { path: "operations", loader: operationsLoader(environment), Component: OperationsRoute, ...surface },
+      { path: "revenue", loader: revenueLoader(environment), Component: RevenueRoute, ...surface },
       { path: "ask", loader: askLoader(environment), action: askAction(environment), Component: AskRoute, ...surface },
       { path: "chatbot", action: chatbotAction(environment) },
       { path: "actions", loader: actionsLoader(environment), Component: ActionsRoute, ...surface },

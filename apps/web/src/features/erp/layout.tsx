@@ -30,6 +30,8 @@ const SECTIONS: readonly { path: string; label: string; adminOnly?: boolean }[] 
   { path: "/patients", label: "Patients" },
   { path: "/visits", label: "Visits" },
   { path: "/services", label: "Services" },
+  { path: "/billing", label: "Billing" },
+  { path: "/revenue", label: "Revenue" },
   { path: "/audit", label: "Audit trail", adminOnly: true },
 ];
 

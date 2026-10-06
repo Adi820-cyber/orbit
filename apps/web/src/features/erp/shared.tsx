@@ -144,6 +144,11 @@ export function duration(minutes: number | null | undefined) {
   return hours ? `${hours} h ${rest} min` : `${rest} min`;
 }
 
+/** An amount in the organization currency, e.g. ₹1,23,456.00 for INR (Indian digit grouping). */
+export function money(amount: number, currency: string) {
+  return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en", { style: "currency", currency, minimumFractionDigits: 2 }).format(amount);
+}
+
 export function label(value: string) {
   const text = value.replaceAll("-", " ").replaceAll("_", " ");
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;

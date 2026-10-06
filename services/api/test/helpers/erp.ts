@@ -157,6 +157,39 @@ const deliveryRow = {
   version: 1,
 };
 
+export const BILL_ID = 'b1000000-0000-4000-8000-000000000001';
+
+/** A contract-valid bill: one line, part-paid by the patient. */
+export function billRow(overrides: Record<string, unknown> = {}) {
+  return {
+    billId: BILL_ID,
+    billNumber: 'DEMO-BILL-100001',
+    facilityId: FACILITY_1,
+    encounterId: ENCOUNTER_ID,
+    patientId: PATIENT_ID,
+    patientName: 'Fixture Patient',
+    mrn: 'DEMO-MRN-100001',
+    status: 'issued',
+    paymentState: 'part-paid',
+    payerType: 'private',
+    payerName: 'Fixture Health Cover',
+    coveragePercent: 60,
+    grossAmount: 1000,
+    insuranceAmount: 600,
+    patientAmount: 400,
+    paidByPatient: 100,
+    paidByInsurer: 0,
+    balance: 900,
+    issuedAt: NOW,
+    cancelledAt: null,
+    version: 1,
+    cancelReason: null,
+    lines: [{ lineId: 'b2000000-0000-4000-8000-000000000001', serviceDeliveryId: 'b3000000-0000-4000-8000-000000000001', serviceId: SERVICE_ID, description: 'General consultation', quantity: 1, unitPrice: 1000, lineAmount: 1000 }],
+    payments: [{ paymentId: 'b4000000-0000-4000-8000-000000000001', payer: 'patient', method: 'upi', amount: 100, receivedAt: NOW, reference: null }],
+    ...overrides,
+  };
+}
+
 export interface StoreCall {
   method: keyof ErpStore;
   operator: OperatorClaims;
@@ -222,6 +255,26 @@ export function recordingErpStore(overrides: Partial<ErpStore> = {}) {
     recordDelivery: async () => ({ delivery: deliveryRow, replayed: false }),
     updateDelivery: async () => ok({ ...deliveryRow, status: 'cancelled', version: 2 }),
     audit: async () => ({ items: [], total: 0 }),
+    currency: async () => 'INR',
+    getCoverage: async (_operator, patientId) =>
+      patientId === PATIENT_ID ? { patientId, payerType: 'self-pay', payerName: null, coveragePercent: 0, version: null } : null,
+    setCoverage: async (_operator, patientId, input) =>
+      ok({ patientId, payerType: input.payerType, payerName: input.payerName ?? null, coveragePercent: input.coveragePercent, version: (input.version ?? 0) + 1 }),
+    issueBill: async (_operator, encounterId) => (encounterId === ENCOUNTER_ID ? { bill: billRow(), replayed: false } : null),
+    listBills: async () => {
+      const { cancelReason: _c, lines: _l, payments: _p, ...summary } = billRow();
+      return { items: [summary], total: 1 };
+    },
+    getBill: async (_operator, billId) => (billId === BILL_ID ? billRow() : null),
+    recordPayment: async (_operator, billId) => (billId === BILL_ID ? { bill: billRow({ paidByPatient: 400, balance: 600 }), replayed: false } : null),
+    cancelBill: async () => ok(billRow({ status: 'cancelled', paymentState: 'cancelled', balance: 0, cancelledAt: NOW, cancelReason: 'Raised in error', version: 2, payments: [] })),
+    revenue: async () => ({
+      totals: { bills: 1, gross: 1000, insurance: 600, patient: 400, collected: 100, collectedFromPatients: 100, collectedFromInsurers: 0, outstandingPatient: 300, outstandingInsurer: 600, openBills: 1 },
+      daily: [{ day: '2026-09-28', bills: 1, gross: 1000, collected: 100 }],
+      byCategory: [{ category: 'consultation', lines: 1, amount: 1000 }],
+      byMethod: [{ method: 'upi', payments: 1, amount: 100 }],
+      unpricedServices: [],
+    }),
     ...overrides,
   };
 

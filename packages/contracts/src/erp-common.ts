@@ -23,6 +23,9 @@ export const ErpDisclosureFields = {
   disclosure: DisclosureSchema,
 } as const;
 
+/** ISO 4217 currency code of the organization, e.g. INR. */
+export const CurrencyCodeSchema = z.string().regex(/^[A-Z]{3}$/);
+
 export const ErpDateSchema = z.iso.date();
 export const ErpInstantSchema = z.iso.datetime({ offset: true });
 /** `HH:MM`, 24-hour. */

@@ -330,6 +330,11 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
       snapshot: async () => [],
       daily: async () => [],
     },
+    revenue: {
+      summary: async () => [],
+      daily: async () => [],
+      currency: async () => 'INR',
+    },
     knowledge: {
       search: async () => [],
     },

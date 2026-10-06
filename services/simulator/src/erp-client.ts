@@ -3,6 +3,12 @@ import {
   AddScheduleSlotRequestSchema,
   AttendanceBoardResponseSchema,
   AvailabilityResponseSchema,
+  BillListResponseSchema,
+  BillResponseSchema,
+  CoverageResponseSchema,
+  IssueBillRequestSchema,
+  RecordPaymentRequestSchema,
+  SetCoverageRequestSchema,
   CorrectionListResponseSchema,
   CorrectionResponseSchema,
   CreateDoctorRequestSchema,
@@ -85,6 +91,11 @@ export interface ErpApi {
   encounters(query: Query): Promise<z.infer<typeof EncounterListResponseSchema>>;
   updateEncounter(encounterId: string, body: Input<typeof UpdateEncounterRequestSchema>): Promise<z.infer<typeof EncounterResponseSchema>>;
   recordDelivery(encounterId: string, body: Input<typeof RecordDeliveryRequestSchema>): Promise<z.infer<typeof DeliveryResponseSchema>>;
+  // Billing (ADR 0022).
+  setCoverage(patientId: string, body: Input<typeof SetCoverageRequestSchema>): Promise<z.infer<typeof CoverageResponseSchema>>;
+  issueBill(encounterId: string, body: Input<typeof IssueBillRequestSchema>): Promise<z.infer<typeof BillResponseSchema>>;
+  bills(query: Query): Promise<z.infer<typeof BillListResponseSchema>>;
+  recordPayment(billId: string, body: Input<typeof RecordPaymentRequestSchema>): Promise<z.infer<typeof BillResponseSchema>>;
   // Used only to set up an empty hospital (bootstrap.ts).
   staff(query: Query): Promise<z.infer<typeof StaffListResponseSchema>>;
   createStaff(body: Input<typeof CreateStaffRequestSchema>): Promise<z.infer<typeof StaffResponseSchema>>;
@@ -213,6 +224,11 @@ export function createErpApi(options: {
       send('PATCH', `/api/erp/encounters/${id(encounterId)}`, UpdateEncounterRequestSchema, body, EncounterResponseSchema),
     recordDelivery: (encounterId, body) =>
       send('POST', `/api/erp/encounters/${id(encounterId)}/services`, RecordDeliveryRequestSchema, body, DeliveryResponseSchema, true),
+    // Issuing a bill and recording a payment carry an idempotency key, so a retry is a replay.
+    setCoverage: (patientId, body) => send('PUT', `/api/erp/patients/${id(patientId)}/coverage`, SetCoverageRequestSchema, body, CoverageResponseSchema),
+    issueBill: (encounterId, body) => send('POST', `/api/erp/encounters/${id(encounterId)}/bills`, IssueBillRequestSchema, body, BillResponseSchema, true),
+    bills: (query) => get('/api/erp/bills', BillListResponseSchema, query),
+    recordPayment: (billId, body) => send('POST', `/api/erp/bills/${id(billId)}/payments`, RecordPaymentRequestSchema, body, BillResponseSchema, true),
     staff: (query) => get('/api/erp/staff', StaffListResponseSchema, query),
     createStaff: (body) => send('POST', '/api/erp/staff', CreateStaffRequestSchema, body, StaffResponseSchema),
     createDoctor: (body) => send('POST', '/api/erp/doctors', CreateDoctorRequestSchema, body, DoctorResponseSchema),
