@@ -594,7 +594,7 @@ export class FakeErp implements ErpApi {
     const lines = db.deliveries.filter((d) => d.encounterId === encounterId && !billed.has(d.deliveryId));
     const missing = lines.map((d) => db.serviceRecords.find((s) => s.serviceId === d.serviceId)).filter((s) => s && db.unpriced.has(s.code));
     if (missing.length) throw new SimApiError(`No price is set for: ${missing.map((s) => s?.code).join(', ')}. An admin sets prices on the Services page.`, 409, 'conflict', null);
-    if (!lines.length) throw new SimApiError('Every service on this visit is already billed.', 409, 'conflict', null);
+    if (!lines.length) throw new SimApiError('This visit has no services left to bill.', 409, 'conflict', null);
     const coverage = db.coverRecords.get(encounter.patientId) ?? { payerType: 'self-pay' as const, coveragePercent: 0 };
     const gross = lines.reduce((sum, d) => sum + d.quantity * FAKE_PRICE, 0);
     const insurance = Math.round((gross * coverage.coveragePercent) / 100 * 100) / 100;
