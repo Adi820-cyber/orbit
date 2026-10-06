@@ -206,16 +206,18 @@ export const COMPANY_MANIFEST: CompanyManifest = {
    * invites drift that breaks the reconciliation invariants PRD §8.2 requires
    * (revenue, costs, budgets and EBITDA must reconcile).
    *
-   * USD is chosen as a geography-neutral reporting currency for a fictional
-   * group. It carries no claim about where the company operates or which
-   * payer system applies.
+   * INR (product owner, 2026-10-06, ADR 0022): the ERP bills in rupees, with
+   * prices taken from the reference hospital dataset's own amounts, so KPIs
+   * and bills share one currency and no exchange rate is invented. The
+   * amounts below were set when the currency was USD and are kept unchanged:
+   * they are opening anchors for a fictional group, not converted figures.
    *
    * These are opening anchors. The generator derives each month's facts from
    * them plus seeded variation and the scenarios below; it does not read a
    * per-month figure from here.
    */
   scale: {
-    currency: "USD",
+    currency: "INR",
     openingAnnualNetRevenueMinor: 41_800_000_000,
     annualRevenueGrowthRate: 0.086,
     openingEbitdaMargin: 0.174,

@@ -160,7 +160,7 @@ describe("buildReference", () => {
     expect(stock.content).toContain("Earum (Antibiotic) 40 in stock against a reorder level of 100");
     const billing = result.chunks.find((c) => c.key === "ref:billing:group")!;
     expect(billing.content).toContain("totalling 1500");
-    expect(billing.content).toContain("not converted to USD");
+    expect(billing.content).toContain("in rupees (INR)");
     expect(result.chunks.every((c) => c.content.includes("illustrative"))).toBe(true);
   });
 
