@@ -2,7 +2,12 @@
 
 **Status:** Assignment specification for the confirmed four-person team. No code exists yet; this document is the work split, not a report of done work.<br>
 **Related documents:** [PRD](PRD.md) · [Architecture](ARCHITECTURE.md).<br>
-**Team:** Maruti (database/data), Ghansham (backend), Ayas (frontend), Aditya (security/connectivity + integration decision owner).
+**Team (original split):** Maruti (database/data), Ghansham (backend), Ayas (frontend), Aditya (security/connectivity + integration decision owner).
+
+> **Handover, 2026-10-06.** Ghansham (GitHub `ghanshamrna27`) now builds Orbit alone. From this date:
+> - He owns every path below and every review and decision that this document or `AGENTS.md` assigns to any team member, including contracts, authorization, scope, secrets, migrations, source-data rules and instruction files.
+> - He runs the hosting: the Vercel projects (`orbit-api`, `orbit-web`, `orbit-erp-web`), the Supabase project and the GitHub Actions schedule.
+> - The per-person sections below are kept as the record of the original split, and earlier decisions recorded under a person's name (ADRs, migration comments) stand as written.
 
 ## 1. How to read this
 
@@ -19,7 +24,7 @@ Each person gets: mission, owned paths in the new monorepo, deliverables with ac
 | **Ayas** | React frontend: shell, four surfaces, 14 role views, ui-kit | `apps/web/`, `packages/ui-kit/` |
 | **Aditya** | Security + connectivity: auth verification, CORS, Vercel/Supabase projects, secrets, integration review | `docs/decisions/`, CI/deploy config, `.env.example`, cross-boundary reviews |
 
-`packages/contracts/` is **shared**: whoever needs a boundary change authors it, the boundary's other side reviews it, Aditya arbitrates. Nobody merges a contract change unilaterally.
+`packages/contracts/` is **shared**: whoever needs a boundary change authors it, the boundary's other side reviews it, Aditya arbitrates. Nobody merges a contract change unilaterally. (Since 2026-10-06 Ghansham holds all of these roles; see the handover note.)
 
 ## 3. Rules of engagement (all four)
 
@@ -119,6 +124,8 @@ flowchart LR
 
 ## 8. Aditya — security, connectivity, integration
 
+> Since 2026-10-06 this section's work, including Vercel, Supabase and review sign-off, sits with Ghansham (see the handover note at the top). It is kept as the record of the original split.
+
 **Mission:** make the boundaries real — verified identity, locked-down data access, two Vercel projects that actually talk to each other, and no secrets where they shouldn't be.
 
 **Deliverables and acceptance criteria:**
@@ -138,6 +145,8 @@ flowchart LR
 
 ## 9. Interface contracts between pairs
 
+The original split is below. Since 2026-10-06 Ghansham produces and reviews every boundary; each boundary is still verified against the other side's actual code before merge (§10).
+
 | Boundary | Producer → Consumer | Frozen at | Reviewer |
 |---|---|---|---|
 | API payloads | Ghansham → Ayas (and back) | contracts v1, Gate 1 | Aditya |
@@ -155,11 +164,11 @@ flowchart LR
 3. Negative tests exist where authorization is involved.
 4. Illustrative disclosure intact on any new number surface.
 5. PR description lists each boundary as **verified** (against the other side's actual code/deploy) or **assumed** — silent assumptions are a defect.
-6. Review from the boundary owner; Aditya on anything touching auth, scope, secrets, or deploy config.
+6. Review from Ghansham, the sole owner since 2026-10-06 (before that: the boundary owner, and Aditya on anything touching auth, scope, secrets, or deploy config).
 
 ## 11. Open items this document does not resolve
 
-- Dates, capacity, and per-person time estimates — Aditya to supply; gates above are the sequencing meanwhile.
+- Dates, capacity, and time estimates — Ghansham to supply; gates above are the sequencing meanwhile.
 - Ask provider/cost/egress (v1 unaffected — deterministic catalogue).
 - Action transition matrix and any future outbound notification.
 - Domains, regions, plan tiers, performance envelope sign-off.
