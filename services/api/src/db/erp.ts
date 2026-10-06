@@ -54,7 +54,7 @@ const RULE_MESSAGES: Record<string, string> = {
   payment_before_bill: 'A payment cannot be dated before its bill.',
   payment_exceeds_balance: 'That is more than this payer still owes on the bill.',
   bill_needs_closed_visit: 'Close the visit before billing it.',
-  nothing_to_bill: 'Every service on this visit is already billed.',
+  nothing_to_bill: 'This visit has no services left to bill.',
   price_missing: 'No price is set for some services on this visit. An admin sets prices on the Services page.',
   revenue_range_invalid: 'Choose a period of 1 to 92 days.',
 };

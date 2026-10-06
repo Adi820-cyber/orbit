@@ -372,7 +372,7 @@ describe.skipIf(!ownerUrl)('ERP store against Postgres (integration)', { timeout
     expect((await store().issueBill(claims.hospital1, encounter, key, 'req-b2'))?.replayed).toBe(true);
     await expect(store().issueBill(claims.hospital1, encounter, randomUUID(), 'req-b3')).rejects.toMatchObject({
       code: 'conflict',
-      message: 'Every service on this visit is already billed.',
+      message: 'This visit has no services left to bill.',
     });
     // Another hospital sees neither the visit nor the bill.
     expect(await store().issueBill(claims.hospital2, encounter, randomUUID(), 'req-b4')).toBeNull();

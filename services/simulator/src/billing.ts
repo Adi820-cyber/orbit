@@ -50,6 +50,8 @@ export async function recordCover(ctx: Ctx, facility: FacilityRef, patientId: st
 }
 
 const unpriced = (error: unknown) => error instanceof SimApiError && error.status === 409 && error.message.startsWith('No price is set');
+/** A visit with no service recorded (e.g. one whose services fell outside the catch-up window) has nothing to bill. */
+const nothingToBill = (error: unknown) => error instanceof SimApiError && error.status === 409 && error.message.startsWith('This visit has no services left to bill');
 
 type Bill = BillListResponse['items'][number];
 
@@ -84,7 +86,7 @@ export async function billClosedVisit(ctx: Ctx, facility: FacilityRef, encounter
     ctx,
     'issue bill',
     () => ctx.deskFor(facility).api.issueBill(encounterId, { idempotencyKey: stableUuid(ctx.cfg.seed, 'bill', encounterId) }),
-    { expected: unpriced },
+    { expected: (error) => unpriced(error) || nothingToBill(error) },
   );
   if (result.status === 'failed' && unpriced(result.error)) {
     ctx.stats.unbillable += 1;

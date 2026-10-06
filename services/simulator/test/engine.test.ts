@@ -513,6 +513,18 @@ describe('billing', () => {
     expect(bill.payments.filter((p) => p.payer === 'patient').length).toBeLessThanOrEqual(1);
   });
 
+  it('closes a visit with no service on it without billing it or counting a failure', async () => {
+    const w = world({}, { start: `${DATE}T10:00:00Z` });
+    await putOnDuty(w, w.admin.addStaff(A, 'doctor', 'Doctor'), SHIFT_GENERAL);
+    const visit = w.admin.seedEncounter(A, 'outpatient', `${DATE}T09:30:00.000Z`);
+    const plan = visitPlan(w.cfg.seed, visit.encounterId, 'outpatient');
+    w.setNow(at(visit.startedAt) + (plan.lengthMinutes + 1) * MINUTE);
+    const summary = await w.sim.tick(); // nothing is offered here, so no service is recorded
+    expect(visit.status).toBe('closed');
+    expect(w.admin.billRecords).toHaveLength(0);
+    expect(summary.stats).toMatchObject({ bills: 0, unbillable: 0, failures: 0 });
+  });
+
   it('counts a visit with an unpriced service as unbillable, not as a failure', async () => {
     const { w } = await closedVisit();
     for (const category of ALL_CATEGORIES) w.admin.unpriced.add(`SVC-${category}`);
