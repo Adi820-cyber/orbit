@@ -67,7 +67,7 @@ Before declaring an implementation change complete:
 - Before opening or updating a pull request, fetch the latest `origin/main` and rebase or merge it into your own branch. Resolve conflicts locally and inspect the final diff; never accept “ours” or “theirs” blindly.
 - Do not continue work on a branch after it has been merged. Create a fresh branch from updated `main`.
 - A pull request must describe scope, tests, security/data impact, boundary verification, and remaining assumptions. Use `.github/pull_request_template.md`.
-- Changes to contracts, authorization, secrets, deployment, migrations, source-data rules, or these instruction files require review from the affected owner and Aditya.
+- Changes to contracts, authorization, secrets, deployment, migrations, source-data rules, or these instruction files require review from Ghansham (GitHub `ghanshamrna27`). Since 2026-10-06 he builds Orbit alone and owns every path and review, and the hosting: Vercel (`orbit-api`, `orbit-web`, `orbit-erp-web`), Supabase and GitHub Actions. See `docs/orbit/TEAM_ASSIGNMENTS.md` (handover note).
 - Do not add a dependency or alter CI/deployment policy in the same pull request as unrelated feature work.
 
 ## Safe command policy
