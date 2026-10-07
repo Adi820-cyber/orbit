@@ -2,7 +2,7 @@
 
 Orbit is a role-scoped leadership decision workspace for a fictional healthcare group. It is designed to help a leader move from **See → Understand → Act** through a morning brief, priority inbox, KPI explorer, governed Ask experience, evidence, and persisted internal actions.
 
-This repository currently contains the research-backed product specification only. Application code, cloud projects, database migrations, generated data, and deployment configuration have not been implemented.
+Orbit is implemented and live (as of 2026-10-07): the leadership workspace, the hospital operations ERP, the Assistant, billing and the outbreak watch. **New here? Start with [`docs/handover/`](docs/handover/README.md)**: a shareable project brief, the operating handbook, and the context for continuing the work.
 
 ## Start here
 
@@ -23,7 +23,7 @@ This repository currently contains the research-backed product specification onl
 
 ## Repository status
 
-The three documents under `docs/orbit/` are specifications, not evidence that the described system exists. Every future implementation boundary must be labelled as verified or assumed until integration tests and deployment checks prove it.
+The documents under `docs/orbit/` began as specifications; the code, migrations and tests are now the source of truth for what exists. Every boundary is still labelled verified or assumed until tests and deployment checks prove it.
 
 ## Collaboration
 
