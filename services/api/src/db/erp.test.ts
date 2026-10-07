@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Sql } from 'postgres';
-import type { OperatorClaims } from '@orbit/contracts';
+import { EncounterListItemSchema, EncounterSchema, type OperatorClaims } from '@orbit/contracts';
 import { ApiError } from '../plugins/errors.ts';
 import { connect, type Database, type Tx } from './client.ts';
 import { createDbErpStore, likePattern, mapDbError } from './erp.ts';
@@ -294,6 +294,16 @@ describe.skipIf(!ownerUrl)('ERP store against Postgres (integration)', { timeout
     const current = (await store().getDoctor(claims.admin, doctor))?.doctor as Record<string, unknown>;
     expect((await store().updateDoctor(claims.admin, doctor, { version: Number(current['version']), credentialSuspended: true }, 'req-u')).status).toBe('ok');
     await expect(deliver()).rejects.toMatchObject({ code: 'conflict', message: "This doctor's credential is expired or suspended for that date." });
+  });
+
+  it('returns visit rows, listed or single, in the full contract shape', async () => {
+    // Every list row is built by hand in SQL; a field missing there fails the API's contract check (500).
+    const listed = await store().listEncounters(claims.hospital1, { facilityId: ids.facility1, status: 'open', page: 1, pageSize: 50 });
+    expect(listed.items.length).toBeGreaterThan(0);
+    const parsed = EncounterListItemSchema.array().safeParse(listed.items);
+    expect(parsed.success, JSON.stringify(parsed.error?.issues.slice(0, 3))).toBe(true);
+    const detail = (await store().getEncounter(claims.hospital1, encounter, 'req-shape')) as { encounter?: unknown } | null;
+    expect(EncounterSchema.safeParse(detail?.encounter).success).toBe(true);
   });
 
   it('keeps patients inside their facilities and audits every view', async () => {

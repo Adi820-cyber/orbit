@@ -1001,7 +1001,8 @@ export function createDbErpStore(db: Database): ErpStore {
                     'encounterId', e.id::text, 'patientId', e.patient_id::text, 'facilityId', e.facility_id::text,
                     'departmentId', e.department_id::text, 'attendingDoctorId', e.attending_doctor_id::text,
                     'attendingDoctorName', doc.display_name, 'encounterType', e.encounter_type, 'status', e.status,
-                    'startedAt', ${iso('e.started_at')}, 'endedAt', ${iso('e.ended_at')}, 'version', e.version
+                    'startedAt', ${iso('e.started_at')}, 'endedAt', ${iso('e.ended_at')},
+                    'presentingConditionId', e.presenting_condition_id::text, 'presentingConditionName', cond.name, 'version', e.version
                   ) as "encounter",
                   p.display_name as "patientName", p.mrn as "mrn"
            ${where}
