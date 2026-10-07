@@ -143,6 +143,14 @@ export function erpRoutes(environment: WorkspaceEnvironment): RouteObject {
         },
       },
       {
+        path: "billing/new",
+        ...page,
+        lazy: async () => {
+          const m = await billing();
+          return { loader: m.billableLoader(environment), action: m.billableAction(environment), Component: m.BillableRoute };
+        },
+      },
+      {
         path: "billing/:billId",
         ...page,
         lazy: async () => {

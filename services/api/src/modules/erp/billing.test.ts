@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   BillListResponseSchema,
+  BillableVisitListResponseSchema,
   BillResponseSchema,
   CoverageResponseSchema,
   REVENUE_FEED_ROLES,
@@ -63,6 +64,18 @@ describe('ERP billing routes', () => {
     });
     expect(paid.statusCode).toBe(201);
     expect(BillResponseSchema.parse(paid.json()).bill.paidByPatient).toBe(400);
+  });
+
+  it("lists the hospital account's own visits ready to bill, for at most 92 days", async () => {
+    const { call, calls } = await erp();
+    const response = await call(hospital1, 'GET', '/api/erp/bills/ready');
+    expect(response.statusCode).toBe(200);
+    const body = BillableVisitListResponseSchema.parse(response.json());
+    expect(body).toMatchObject({ days: 30, currency: 'INR' });
+    expect(body.items[0]).toMatchObject({ encounterId: ENCOUNTER_ID, amount: 10010 });
+    expect(calls.find((entry) => entry.method === 'billableVisits')?.args[0]).toMatchObject({ facilityId: FACILITY_1 });
+    expect((await call(hospital1, 'GET', '/api/erp/bills/ready?days=120')).statusCode).toBe(400);
+    expect((await call(hospital1, 'GET', `/api/erp/bills/ready?facilityId=${FACILITY_2}`)).statusCode).toBe(403);
   });
 
   it('answers not_found for a visit or bill the caller cannot see', async () => {

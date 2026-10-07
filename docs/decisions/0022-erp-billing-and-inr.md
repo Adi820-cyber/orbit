@@ -56,6 +56,7 @@ Consultation, specialist consultation, emergency assessment, ECG, cardiac cathet
 - **Visit:** an "Issue bill" button once the visit is closed.
 - **Patient:** insurance cover.
 - **Services:** the admin edits prices.
+- **New bill** (added 2026-10-07): a button on the Billing page lists closed visits from the last 30 days that still have unbilled services (`GET /api/erp/bills/ready`), each with its amount and **Generate bill**, which issues it through the same `issue_bill` rules. A visit with an unpriced service shows which one instead of a button. Older visits, such as the loaded dataset history, are not offered: billing them now would book years-old visits as today's revenue.
 
 ### §5 Orbit: leaders and the Assistant
 

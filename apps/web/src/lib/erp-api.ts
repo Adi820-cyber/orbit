@@ -1,6 +1,7 @@
 import {
   AddScheduleSlotRequestSchema,
   BillListResponseSchema,
+  BillableVisitListResponseSchema,
   BillResponseSchema,
   CancelBillRequestSchema,
   CoverageResponseSchema,
@@ -145,6 +146,7 @@ export function createErpClient(call: Call) {
     issueBill: (encounterId: string, body: unknown) =>
       send("POST", `/api/erp/encounters/${id(encounterId)}/bills`, IssueBillRequestSchema, body, BillResponseSchema),
     bills: (query: Query) => get("/api/erp/bills", BillListResponseSchema, query),
+    billableVisits: (query: Query) => get("/api/erp/bills/ready", BillableVisitListResponseSchema, query),
     bill: (billId: string) => get(`/api/erp/bills/${id(billId)}`, BillResponseSchema),
     recordPayment: (billId: string, body: unknown) =>
       send("POST", `/api/erp/bills/${id(billId)}/payments`, RecordPaymentRequestSchema, body, BillResponseSchema),

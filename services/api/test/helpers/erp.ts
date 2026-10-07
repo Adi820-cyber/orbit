@@ -265,6 +265,12 @@ export function recordingErpStore(overrides: Partial<ErpStore> = {}) {
       const { cancelReason: _c, lines: _l, payments: _p, ...summary } = billRow();
       return { items: [summary], total: 1 };
     },
+    billableVisits: async () => ({
+      items: [
+        { encounterId: ENCOUNTER_ID, facilityId: FACILITY_1, patientId: PATIENT_ID, patientName: 'Fixture Patient', mrn: 'DEMO-MRN-100001', encounterType: 'inpatient', endedAt: NOW, items: 2, amount: 10010, unpricedServices: [] },
+      ],
+      total: 1,
+    }),
     getBill: async (_operator, billId) => (billId === BILL_ID ? billRow() : null),
     recordPayment: async (_operator, billId) => (billId === BILL_ID ? { bill: billRow({ paidByPatient: 400, balance: 600 }), replayed: false } : null),
     cancelBill: async () => ok(billRow({ status: 'cancelled', paymentState: 'cancelled', balance: 0, cancelledAt: NOW, cancelReason: 'Raised in error', version: 2, payments: [] })),

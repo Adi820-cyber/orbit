@@ -8,6 +8,7 @@ export function pendingErpStore(fail: () => never): ErpStore {
     setCoverage: async () => fail(),
     issueBill: async () => fail(),
     listBills: async () => fail(),
+    billableVisits: async () => fail(),
     getBill: async () => fail(),
     recordPayment: async () => fail(),
     cancelBill: async () => fail(),

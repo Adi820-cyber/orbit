@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Form, Link, useActionData, useLoaderData, useSearchParams, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
-import type { BillListResponse, BillResponse, Coverage, PaymentState, RevenueResponse } from "@orbit/contracts";
+import { Form, Link, redirect, useActionData, useLoaderData, useSearchParams, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
+import type { BillableVisit, BillableVisitListResponse, BillListResponse, BillResponse, Coverage, PaymentState, RevenueResponse } from "@orbit/contracts";
 import { formText } from "../../lib/form";
 import { ScrollRegion, SurfaceHeading } from "../workspace/components";
-import { withClient, type WorkspaceEnvironment } from "../workspace/environment";
+import { mutate, withClient, type WorkspaceEnvironment } from "../workspace/environment";
 import { ErpBack } from "./back";
 import { erpMutation, type ErpActionResult } from "./home";
 import { day, ErpDisclosure, facilityFromUrl, Field, FormMessage, label, money, Pager, todayUtc, useErp, useErpHref, when } from "./shared";
@@ -71,7 +71,8 @@ export function BillsRoute() {
       <SurfaceHeading
         eyebrow={facilityName(facilityId)}
         title="Billing"
-        description="Bills for closed visits, what each payer owes, and payments received. Issue a bill from the visit page."
+        description="Bills for closed visits, what each payer owes, and payments received."
+        aside={<Link className="orbit-button" to={href("/billing/new")}>New bill</Link>}
       />
       <ErpDisclosure />
       <nav className="erp-toolbar" aria-label="Bill status">
@@ -139,6 +140,113 @@ export function BillsRoute() {
         total={data.page.total}
         href={(page) => href("/billing", { state, q: q || undefined, page: String(page) })}
       />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// New bill: closed visits with services still to bill
+// ---------------------------------------------------------------------------
+
+export function billableLoader(environment: WorkspaceEnvironment) {
+  return async ({ request }: LoaderFunctionArgs): Promise<BillableVisitListResponse> =>
+    withClient(environment, request, (client) =>
+      client.erp.billableVisits({
+        facilityId: facilityFromUrl(request),
+        page: new URL(request.url).searchParams.get("page") ?? undefined,
+      }),
+    );
+}
+
+/** Generates the bill for one visit, then opens it. */
+export function billableAction(environment: WorkspaceEnvironment) {
+  return async ({ request }: ActionFunctionArgs): Promise<ErpActionResult | Response> => {
+    const form = await request.formData();
+    const issued = await mutate(environment, request, (client) =>
+      client.erp.issueBill(formText(form, "encounterId"), { idempotencyKey: formText(form, "idempotencyKey") }),
+    );
+    if (!issued.ok) return issued;
+    const facility = facilityFromUrl(request);
+    return redirect(`/erp/billing/${encodeURIComponent(issued.value.bill.billId)}${facility ? `?facility=${encodeURIComponent(facility)}` : ""}`);
+  };
+}
+
+function GenerateButton({ visit, currency }: { visit: BillableVisit; currency: string }) {
+  // Fixed per render: a double click replays the same bill instead of issuing two.
+  const [key] = useState(() => crypto.randomUUID());
+  return (
+    <Form method="post" className="erp-inline-form">
+      <input type="hidden" name="encounterId" value={visit.encounterId} />
+      <input type="hidden" name="idempotencyKey" value={key} />
+      <button className="orbit-button" type="submit" aria-label={`Generate bill for ${visit.patientName}, ${money(visit.amount ?? 0, currency)}`}>
+        <span aria-hidden="true">Generate bill</span>
+      </button>
+    </Form>
+  );
+}
+
+export function BillableRoute() {
+  const data = useLoaderData<BillableVisitListResponse>();
+  const result = useActionData<ErpActionResult>();
+  const { facilityName, facilityId, isAdmin } = useErp();
+  const href = useErpHref();
+
+  return (
+    <>
+      <title>New bill | Orbit hospital operations</title>
+      <ErpBack to={href("/billing")} />
+      <SurfaceHeading
+        eyebrow={facilityName(facilityId)}
+        title="New bill"
+        description={`Closed visits from the last ${data.days} days with services still to bill. Generating a bill prices them from this hospital's price list and splits the amount by the patient's insurance cover.`}
+      />
+      <ErpDisclosure />
+      <FormMessage result={result} />
+      {data.items.length ? (
+        <ScrollRegion label="Visits ready to bill">
+          <table className="workspace-table erp-table">
+            <thead>
+              <tr>
+                <th scope="col">Patient</th>
+                <th scope="col">Visit</th>
+                <th scope="col">Closed</th>
+                <th scope="col" data-numeric="true">Services</th>
+                <th scope="col" data-numeric="true">Amount</th>
+                <th scope="col"><span className="orbit-visually-hidden">Action</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map((visit) => (
+                <tr key={visit.encounterId}>
+                  <th scope="row">
+                    <Link className="workspace-inline-link" to={href(`/visits/${visit.encounterId}`)}>{visit.patientName}</Link>
+                    <span className="erp-sub">{visit.mrn}</span>
+                  </th>
+                  <td>{label(visit.encounterType)}</td>
+                  <td>{when(visit.endedAt)}</td>
+                  <td data-numeric="true">{visit.items}</td>
+                  <td data-numeric="true">
+                    {visit.amount === null ? "—" : <span className="is-illustrative">{money(visit.amount, data.currency)}</span>}
+                  </td>
+                  <td>
+                    {visit.amount === null ? (
+                      <span className="erp-sub">
+                        No price set for {visit.unpricedServices.join(", ")}.{" "}
+                        {isAdmin ? <Link className="workspace-inline-link" to={href("/services")}>Set a price</Link> : "An admin sets prices."}
+                      </span>
+                    ) : (
+                      <GenerateButton visit={visit} currency={data.currency} />
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollRegion>
+      ) : (
+        <p className="workspace-empty">Every visit closed in the last {data.days} days is billed. A visit appears here once it is closed with services on it.</p>
+      )}
+      <Pager page={data.page.page} pageSize={data.page.pageSize} total={data.page.total} href={(page) => href("/billing/new", { page: String(page) })} />
     </>
   );
 }

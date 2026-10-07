@@ -433,6 +433,15 @@ describe.skipIf(!ownerUrl)('ERP store against Postgres (integration)', { timeout
     });
   });
 
+  it('offers closed visits with services still to bill, naming what is unpriced, inside the facility', async () => {
+    const ready = await store().billableVisits(claims.hospital1, { days: 30, facilityId: ids.facility1, page: 1, pageSize: 25 });
+    const rows = ready.items as { encounterId: string; amount: number | null; unpricedServices: string[]; items: number }[];
+    // The billed visit is gone; the visit with the unpriced test is offered with no amount.
+    expect(rows.some((row) => row.encounterId === encounter)).toBe(false);
+    expect(rows).toEqual([expect.objectContaining({ items: 1, amount: null, unpricedServices: ['Unpriced test'] })]);
+    expect((await store().billableVisits(claims.hospital2, { days: 30, page: 1, pageSize: 25 })).total).toBe(0);
+  });
+
   it('reports revenue to the hospital, and only aggregates to a leader in scope', async () => {
     const today = new Date().toISOString().slice(0, 10);
     const report = (await store().revenue(claims.hospital1, { facilityId: ids.facility1, from: utcDate(1), to: today })) as {

@@ -227,3 +227,40 @@ export const RevenueResponseSchema = z.strictObject({
   ...ErpDisclosureFields,
 });
 export type RevenueResponse = z.infer<typeof RevenueResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// New bill: closed visits with services still to bill
+// ---------------------------------------------------------------------------
+
+export const BillableVisitQuerySchema = ErpPageQuerySchema.extend({
+  facilityId: z.uuid().optional(),
+  /** Visits closed within this many days. Older visits (e.g. loaded history) are not offered. */
+  days: z.coerce.number().int().min(1).max(92).default(30),
+});
+export type BillableVisitQuery = z.infer<typeof BillableVisitQuerySchema>;
+
+export const BillableVisitSchema = z.strictObject({
+  encounterId: z.uuid(),
+  facilityId: z.uuid(),
+  patientId: z.uuid(),
+  patientName: z.string().min(1),
+  mrn: z.string().min(1),
+  encounterType: z.enum(['outpatient', 'inpatient', 'emergency', 'day-care']),
+  endedAt: ErpInstantSchema,
+  /** Completed services on the visit not yet on a standing bill. */
+  items: Count,
+  /** What the bill would total; null while any of those services has no price. */
+  amount: Money.nullable(),
+  /** Names of those services with no price; a bill cannot be issued until an admin prices them. */
+  unpricedServices: z.array(z.string().min(1)),
+});
+export type BillableVisit = z.infer<typeof BillableVisitSchema>;
+
+export const BillableVisitListResponseSchema = z.strictObject({
+  items: z.array(BillableVisitSchema),
+  page: ErpPageSchema,
+  days: z.number().int().min(1).max(92),
+  currency: CurrencyCodeSchema,
+  ...ErpDisclosureFields,
+});
+export type BillableVisitListResponse = z.infer<typeof BillableVisitListResponseSchema>;
