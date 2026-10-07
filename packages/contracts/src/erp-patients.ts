@@ -100,6 +100,9 @@ export const EncounterSchema = z.strictObject({
   status: EncounterStatusSchema,
   startedAt: ErpInstantSchema,
   endedAt: ErpInstantSchema.nullable(),
+  /** Optional presenting condition (ADR 0023); counted only as aggregates. */
+  presentingConditionId: z.uuid().nullable(),
+  presentingConditionName: z.string().nullable(),
   version: ErpVersionSchema,
 });
 export type Encounter = z.infer<typeof EncounterSchema>;
@@ -148,6 +151,7 @@ export const OpenEncounterRequestSchema = z.strictObject({
   departmentId: z.uuid(),
   encounterType: EncounterTypeSchema,
   attendingDoctorId: z.uuid().optional(),
+  presentingConditionId: z.uuid().optional(),
   startedAt: ErpInstantSchema.optional(),
 });
 export type OpenEncounterRequest = z.infer<typeof OpenEncounterRequestSchema>;
@@ -161,6 +165,7 @@ export const UpdateEncounterRequestSchema = z.strictObject({
   status: z.enum(['closed', 'cancelled']).optional(),
   endedAt: ErpInstantSchema.optional(),
   attendingDoctorId: z.uuid().nullable().optional(),
+  presentingConditionId: z.uuid().nullable().optional(),
 });
 export type UpdateEncounterRequest = z.infer<typeof UpdateEncounterRequestSchema>;
 

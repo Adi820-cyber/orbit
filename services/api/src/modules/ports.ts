@@ -248,6 +248,20 @@ export interface RevenueSource {
   currency(membership: MembershipClaims): Promise<string>;
 }
 
+/**
+ * The outbreak watch (ADR 0023): counts of presenting conditions, the surge
+ * rule, and the latest forecast. Group figures for any permitted leader;
+ * per-hospital rows only inside the caller's scope. Counts only.
+ */
+export interface SurveillanceSource {
+  /** Per active condition, group level. */
+  feed(membership: MembershipClaims): Promise<readonly unknown[]>;
+  /** Per hospital in scope and condition. */
+  hospitals(membership: MembershipClaims): Promise<readonly unknown[]>;
+  /** The latest forecast run, or null before the first. */
+  run(membership: MembershipClaims): Promise<unknown>;
+}
+
 export interface ModuleDeps {
   scope: ScopeDeps;
   dataset: DatasetSource;
@@ -264,6 +278,8 @@ export interface ModuleDeps {
   operations: OperationsSource;
   /** Leadership's revenue view of the ERP's billing (ADR 0022). */
   revenue: RevenueSource;
+  /** The outbreak watch (ADR 0023). */
+  surveillance: SurveillanceSource;
   askNarration: AskNarration;
   /** Knowledge retrieval for the chatbot. */
   knowledge: KnowledgeSource;

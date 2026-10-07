@@ -71,6 +71,15 @@ export const SpecialtySchema = z.strictObject({
 });
 export type Specialty = z.infer<typeof SpecialtySchema>;
 
+/** A presenting condition a visit may record (ADR 0023). Not a diagnosis. */
+export const ConditionSchema = z.strictObject({
+  conditionId: z.uuid(),
+  code: z.string().min(1),
+  name: z.string().min(1),
+  category: z.string().min(1),
+});
+export type Condition = z.infer<typeof ConditionSchema>;
+
 export const ShiftTemplateSchema = z.strictObject({
   shiftTemplateId: z.uuid(),
   code: z.string().min(1),
@@ -102,6 +111,8 @@ export const ErpReferenceResponseSchema = z.strictObject({
   departments: z.array(DepartmentSchema),
   specialties: z.array(SpecialtySchema),
   shiftTemplates: z.array(ShiftTemplateSchema),
+  /** Active presenting conditions, by name. */
+  conditions: z.array(ConditionSchema),
   /** Null until an admin has configured the organization. */
   settings: ErpSettingsSchema.nullable(),
   ...ErpDisclosureFields,

@@ -290,6 +290,8 @@ export interface RefEncounter {
   status: "closed" | "cancelled";
   startedAt: string;
   endedAt: string;
+  /** The disease recorded on admission, as a presenting condition (ADR 0023). Admissions only. */
+  conditionName?: string;
 }
 export interface RefDelivery {
   encounterId: string;
@@ -346,6 +348,7 @@ export function buildReference(hospital: HospitalTables, clinic: ClinicTables): 
   const hDate = (d: string) => addDays(d, hShift);
 
   const deptName = new Map(hospital.department.map((d) => [d.department_id!, d.department_name!]));
+  const admissionDisease = new Map(hospital.disease.map((d) => [d.disease_id!, d.disease_name!]));
   const deptCode = (departmentId: string) => HOSPITAL_DEPARTMENT[deptName.get(departmentId) ?? ""] ?? "WARD";
   const wardType = new Map(hospital.ward.map((w) => [w.ward_id!, w.ward_type!]));
 
@@ -460,7 +463,11 @@ export function buildReference(hospital: HospitalTables, clinic: ClinicTables): 
     const endedAt = at(endDate, rng.int(10 * 60, 15 * 60));
     const doctor = attendingFor(facility, dept, a.admission_id!);
     const id = stableUuid("ref-encounter", a.admission_id!);
-    encounters.push({ id, patientId: patient.id, facility, departmentCode: dept, doctorId: doctor?.id ?? null, type: "inpatient", status: "closed", startedAt, endedAt });
+    const disease = admissionDisease.get(a.disease_id ?? "");
+    encounters.push({
+      id, patientId: patient.id, facility, departmentCode: dept, doctorId: doctor?.id ?? null, type: "inpatient", status: "closed", startedAt, endedAt,
+      ...(disease ? { conditionName: disease } : {}),
+    });
     loadedAdmissions.push({ row: a, facility, dept });
     if (!patient.createdAt || startedAt < patient.createdAt) patient.createdAt = startedAt;
 
@@ -953,6 +960,32 @@ export function derivePrices(hospital: HospitalTables): RefPrice[] {
   add("SURG-PROC", procedures.SURG, "median Procedure charge, Surgery admissions");
   add("WARD-DAY", perDay.ward, "median Room charge per day of stay, non-ICU wards");
   return prices.toSorted((a, b) => a.serviceCode.localeCompare(b.serviceCode));
+}
+
+// ---------------------------------------------------------------------------
+// Conditions (ADR 0023)
+// ---------------------------------------------------------------------------
+
+/** A presenting condition, from the dataset's disease list. */
+export interface RefCondition {
+  code: string;
+  name: string;
+  category: string;
+}
+
+/** A code from a name: capitals, digits and hyphens, at most 24 characters ("COVID-19", "VIRAL-FEVER"). */
+export function conditionCode(name: string): string {
+  return name.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24).replace(/-+$/g, "");
+}
+
+/** The dataset's diseases as the ERP's fixed list of presenting conditions, in name order. */
+export function deriveConditions(hospital: HospitalTables): RefCondition[] {
+  const byName = new Map<string, RefCondition>();
+  for (const row of hospital.disease) {
+    const name = (row.disease_name ?? "").trim();
+    if (name) byName.set(name, { code: conditionCode(name), name, category: (row.disease_category ?? "Other").trim() || "Other" });
+  }
+  return [...byName.values()].toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Stable checksum of a result, for the manifest. */

@@ -32,6 +32,7 @@ export type IconName =
   | "audit"
   | "operations"
   | "revenue"
+  | "outbreak"
   | "alert"
   | "monitor"
   | "track"
@@ -49,6 +50,7 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   audit: <><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></>,
   operations: <><path d="M3 12h4l2.5-6 4 12 2.5-6H21" /></>,
   revenue: <><path d="M7 4.5h10M7 9h10M7 4.5c4 0 6 2 6 4.5S11 13.5 7 13.5l8 6" /></>,
+  outbreak: <><circle cx="12" cy="12" r="3" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /></>,
   alert: <><path d="M12 3 2.8 20h18.4z" /><path d="M12 9v4M12 17h.01" /></>,
   monitor: <><circle cx="12" cy="12" r="8" /><path d="M12 8v5l3 2" /></>,
   track: <><circle cx="12" cy="12" r="8" /><path d="m8.5 12 2.2 2.2 4.8-5" /></>,

@@ -10,6 +10,7 @@ import {
   type LoaderFunctionArgs,
 } from "react-router";
 import type {
+  Condition,
   BillListResponse,
   CoverageResponse,
   DoctorListResponse,
@@ -177,6 +178,18 @@ export function PatientsRoute() {
   );
 }
 
+/** The presenting condition, from the fixed list (ADR 0023); counted by the outbreak watch, never a diagnosis. */
+function ConditionField({ conditions, defaultValue }: { conditions: readonly Condition[]; defaultValue: string }) {
+  return (
+    <Field label="Presenting condition" hint="What the patient came in with. Counted by the outbreak watch; not a diagnosis.">
+      <select className="orbit-select" name="presentingConditionId" defaultValue={defaultValue}>
+        <option value="">Not recorded</option>
+        {conditions.map((condition) => <option key={condition.conditionId} value={condition.conditionId}>{condition.name}</option>)}
+      </select>
+    </Field>
+  );
+}
+
 export interface PatientPageData {
   detail: PatientDetailResponse;
   doctors: DoctorListResponse;
@@ -200,6 +213,7 @@ export function patientDetailAction(environment: WorkspaceEnvironment) {
     const form = await request.formData();
     if (formText(form, "intent") === "open-visit") {
       const doctor = formText(form, "attendingDoctorId");
+      const condition = formText(form, "presentingConditionId");
       const result = await mutate(environment, request, (client) =>
         client.erp.openEncounter({
           patientId: params["patientId"] ?? "",
@@ -207,6 +221,7 @@ export function patientDetailAction(environment: WorkspaceEnvironment) {
           departmentId: formText(form, "departmentId"),
           encounterType: formText(form, "encounterType"),
           ...(doctor ? { attendingDoctorId: doctor } : {}),
+          ...(condition ? { presentingConditionId: condition } : {}),
         }),
       );
       if (!result.ok) return result;
@@ -287,6 +302,7 @@ export function PatientDetailRoute() {
                 {practising.map((doctor) => <option key={doctor.staffId} value={doctor.staffId}>{doctor.displayName}</option>)}
               </select>
             </Field>
+            <ConditionField conditions={reference.conditions} defaultValue="" />
             <button className="orbit-button" type="submit" disabled={patient.status !== "active"}>Start visit</button>
           </Form>
         </section>
@@ -538,8 +554,9 @@ export function visitDetailAction(environment: WorkspaceEnvironment) {
             client.erp.updateEncounter(encounterId, {
               version: Number(formText(form, "version")),
               attendingDoctorId: formText(form, "attendingDoctorId") || null,
+              presentingConditionId: formText(form, "presentingConditionId") || null,
             }),
-          "Attending doctor updated.",
+          "Visit updated.",
         );
       default:
         return { ok: false, code: "invalid_request", message: "Unknown request." };
@@ -550,7 +567,7 @@ export function visitDetailAction(environment: WorkspaceEnvironment) {
 export function VisitDetailRoute() {
   const { detail, services, staff, doctors, bills } = useLoaderData<VisitPageData>();
   const result = useActionData<ErpActionResult>();
-  const { facilityName, departmentName } = useErp();
+  const { facilityName, departmentName, reference } = useErp();
   const href = useErpHref();
   const { encounter, patient, deliveries } = detail;
   const open = encounter.status === "open";
@@ -569,7 +586,7 @@ export function VisitDetailRoute() {
       <SurfaceHeading
         eyebrow={`${label(encounter.encounterType)} visit · ${facilityName(encounter.facilityId)}`}
         title={patient.displayName}
-        description={`${patient.mrn}. ${departmentName(encounter.departmentId)}. Started ${when(encounter.startedAt)}${encounter.endedAt ? `, ended ${when(encounter.endedAt)}` : ""}.`}
+        description={`${patient.mrn}. ${departmentName(encounter.departmentId)}. ${encounter.presentingConditionName ? `Presenting condition: ${encounter.presentingConditionName}. ` : ""}Started ${when(encounter.startedAt)}${encounter.endedAt ? `, ended ${when(encounter.endedAt)}` : ""}.`}
         aside={<VisitStatus status={encounter.status} />}
       />
       <ErpDisclosure />
@@ -668,16 +685,17 @@ export function VisitDetailRoute() {
       {open ? (
         <div className="erp-two-column">
           <section className="workspace-panel" aria-labelledby="doctor-heading">
-            <h2 id="doctor-heading">Attending doctor</h2>
+            <h2 id="doctor-heading">Doctor and condition</h2>
             <Form method="post" className="erp-form-grid">
               <input type="hidden" name="intent" value="assign-doctor" />
               <input type="hidden" name="version" value={encounter.version} />
-              <Field label="Doctor">
+              <Field label="Attending doctor">
                 <select className="orbit-select" name="attendingDoctorId" defaultValue={encounter.attendingDoctorId ?? ""}>
                   <option value="">Not assigned</option>
                   {practising.map((doctor) => <option key={doctor.staffId} value={doctor.staffId}>{doctor.displayName}</option>)}
                 </select>
               </Field>
+              <ConditionField conditions={reference.conditions} defaultValue={encounter.presentingConditionId ?? ""} />
               <button className="orbit-button" data-variant="secondary" type="submit">Save</button>
             </Form>
           </section>

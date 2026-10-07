@@ -72,3 +72,7 @@ services/api/src/app.js
 
 # Outside reference datasets (docs/source-material/README.md): never committed
 DataSets/
+
+# Python (tools/forecast)
+__pycache__/
+*.pyc

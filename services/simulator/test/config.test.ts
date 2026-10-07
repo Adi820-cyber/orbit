@@ -53,6 +53,14 @@ describe('simulator configuration', () => {
     expect(cfg.rates.absent).toBe(0.1);
   });
 
+  it('stages no outbreak by default, and takes a condition code and a daily rate when asked', () => {
+    expect(loadConfig(BASE).outbreak).toBeNull();
+    expect(loadConfig({ ...BASE, SIM_OUTBREAK_CONDITION: 'VIRAL-FEVER' }).outbreak).toEqual({ conditionCode: 'VIRAL-FEVER', perHospitalPerDay: 12 });
+    expect(loadConfig({ ...BASE, SIM_OUTBREAK_CONDITION: 'DENGUE', SIM_OUTBREAK_PER_HOSPITAL_PER_DAY: '20' }).outbreak?.perHospitalPerDay).toBe(20);
+    expect(() => loadConfig({ ...BASE, SIM_OUTBREAK_CONDITION: 'viral fever' })).toThrow(/SIM_OUTBREAK_CONDITION/);
+    expect(() => loadConfig({ ...BASE, SIM_OUTBREAK_CONDITION: 'DENGUE', SIM_OUTBREAK_PER_HOSPITAL_PER_DAY: '500' })).toThrow(/SIM_OUTBREAK_PER_HOSPITAL_PER_DAY/);
+  });
+
   it('keeps hospitals as lowercase keys', () => {
     expect(loadConfig({ ...BASE, SIM_FACILITIES: 'Avenhurst, BRACKMOOR' }).facilities).toEqual(['avenhurst', 'brackmoor']);
   });

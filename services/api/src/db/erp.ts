@@ -57,6 +57,8 @@ const RULE_MESSAGES: Record<string, string> = {
   nothing_to_bill: 'This visit has no services left to bill.',
   price_missing: 'No price is set for some services on this visit. An admin sets prices on the Services page.',
   revenue_range_invalid: 'Choose a period of 1 to 92 days.',
+  // Outbreak watch (migration 20261007000100)
+  condition_unknown: 'Choose a presenting condition from the list.',
 };
 
 /** Rules that refuse the caller rather than conflict with the data. */
@@ -253,11 +255,14 @@ const ENCOUNTER_COLUMNS = `
   e.status as "status",
   ${iso('e.started_at')} as "startedAt",
   ${iso('e.ended_at')} as "endedAt",
+  e.presenting_condition_id::text as "presentingConditionId",
+  cond.name as "presentingConditionName",
   e.version as "version"`;
 
 const ENCOUNTER_FROM = `
 from orbit_erp.encounters e
-left join orbit_erp.staff doc on doc.id = e.attending_doctor_id`;
+left join orbit_erp.staff doc on doc.id = e.attending_doctor_id
+left join orbit_erp.conditions cond on cond.id = e.presenting_condition_id`;
 
 const DELIVERY_SELECT = `
 select
@@ -341,7 +346,7 @@ export function createDbErpStore(db: Database): ErpStore {
     ...createBillingMethods(run),
     reference: (operator) =>
       run(operator, async (tx) => {
-        const [facilities, departments, specialties, shiftTemplates, settings] = await Promise.all([
+        const [facilities, departments, specialties, shiftTemplates, conditions, settings] = await Promise.all([
           tx.query(`select f.id::text as "facilityId", f.name as "name" from orbit.facilities f
                     where f.organization_id = orbit.current_org() order by f.name`),
           tx.query(`select d.id::text as "departmentId", d.code, d.name from orbit_erp.departments d order by d.name`),
@@ -350,6 +355,8 @@ export function createDbErpStore(db: Database): ErpStore {
                       ${hhmm('t.end_time')} as "endTime", t.break_minutes as "breakMinutes",
                       t.crosses_midnight as "crossesMidnight"
                     from orbit_erp.shift_templates t order by t.start_time, t.code`),
+          tx.query(`select c.id::text as "conditionId", c.code, c.name, c.category
+                    from orbit_erp.conditions c where c.is_active order by c.name`),
           one(
             tx,
             `select st.late_grace_minutes as "lateGraceMinutes", st.early_exit_grace_minutes as "earlyExitGraceMinutes",
@@ -360,7 +367,7 @@ export function createDbErpStore(db: Database): ErpStore {
              where st.organization_id = orbit.current_org()`,
           ),
         ]);
-        return { facilities, departments, specialties, shiftTemplates, settings };
+        return { facilities, departments, specialties, shiftTemplates, conditions, settings };
       }),
 
     facility: (operator, facilityId) =>
@@ -1009,8 +1016,8 @@ export function createDbErpStore(db: Database): ErpStore {
         if (!(await selectPatient(tx, input.patientId))) return null;
         const row = await one(
           tx,
-          `insert into orbit_erp.encounters (patient_id, facility_id, department_id, attending_doctor_id, encounter_type, started_at)
-           values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, coalesce($6::timestamptz, now()))
+          `insert into orbit_erp.encounters (patient_id, facility_id, department_id, attending_doctor_id, encounter_type, started_at, presenting_condition_id)
+           values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, coalesce($6::timestamptz, now()), $7::uuid)
            returning id::text as id`,
           [
             input.patientId,
@@ -1019,6 +1026,7 @@ export function createDbErpStore(db: Database): ErpStore {
             input.attendingDoctorId ?? null,
             input.encounterType,
             input.startedAt ?? null,
+            input.presentingConditionId ?? null,
           ],
         );
         const id = String(row?.['id']);
@@ -1066,10 +1074,14 @@ export function createDbErpStore(db: Database): ErpStore {
              status = coalesce($3, e.status),
              ended_at = case when $3::text is null then e.ended_at else coalesce($4::timestamptz, now()) end,
              attending_doctor_id = case when $5::boolean then $6::uuid else e.attending_doctor_id end,
+             presenting_condition_id = case when $7::boolean then $8::uuid else e.presenting_condition_id end,
              version = e.version + 1,
              updated_at = now()
            where e.id = $1::uuid and e.version = $2::int`,
-          [encounterId, input.version, input.status ?? null, input.endedAt ?? null, doctorGiven, input.attendingDoctorId ?? null],
+          [
+            encounterId, input.version, input.status ?? null, input.endedAt ?? null, doctorGiven, input.attendingDoctorId ?? null,
+            input.presentingConditionId !== undefined, input.presentingConditionId ?? null,
+          ],
         );
         await audit(tx, 'updated', 'encounter', encounterId, requestId);
         return { status: 'ok', row: await selectEncounter(tx, encounterId) };

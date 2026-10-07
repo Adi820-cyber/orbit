@@ -118,6 +118,8 @@ export const encounterRow = (overrides: Record<string, unknown> = {}) => ({
   status: 'open',
   startedAt: NOW,
   endedAt: null,
+  presentingConditionId: null,
+  presentingConditionName: null,
   version: 1,
   ...overrides,
 });
@@ -206,6 +208,7 @@ export function recordingErpStore(overrides: Partial<ErpStore> = {}) {
       departments: [{ departmentId: DEPARTMENT_ID, code: 'OPD', name: 'Outpatients' }],
       specialties: [],
       shiftTemplates: [],
+      conditions: [],
       settings: null,
     }),
     facility: async (_operator, facilityId) =>

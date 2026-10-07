@@ -23,6 +23,7 @@ import {
   MeResponseSchema,
   OperationsResponseSchema,
   RevenueFeedResponseSchema,
+  SurveillanceResponseSchema,
   PermittedAssigneesResponseSchema,
   TransitionActionRequestSchema,
   type AskRequest,
@@ -227,6 +228,7 @@ export function createApiClient(transport: ApiTransport) {
         { method: "GET", path: "/api/revenue", ...(days ? { query: new URLSearchParams({ days: String(days) }) } : {}) },
         RevenueFeedResponseSchema,
       ),
+    surveillance: () => call({ method: "GET", path: "/api/surveillance" }, SurveillanceResponseSchema),
     entities: () => call({ method: "GET", path: "/api/entities" }, EntityDirectoryResponseSchema),
     askPrompts: () => call({ method: "GET", path: "/api/ask/prompts" }, AskPromptsResponseSchema),
     askQuestion: async (question: string) =>

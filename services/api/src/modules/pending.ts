@@ -61,6 +61,11 @@ export function pendingModuleDeps(): ModuleDeps {
       snapshot: async () => pending('operations_store'),
       daily: async () => pending('operations_store'),
     },
+    surveillance: {
+      feed: async () => pending('surveillance_store'),
+      hospitals: async () => pending('surveillance_store'),
+      run: async () => pending('surveillance_store'),
+    },
     revenue: {
       summary: async () => pending('revenue_store'),
       daily: async () => pending('revenue_store'),

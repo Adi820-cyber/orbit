@@ -52,6 +52,10 @@ export const DEPT = {
   LAB: 'd0000000-0000-4000-8000-000000000004',
 } as const;
 const SPECIALTY = 'e0000000-0000-4000-8000-000000000001';
+export const CONDITIONS = [
+  { conditionId: 'f1000000-0000-4000-8000-000000000001', code: 'VIRAL-FEVER', name: 'Viral Fever', category: 'Infectious' },
+  { conditionId: 'f1000000-0000-4000-8000-000000000002', code: 'HYPERTENSION', name: 'Hypertension', category: 'Cardiac' },
+] as const;
 
 type StaffType = 'doctor' | 'nurse' | 'technician' | 'administrative' | 'support';
 
@@ -101,6 +105,7 @@ interface StoredEncounter {
   startedAt: string;
   endedAt: string | null;
   version: number;
+  conditionId?: string | null;
 }
 
 /** A bill, in the shape the simulator reads (ADR 0022). */
@@ -268,6 +273,7 @@ export class FakeErp implements ErpApi {
       ],
       specialties: [{ specialtyId: SPECIALTY, code: 'GEN', name: 'General medicine' }],
       shiftTemplates: [...SHIFTS],
+      conditions: [...CONDITIONS],
       settings: { lateGraceMinutes: 10, earlyExitGraceMinutes: 10, punchWindowBeforeMinutes: 120, punchWindowAfterMinutes: 240, credentialWarningDays: 30, timeZone: 'UTC', version: 1 },
       ...disclosure,
     };
@@ -471,10 +477,10 @@ export class FakeErp implements ErpApi {
   }
 
   private encounterOut(e: StoredEncounter): Out<typeof EncounterResponseSchema>['encounter'] {
-    return { encounterId: e.encounterId, patientId: e.patientId, facilityId: e.facilityId, departmentId: e.departmentId, attendingDoctorId: e.doctorId, attendingDoctorName: null, encounterType: e.type, status: e.status, startedAt: e.startedAt, endedAt: e.endedAt, version: e.version };
+    return { encounterId: e.encounterId, patientId: e.patientId, facilityId: e.facilityId, departmentId: e.departmentId, attendingDoctorId: e.doctorId, attendingDoctorName: null, encounterType: e.type, status: e.status, startedAt: e.startedAt, endedAt: e.endedAt, presentingConditionId: e.conditionId ?? null, presentingConditionName: CONDITIONS.find((c) => c.conditionId === e.conditionId)?.name ?? null, version: e.version };
   }
 
-  async openEncounter(body: { patientId: string; facilityId: string; departmentId: string; encounterType: StoredEncounter['type']; attendingDoctorId?: string | undefined }): Promise<Out<typeof EncounterResponseSchema>> {
+  async openEncounter(body: { patientId: string; facilityId: string; departmentId: string; encounterType: StoredEncounter['type']; attendingDoctorId?: string | undefined; presentingConditionId?: string | undefined }): Promise<Out<typeof EncounterResponseSchema>> {
     this.log('openEncounter', body);
     const stored: StoredEncounter = {
       encounterId: randomUUID(),
@@ -487,6 +493,7 @@ export class FakeErp implements ErpApi {
       startedAt: this.clock.now().toISOString(),
       endedAt: null,
       version: 1,
+      conditionId: body.presentingConditionId ?? null,
     };
     this.db.encounterRecords.push(stored);
     return { encounter: this.encounterOut(stored), ...disclosure };

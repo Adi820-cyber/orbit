@@ -330,6 +330,11 @@ export function createModuleFixture(overrides: Partial<ModuleDeps> = {}): Module
       snapshot: async () => [],
       daily: async () => [],
     },
+    surveillance: {
+      feed: async () => [],
+      hospitals: async () => [],
+      run: async () => null,
+    },
     revenue: {
       summary: async () => [],
       daily: async () => [],
