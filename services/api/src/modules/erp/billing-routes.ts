@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import {
   BillListQuerySchema,
   BillListResponseSchema,
+  BillableVisitListResponseSchema,
+  BillableVisitQuerySchema,
   BillParamsSchema,
   BillResponseSchema,
   CancelBillRequestSchema,
@@ -70,6 +72,23 @@ export function registerErpBillingRoutes(api: FastifyInstance, deps: ModuleDeps)
       BillListResponseSchema,
       { items, page: { page: query.page, pageSize: query.pageSize, total }, currency },
       'erp_bill_failed_contract',
+    );
+  });
+
+  // New bill: closed visits with services still to bill. A hospital account sees its
+  // own hospital; an admin one hospital, or every one.
+  api.get('/erp/bills/ready', async (request) => {
+    const operator = operatorOf(request);
+    const query = parseInput(BillableVisitQuerySchema, request.query);
+    const facilityId = isAdmin(operator)
+      ? ((await facilityFilter(store, operator, query.facilityId)) ?? null)
+      : await resolveFacility(store, operator, query.facilityId);
+    const { items, total } = await store.billableVisits(operator, { ...query, facilityId: facilityId ?? undefined });
+    const currency = await store.currency(operator);
+    return respond(
+      BillableVisitListResponseSchema,
+      { items, page: { page: query.page, pageSize: query.pageSize, total }, days: query.days, currency },
+      'erp_billable_failed_contract',
     );
   });
 

@@ -196,6 +196,43 @@ export function createBillingMethods(run: Run): BillingStore {
         ).then((rows) => ({ items: rows.items.map(summary), total: rows.total }));
       }),
 
+    billableVisits: (operator, query) =>
+      run(operator, (tx) => {
+        // Starts from recently closed visits (indexed by facility, status, start), so
+        // the thousands of closed historical visits are never aggregated.
+        const filtered = `
+          from orbit_erp.encounters e
+          join lateral (
+            select count(*)::int as items,
+                   sum(sd.quantity * fs.illustrative_tariff) as amount,
+                   coalesce(array_agg(distinct sv.name order by sv.name) filter (where fs.illustrative_tariff is null), '{}') as unpriced
+            from orbit_erp.service_deliveries sd
+            join orbit_erp.services sv on sv.id = sd.service_id
+            left join orbit_erp.facility_services fs on fs.facility_id = sd.facility_id and fs.service_id = sd.service_id
+            where sd.encounter_id = e.id and sd.status = 'completed'
+              and not exists (
+                select 1 from orbit_erp.bill_lines bl join orbit_erp.bills b on b.id = bl.bill_id
+                where bl.service_delivery_id = sd.id and b.status = 'issued'
+              )
+          ) u on u.items > 0
+          where e.status = 'closed'
+            and e.ended_at >= now() - make_interval(days => $1::int)
+            and ($2::uuid is null or e.facility_id = $2::uuid)`;
+        return page(
+          tx,
+          `select count(*)::int as total ${filtered}`,
+          `select e.id::text as "encounterId", e.facility_id::text as "facilityId", e.patient_id::text as "patientId",
+                  coalesce(p.display_name, 'Not visible') as "patientName", coalesce(p.mrn, 'Not visible') as "mrn",
+                  e.encounter_type as "encounterType", ${iso('e.ended_at')} as "endedAt", u.items,
+                  case when cardinality(u.unpriced) > 0 then null else round(u.amount, 2)::float8 end as amount,
+                  u.unpriced as "unpricedServices"
+           ${filtered.replace('from orbit_erp.encounters e', 'from orbit_erp.encounters e left join orbit_erp.patients p on p.id = e.patient_id')}
+           order by e.ended_at desc, e.id limit $3 offset $4`,
+          [query.days, query.facilityId ?? null],
+          query,
+        );
+      }),
+
     getBill: (operator, billId, requestId) =>
       run(operator, async (tx) => {
         const bill = await selectBillDetail(tx, billId);

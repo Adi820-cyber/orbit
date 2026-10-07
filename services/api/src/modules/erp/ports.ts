@@ -1,6 +1,7 @@
 import type {
   AddScheduleSlotRequest,
   BillListQuery,
+  BillableVisitQuery,
   CancelBillRequest,
   RecordPaymentRequest,
   SetCoverageRequest,
@@ -84,6 +85,8 @@ export interface BillingStore {
   /** null when the visit is not visible. */
   issueBill(operator: OperatorClaims, encounterId: string, idempotencyKey: string, requestId: string): Promise<{ bill: unknown; replayed: boolean } | null>;
   listBills(operator: OperatorClaims, query: BillListQuery): Promise<ErpPageRows>;
+  /** Closed visits (within `days`) with completed services not yet on a standing bill, newest first. */
+  billableVisits(operator: OperatorClaims, query: BillableVisitQuery): Promise<ErpPageRows>;
   getBill(operator: OperatorClaims, billId: string, requestId: string): Promise<unknown>;
   /** null when the bill is not visible. */
   recordPayment(operator: OperatorClaims, billId: string, input: RecordPaymentRequest, requestId: string): Promise<{ bill: unknown; replayed: boolean } | null>;
