@@ -10,7 +10,7 @@ import {
   useRevalidator,
   type LoaderFunctionArgs,
 } from "react-router";
-import { seesOperations, seesRevenue, type RoleId } from "@orbit/contracts";
+import { seesOperations, seesRevenue, seesSurveillance, type RoleId } from "@orbit/contracts";
 import { OrbitBrand } from "@orbit/ui-kit";
 import { ApiRequestError } from "../../lib/api";
 import { onSessionEnded } from "../../lib/auth";
@@ -32,13 +32,14 @@ import {
 import { RoleViewUnavailableError } from "./states";
 import "./workspace.css";
 
-const SURFACES: readonly { path: string; label: string; short: string; icon: IconName; operationsOnly?: true; revenueOnly?: true }[] = [
+const SURFACES: readonly { path: string; label: string; short: string; icon: IconName; operationsOnly?: true; revenueOnly?: true; surveillanceOnly?: true }[] = [
   { path: "/", label: "Morning brief", short: "Brief", icon: "brief" },
   { path: "/inbox", label: "Priority inbox", short: "Inbox", icon: "inbox" },
   { path: "/explorer", label: "KPI explorer", short: "Explorer", icon: "explorer" },
   { path: "/actions", label: "Actions", short: "Actions", icon: "actions" },
   { path: "/operations", label: "Hospital operations", short: "Operations", icon: "operations", operationsOnly: true },
   { path: "/revenue", label: "Hospital revenue", short: "Revenue", icon: "revenue", revenueOnly: true },
+  { path: "/outbreak-watch", label: "Outbreak watch", short: "Outbreaks", icon: "outbreak", surveillanceOnly: true },
   { path: "/audit", label: "Audit", short: "Audit", icon: "audit" },
 ];
 
@@ -68,7 +69,12 @@ export function workspaceLoader(environment: WorkspaceEnvironment) {
 function Navigation({ environment, role, compact }: { environment: WorkspaceEnvironment; role: RoleId; compact: boolean }) {
   return (
     <nav className="workspace-nav" aria-label={compact ? "Orbit workspace, compact" : "Orbit workspace"}>
-      {SURFACES.filter((surface) => (!surface.operationsOnly || seesOperations(role)) && (!surface.revenueOnly || seesRevenue(role))).map((surface) => (
+      {SURFACES.filter(
+        (surface) =>
+          (!surface.operationsOnly || seesOperations(role)) &&
+          (!surface.revenueOnly || seesRevenue(role)) &&
+          (!surface.surveillanceOnly || seesSurveillance(role)),
+      ).map((surface) => (
         <NavLink key={surface.path} end={surface.path === "/"} to={workspacePath(environment.basePath, surface.path)}>
           <Icon name={surface.icon} />
           <span>{compact ? surface.short : surface.label}</span>

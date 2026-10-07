@@ -61,6 +61,7 @@ export interface ReferenceRows {
   departments: readonly unknown[];
   specialties: readonly unknown[];
   shiftTemplates: readonly unknown[];
+  conditions: readonly unknown[];
   settings: unknown;
 }
 

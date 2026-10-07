@@ -1,7 +1,7 @@
 {
   "generatedBy": "packages/data-gen/scripts/load-reference-datasets.ts",
   "provenance": "illustrative",
-  "checksum": "30166999991165de1a69b5e479670bd67839b1efb25a9fab5fb91ddfdacc7129",
+  "checksum": "afa3dd658c6e2abc6edbc909f7d5685c02abf99fda8cd99401ab58dfc0677a8e",
   "historyEnd": "2026-09-30",
   "hospitalShiftDays": 259,
   "clinicShiftDays": 1001,
@@ -13,7 +13,9 @@
     "deliveries": 118157,
     "availability": 75,
     "knowledgeChunks": 57,
-    "pricedServices": 11
+    "pricedServices": 11,
+    "conditions": 20,
+    "admissionsWithCondition": 43628
   },
   "excluded": {
     "admission before the patient's birth year": 1372,

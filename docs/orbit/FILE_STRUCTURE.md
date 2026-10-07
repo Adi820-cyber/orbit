@@ -54,6 +54,7 @@ orbit/
           operations/           # leaders' live hospital-operations page (ADR 0018)
           erp/                  # hospital operations app, operator accounts only (ADR 0016); billing.tsx = bills, payments, revenue (ADR 0022)
           revenue/              # leaders' hospital revenue page (ADR 0022)
+          surveillance/         # leaders' outbreak watch page (ADR 0023)
           chatbot/              # the Assistant's typed-question action: knowledge search, Ask fallback (ADRs 0019, 0021)
         roles/                  # one folder per role — view config only, not per-role apps
           chairman/  clinical-director/  regional-coo/  hospital-dho/
@@ -70,6 +71,7 @@ orbit/
         modules/
           brief/  inbox/  kpi/  ask/  actions/  audit/
           erp/  operations/  chatbot/  revenue/   # ADR 0016, 0018, 0019, 0022 (erp/billing-routes.ts)
+          surveillance/         # GET /api/surveillance, the outbreak watch (ADR 0023)
         knowledge/              # knowledge sync job (ADR 0019)
         knowledge-sync.ts       # its entry point: npm run knowledge:sync
         db/
@@ -80,6 +82,8 @@ orbit/
     ui-kit/                     # [Ayas] Recharts is imported ONLY here
     kpi-framework/              # [Maruti] generated from the workbook, never hand-edited
     data-gen/                   # [Maruti] deterministic generator + invariant checks
+  tools/
+    forecast/                   # [Ghansham] Python XGBoost outbreak forecast, run daily by .github/workflows/forecast.yml (ADR 0023)
   render.yaml                   # [Ghansham] Render Blueprint: simulator worker + knowledge sync cron
   supabase/
     migrations/                 # [Maruti] grants + RLS in the same migration as each table

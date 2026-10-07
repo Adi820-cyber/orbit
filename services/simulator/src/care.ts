@@ -219,6 +219,8 @@ async function receiveArrivals(ctx: Ctx, state: SimState, facility: FacilityRef,
     const department = ctx.ref.departments.find((item) => item.code === wantedDepartment) ?? ctx.ref.departments[0];
     if (!department) continue;
     const doctor = onDutyDoctors.length > 0 ? rand.pick(onDutyDoctors) : undefined;
+    // A presenting condition, evenly from the list (the reference dataset's diseases are evenly spread).
+    const condition = ctx.ref.conditions.length > 0 ? rand.pick(ctx.ref.conditions) : undefined;
 
     const opened = await write(ctx, 'open visit', () =>
       desk.api.openEncounter({
@@ -227,6 +229,7 @@ async function receiveArrivals(ctx: Ctx, state: SimState, facility: FacilityRef,
         departmentId: department.departmentId,
         encounterType: type,
         ...(doctor ? { attendingDoctorId: doctor.staffId } : {}),
+        ...(condition ? { presentingConditionId: condition.conditionId } : {}),
       }),
     );
     if (opened.status === 'ok') {
@@ -237,9 +240,46 @@ async function receiveArrivals(ctx: Ctx, state: SimState, facility: FacilityRef,
   }
 }
 
+/**
+ * A staged outbreak (ADR 0023), only when configured: extra outpatient visits
+ * with one condition at every hospital, so the outbreak watch can be shown.
+ * Each arrival is a new patient; the visits then run like any other.
+ */
+async function receiveOutbreak(ctx: Ctx, facility: FacilityRef): Promise<void> {
+  const outbreak = ctx.cfg.outbreak;
+  if (!outbreak) return;
+  const condition = ctx.ref.conditions.find((item) => item.code === outbreak.conditionCode);
+  const department = ctx.ref.departments.find((item) => item.code === departmentCodeFor('outpatient')) ?? ctx.ref.departments[0];
+  if (!condition || !department) return;
+  const bucket = String(Math.floor(ctx.clock.now().getTime() / (ctx.cfg.tickSeconds * 1000)));
+  const mean = (outbreak.perHospitalPerDay * ctx.cfg.tickSeconds) / 86_400;
+  const arrivals = Math.min(MAX_ARRIVALS_PER_TICK, rngFor(ctx.cfg.seed, 'outbreak', facility.facilityId, bucket).poisson(mean));
+  const desk = ctx.deskFor(facility);
+  const parts = localParts(ctx.clock.now(), ctx.timeZone);
+  for (let index = 0; index < arrivals; index += 1) {
+    const rand = rngFor(ctx.cfg.seed, 'outbreak-arrival', facility.facilityId, bucket, String(index));
+    const registered = await write(ctx, 'register patient', () =>
+      desk.api.registerPatient({ homeFacilityId: facility.facilityId, ...patientProfile(rand, Number(parts.date.slice(0, 4))), confirmNotDuplicate: true }),
+    );
+    if (registered.status !== 'ok') continue;
+    ctx.stats.patients += 1;
+    const opened = await write(ctx, 'open visit', () =>
+      desk.api.openEncounter({
+        patientId: registered.value.patient.patientId,
+        facilityId: facility.facilityId,
+        departmentId: department.departmentId,
+        encounterType: 'outpatient',
+        presentingConditionId: condition.conditionId,
+      }),
+    );
+    if (opened.status === 'ok') ctx.stats.visits += 1;
+  }
+}
+
 export async function runCare(ctx: Ctx, state: SimState, facility: FacilityRef, boards: Boards): Promise<void> {
   const open = await openVisits(ctx, facility);
   if (!open) return;
   await progressVisits(ctx, state, facility, boards, open);
   await receiveArrivals(ctx, state, facility, boards, open);
+  await receiveOutbreak(ctx, facility);
 }

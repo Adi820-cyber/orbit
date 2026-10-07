@@ -458,6 +458,37 @@ describe('visits', () => {
     const quiet = await patients(0.4);
     expect(busy).toBeGreaterThan(quiet);
   });
+
+  it('records a presenting condition from the fixed list on every new visit', async () => {
+    const w = world({ SIM_VISITS_PER_STAFF_PER_DAY: '5', SIM_TICK_SECONDS: '600', SIM_MAX_WRITES_PER_TICK: '200' }, { start: `${DATE}T10:00:00Z` });
+    const doctor = w.admin.addStaff(A, 'doctor', 'Doctor');
+    await putOnDuty(w, doctor, SHIFT_GENERAL);
+    for (let index = 0; index < 40; index += 1) w.admin.addStaff(A, 'support', `Support ${index}`);
+    for (const category of ALL_CATEGORIES) w.admin.addService(`SVC-${category}`, category);
+    for (let tick = 0; tick < 12; tick += 1) {
+      await w.sim.tick();
+      w.advance(600_000);
+    }
+    const known = new Set((await w.admin.reference()).conditions.map((condition) => condition.conditionId));
+    expect(w.admin.encounterRecords.length).toBeGreaterThan(0);
+    expect(w.admin.encounterRecords.every((visit) => typeof visit.conditionId === 'string' && known.has(visit.conditionId))).toBe(true);
+  });
+
+  it('stages an outbreak only when configured: extra outpatient visits with that one condition', async () => {
+    const outbreakVisits = async (env: Record<string, string>) => {
+      const w = world({ SIM_TICK_SECONDS: '600', SIM_MAX_WRITES_PER_TICK: '200', ...env }, { start: `${DATE}T10:00:00Z` });
+      for (let tick = 0; tick < 24; tick += 1) {
+        await w.sim.tick();
+        w.advance(600_000);
+      }
+      const fever = (await w.admin.reference()).conditions.find((condition) => condition.code === 'VIRAL-FEVER');
+      return w.admin.encounterRecords.filter((visit) => visit.conditionId === fever?.conditionId && visit.type === 'outpatient').length;
+    };
+    expect(await outbreakVisits({})).toBe(0);
+    expect(await outbreakVisits({ SIM_OUTBREAK_CONDITION: 'VIRAL-FEVER', SIM_OUTBREAK_PER_HOSPITAL_PER_DAY: '48' })).toBeGreaterThan(3);
+    // A code that is not on the list stages nothing rather than inventing a condition.
+    expect(await outbreakVisits({ SIM_OUTBREAK_CONDITION: 'NOT-A-CONDITION' })).toBe(0);
+  });
 });
 
 describe('billing', () => {

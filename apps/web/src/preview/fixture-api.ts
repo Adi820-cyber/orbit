@@ -9,6 +9,7 @@ import {
   PageQuerySchema,
   seesOperations,
   seesRevenue,
+  seesSurveillance,
   TransitionActionRequestSchema,
   type Action,
   type ActionEvent,
@@ -1465,6 +1466,23 @@ export function createFixtureApi(options: FixtureApiOptions = {}) {
       return {
         status: 200,
         body: { days: 30, currency: "INR", asOf: new Date().toISOString(), totals: zero, hospitals: [], provenance: "illustrative", disclosure: PREVIEW_DISCLOSURE },
+      };
+    }
+
+    // Presenting conditions live in the ERP, which the preview does not model: an honest empty watch, no invented counts.
+    if (method === "GET" && resource === "surveillance" && !id) {
+      if (!seesSurveillance(membership.role)) throw new FixtureError("forbidden", "Your role does not include the outbreak watch.");
+      return {
+        status: 200,
+        body: {
+          asOf: new Date().toISOString(),
+          rule: { windowDays: 7, minPatients: 50, minHospitals: 5 },
+          forecastRun: null,
+          conditions: [],
+          limitations: ["The preview does not model hospital visits, so no condition is counted here."],
+          provenance: "illustrative",
+          disclosure: PREVIEW_DISCLOSURE,
+        },
       };
     }
 

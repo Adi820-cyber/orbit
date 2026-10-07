@@ -1,0 +1,4 @@
+# Outbreak-watch forecast (ADR 0023). Pinned; checked on PyPI 2026-10-07.
+xgboost==3.4.1
+numpy==2.5.3
+psycopg[binary]==3.3.6

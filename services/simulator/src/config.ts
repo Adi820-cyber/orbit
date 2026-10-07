@@ -45,6 +45,11 @@ export interface SimConfig {
   visitsPerStaffPerDay: number;
   rates: SimRates;
   maxOpenInpatients: number;
+  /**
+   * A staged outbreak for demonstrations (ADR 0023), off unless set: extra
+   * patients with this condition (its code) arrive at every hospital.
+   */
+  outbreak: { conditionCode: string; perHospitalPerDay: number } | null;
   rosterDaysAhead: number;
   maxWritesPerTick: number;
   /** Reads and plans but writes nothing. */
@@ -93,6 +98,8 @@ const EnvSchema = z.object({
   SIM_MISSING_OUT_RATE: number(0, 0.5, 0.03),
   SIM_EARLY_EXIT_RATE: number(0, 0.5, 0.02),
   SIM_MAX_OPEN_INPATIENTS: number(0, 500, 25),
+  SIM_OUTBREAK_CONDITION: optional(z.string().regex(/^[A-Z0-9-]{2,24}$/, 'a condition code, e.g. VIRAL-FEVER')),
+  SIM_OUTBREAK_PER_HOSPITAL_PER_DAY: number(1, 50, 12),
   SIM_ROSTER_DAYS_AHEAD: number(1, 60, 14),
   SIM_MAX_WRITES_PER_TICK: number(1, 1000, 60),
   SIM_PAUSED: boolean(false),
@@ -191,6 +198,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       earlyExit: vars.SIM_EARLY_EXIT_RATE,
     },
     maxOpenInpatients: vars.SIM_MAX_OPEN_INPATIENTS,
+    outbreak: vars.SIM_OUTBREAK_CONDITION
+      ? { conditionCode: vars.SIM_OUTBREAK_CONDITION, perHospitalPerDay: vars.SIM_OUTBREAK_PER_HOSPITAL_PER_DAY }
+      : null,
     rosterDaysAhead: vars.SIM_ROSTER_DAYS_AHEAD,
     maxWritesPerTick: vars.SIM_MAX_WRITES_PER_TICK,
     paused: vars.SIM_PAUSED,

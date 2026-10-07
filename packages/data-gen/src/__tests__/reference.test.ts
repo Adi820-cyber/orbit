@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildReference,
+  conditionCode,
+  deriveConditions,
   derivePrices,
   HISTORY_END,
   parseCsv,
@@ -214,5 +216,29 @@ describe("derivePrices", () => {
     for (const code of ["CON-GEN", "CON-SPEC", "EMR-TRIAGE", "CARD-ECG", "CARD-ANGIO", "ONCO-DAY", "REHAB-SESS"]) {
       expect(codes).not.toContain(code);
     }
+  });
+});
+
+describe("conditions", () => {
+  it("makes short, valid codes from disease names", () => {
+    expect(conditionCode("COVID-19")).toBe("COVID-19");
+    expect(conditionCode("Viral Fever")).toBe("VIRAL-FEVER");
+    expect(conditionCode("Chronic Obstructive Pulmonary Disease")).toMatch(/^[A-Z0-9-]{2,24}$/);
+    expect(conditionCode("Chronic Obstructive Pulmonary Disease").endsWith("-")).toBe(false);
+  });
+
+  it("lists the dataset's diseases once each, with their category", () => {
+    const conditions = deriveConditions(hospital());
+    expect(conditions.length).toBeGreaterThan(0);
+    expect(new Set(conditions.map((c) => c.code)).size).toBe(conditions.length);
+    for (const condition of conditions) expect(condition.category.length).toBeGreaterThan(0);
+  });
+
+  it("gives each loaded admission its recorded disease as presenting condition", () => {
+    const tables = hospital();
+    const names = new Set(tables.disease.map((d) => d.disease_name));
+    const admissions = buildReference(tables, clinic()).encounters.filter((e) => e.type === "inpatient");
+    expect(admissions.length).toBeGreaterThan(0);
+    for (const admission of admissions) expect(names.has(admission.conditionName)).toBe(true);
   });
 });

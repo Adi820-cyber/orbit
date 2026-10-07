@@ -70,6 +70,10 @@ jobs:
           SIM_TICK_SECONDS: '600'
           # ...and a ten-minute run makes more writes than a one-minute tick.
           SIM_MAX_WRITES_PER_TICK: '150'
+          # A staged outbreak for demonstrations (ADR 0023): set the repository *variable*
+          # SIM_OUTBREAK_CONDITION to a condition code (e.g. VIRAL-FEVER) to start one, delete it to stop.
+          SIM_OUTBREAK_CONDITION: ${{ vars.SIM_OUTBREAK_CONDITION }}
+          SIM_OUTBREAK_PER_HOSPITAL_PER_DAY: ${{ vars.SIM_OUTBREAK_PER_HOSPITAL_PER_DAY }}
 
       - name: Knowledge sync
         if: env.HAS_KNOWLEDGE == 'true' && !cancelled()

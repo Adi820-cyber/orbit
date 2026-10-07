@@ -19,6 +19,7 @@
  *   supabase/seed/local/reference/0205_services.sql    services delivered
  *   supabase/seed/local/reference/0206_knowledge.sql   chatbot knowledge (summaries only)
  *   supabase/seed/local/reference/0207_prices.sql      service prices derived from the dataset (ADR 0022)
+ *   supabase/seed/local/reference/0208_conditions.sql  presenting conditions, and each loaded admission's (ADR 0023)
  * and, committed, counts only:
  *   data/snapshots/reference-manifest.json
  *
@@ -32,6 +33,7 @@ import { stableUuid } from "../src/erp.ts";
 import {
   buildReference,
   checksumOf,
+  deriveConditions,
   derivePrices,
   CLINIC_TABLES,
   HOSPITAL_TABLES,
@@ -258,6 +260,41 @@ const prices = [
 ];
 result.manifest.counts["pricedServices"] = derivedPrices.length;
 
+// Conditions: the dataset's diseases as the fixed list, then each loaded
+// admission's recorded disease as its presenting condition (only where none is
+// set yet). Counted only as aggregates by Orbit's outbreak watch.
+const derivedConditions = deriveConditions(hospital);
+const withCondition = result.encounters.filter((encounter) => encounter.conditionName);
+const conditions = [
+  ...header("Presenting conditions from the reference dataset's diseases, and each loaded admission's (ADR 0023)."),
+  ...valuesInsert(
+    derivedConditions,
+    "code, name, category",
+    (c) => [c.code, c.name, c.category],
+    (values) => `insert into orbit_erp.conditions (organization_id, code, name, category)
+select o.id, v.code, v.name, v.category
+from ${values}
+cross join orbit.organizations o
+where o.slug = 'kestrion'
+on conflict (organization_id, code) do nothing;`,
+  ),
+  ...valuesInsert(
+    withCondition,
+    "encounter_id, condition_name",
+    (e) => [e.id, e.conditionName ?? null],
+    (values) => `update orbit_erp.encounters e
+   set presenting_condition_id = c.id
+  from ${values}
+  join orbit_erp.conditions c on c.name = v.condition_name
+ where e.id = v.encounter_id::uuid
+   and c.organization_id = e.organization_id
+   and e.presenting_condition_id is null;`,
+  ),
+  ...footer,
+];
+result.manifest.counts["conditions"] = derivedConditions.length;
+result.manifest.counts["admissionsWithCondition"] = withCondition.length;
+
 mkdirSync(outDir, { recursive: true });
 const files: [string, string[]][] = [
   ["0201_catalogue.sql", catalogue],
@@ -267,6 +304,7 @@ const files: [string, string[]][] = [
   ["0205_services.sql", services],
   ["0206_knowledge.sql", knowledge],
   ["0207_prices.sql", prices],
+  ["0208_conditions.sql", conditions],
 ];
 for (const [name, lines] of files) writeFileSync(resolve(outDir, name), lines.join("\n"));
 
