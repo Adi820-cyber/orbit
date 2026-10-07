@@ -73,7 +73,7 @@ describe('ERP billing routes', () => {
     const body = BillableVisitListResponseSchema.parse(response.json());
     expect(body).toMatchObject({ days: 30, currency: 'INR' });
     expect(body.items[0]).toMatchObject({ encounterId: ENCOUNTER_ID, amount: 10010 });
-    expect((calls.find((entry) => entry.method === 'billableVisits')?.args[0] as { facilityId?: string }).facilityId).toBe(FACILITY_1);
+    expect(calls.find((entry) => entry.method === 'billableVisits')?.args[0]).toMatchObject({ facilityId: FACILITY_1 });
     expect((await call(hospital1, 'GET', '/api/erp/bills/ready?days=120')).statusCode).toBe(400);
     expect((await call(hospital1, 'GET', `/api/erp/bills/ready?facilityId=${FACILITY_2}`)).statusCode).toBe(403);
   });
